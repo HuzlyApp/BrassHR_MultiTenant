@@ -68,6 +68,15 @@ describe("job requisition validation", () => {
     });
   });
 
+  it("rejects commission percentage above 100 on the compensation step", () => {
+    expect(
+      validateJobCompensationFields({
+        ...validJob,
+        commissionPercent: 150,
+      }).commissionPercent
+    ).toMatch(/between 0 and 100/i);
+  });
+
   it("treats omitted optional fields as empty instead of required", () => {
     const result = jobMutationSchema.safeParse({
       action: "save_draft",

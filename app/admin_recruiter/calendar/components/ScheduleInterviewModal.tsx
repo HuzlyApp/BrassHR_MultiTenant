@@ -213,7 +213,8 @@ export function ScheduleInterviewModal({
   /** Load the applicant's open applications so the recruiter can pick the job to interview for. */
   useEffect(() => {
     if (!open || fixedApplicationId || initialValues?.applicationId) {
-      if (initialValues?.applicationId) setApplicationId(initialValues.applicationId);
+      if (fixedApplicationId) setApplicationId(fixedApplicationId);
+      else if (initialValues?.applicationId) setApplicationId(initialValues.applicationId);
       return;
     }
     setApplications([]);

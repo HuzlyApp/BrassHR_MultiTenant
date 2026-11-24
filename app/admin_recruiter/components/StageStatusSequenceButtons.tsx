@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
@@ -129,6 +129,8 @@ export function StageStatusSequenceButtons({
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [statusId, setStatusId] = useState<string | null>(null);
   const [statusName, setStatusName] = useState<string | null>(null);
+  /** Keeps the chip on the just-saved status until parent knownApplication catches up. */
+  const pendingSavedStatusRef = useRef<{ id: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<{
@@ -187,8 +189,21 @@ export function StageStatusSequenceButtons({
       const flows = Array.isArray(assignPayload.workflows) ? assignPayload.workflows : [];
       const nextWorkflowId = typeof application.workflow_id === "string" ? application.workflow_id : null;
       setOptions(nextOptions);
-      setStatusId(resolved.statusId);
-      setStatusName(resolved.statusName);
+      const pendingSaved = pendingSavedStatusRef.current;
+      if (pendingSaved) {
+        if (resolved.statusId === pendingSaved.id) {
+          pendingSavedStatusRef.current = null;
+          setStatusId(resolved.statusId);
+          setStatusName(resolved.statusName);
+        } else {
+          // Parent still has the pre-save status; keep the chip on the saved value.
+          setStatusId(pendingSaved.id);
+          setStatusName(pendingSaved.name);
+        }
+      } else {
+        setStatusId(resolved.statusId);
+        setStatusName(resolved.statusName);
+      }
       setWorkflowId(nextWorkflowId);
       const matchedFlow = flows.find(
         (row: { id?: unknown; name?: unknown }) => row.id === nextWorkflowId && typeof row.name === "string"
@@ -327,6 +342,7 @@ export function StageStatusSequenceButtons({
       if (lane === "closed" && onException) {
         const handled = await onException(option, note ?? "");
         if (handled) {
+          pendingSavedStatusRef.current = { id: option.id, name: option.name };
           setStatusId(option.id);
           setStatusName(option.name);
           onStatusChanged?.({ statusName: option.name, statusId: option.id });
@@ -350,6 +366,7 @@ export function StageStatusSequenceButtons({
       invalidateStaffDetailCache(`/api/admin/job-applications/${encodeURIComponent(applicationId)}`);
       const nextName = String(payload.application?.statusName ?? option.name);
       const nextId = String(payload.application?.statusId ?? option.id);
+      pendingSavedStatusRef.current = { id: nextId, name: nextName };
       setStatusId(nextId);
       setStatusName(nextName);
       toast.success(payload.unchanged ? "Status unchanged" : `Status updated to ${nextName}`);

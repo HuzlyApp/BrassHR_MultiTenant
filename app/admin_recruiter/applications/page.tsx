@@ -1325,15 +1325,11 @@ export default function JobApplicationsPage() {
   );
 
   function openAddCandidateModal() {
-    if (!jobId) {
-      if (jobOptions.length > 0) {
-        selectJob(jobOptions[0]);
-        setAddCandidateOpen(true);
-        return;
-      }
+    if (!jobId && jobOptions.length === 0) {
       toast.error("Please select a job first or create a job requisition.");
       return;
     }
+    // Keep job unbound when none selected so the modal shows the job picker.
     setAddCandidateOpen(true);
   }
 
@@ -2503,6 +2499,8 @@ export default function JobApplicationsPage() {
       toast.success("Candidate is already archived");
       return;
     }
+    const label = row.candidateName?.trim() || "this candidate";
+    if (!window.confirm(`Archive ${label}? They will move to the Archived list.`)) return;
     void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list", {
       switchToArchivedTab: true,
     });
@@ -3641,13 +3639,30 @@ export default function JobApplicationsPage() {
                     </td>
                   </tr>
                 ) : (
-                  displayRows.map((row) => (
+                  displayRows.map((row) => {
+                    const workerId = resolveApplicationWorkerId(row) || row.worker_id || row.id;
+                    const profileHref = candidateApplicantProfileHref(workerId, {
+                      from: "candidates",
+                    });
+                    return (
                     <tr
                       key={row.id}
-                      className="align-middle transition-colors hover:bg-[#F8FAFC]"
+                      className="align-middle transition-colors hover:bg-[#F8FAFC] cursor-pointer"
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement | null;
+                        if (
+                          target?.closest(
+                            "a,button,input,select,textarea,label,[role='menu'],[role='menuitem'],[data-row-no-nav]"
+                          )
+                        ) {
+                          return;
+                        }
+                        router.push(profileHref);
+                      }}
                     >
                       <td
                         className="px-4 py-3 text-center align-middle cursor-pointer"
+                        data-row-no-nav
                         onClick={(event) => {
                           event.stopPropagation();
                           toggleSelect(row.id);
@@ -3668,7 +3683,8 @@ export default function JobApplicationsPage() {
                         </td>
                       ))}
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -4034,6 +4050,10 @@ export default function JobApplicationsPage() {
         jobId={jobId}
         jobTitle={jobTitle}
         jobLocation={jobLocation !== "—" ? jobLocation : null}
+        jobOptions={jobOptions.map((option) => ({
+          id: option.id,
+          title: option.public_title?.trim() || "Untitled job",
+        }))}
         onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
       />
 

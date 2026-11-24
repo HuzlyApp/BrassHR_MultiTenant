@@ -59,6 +59,16 @@ const legacyOnboardingRedirects = [
     destination: "/application/custom-step/:stepKey",
     permanent: true,
   },
+  {
+    source: "/admin_recruiter/new/applicants",
+    destination: "/admin_recruiter/applications",
+    permanent: false,
+  },
+  {
+    source: "/admin_recruiter/candidates/:workerId/hire-journey",
+    destination: "/admin_recruiter/new/pre-hire/:workerId",
+    permanent: false,
+  },
 ];
 
 /** CSP frame-ancestors for the public jobs board (WordPress / third-party iframes). */

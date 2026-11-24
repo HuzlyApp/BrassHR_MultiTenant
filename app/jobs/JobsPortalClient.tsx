@@ -225,7 +225,12 @@ export default function JobsPortalClient() {
       })
       .catch((loadError) => {
         if (controller.signal.aborted || (loadError instanceof DOMException && loadError.name === "AbortError")) return;
-        setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
+        const raw = loadError instanceof Error ? loadError.message : "Failed to load jobs";
+        setError(
+          /tenant not found/i.test(raw)
+            ? "Tenant not found. Check the employer link or tenant name and try again."
+            : raw
+        );
         setJobs([]);
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -302,8 +307,12 @@ export default function JobsPortalClient() {
   const hasActiveFilters = hasActiveJobsBoardFilters(boardState);
   const showMobileDetail = mobileDetailOpen && !isDesktop;
   const primaryHex = branding.primaryHex || "#0D9488";
+  const tenantMissing =
+    /tenant not found|no tenant|unknown tenant|open this page from your employer/i.test(error);
   const emptyDetailsMessage = error
-    ? "Jobs could not be loaded. Try again in a moment."
+    ? tenantMissing
+      ? error
+      : "Jobs could not be loaded. Try again in a moment."
     : boardState.location.trim()
       ? SERVICE_AREA_COPY.empty_city_search
     : hasActiveFilters
@@ -571,7 +580,11 @@ export default function JobsPortalClient() {
               companyName={companyName}
               tenantSlug={tenant}
               stacked={!isDesktop}
-              emptyMessage={!loading && jobs.length === 0 ? emptyDetailsMessage : undefined}
+              emptyMessage={
+                !loading && jobs.length === 0 && !tenantMissing
+                  ? emptyDetailsMessage
+                  : undefined
+              }
               onBack={closeMobileDetail}
               backButtonRef={(node) => {
                 backButtonRef.current = node;

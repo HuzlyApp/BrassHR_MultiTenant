@@ -568,6 +568,10 @@ export async function saveJobRequisition(
     screeningQuestions?: JobScreeningQuestionInput[];
   } & JobWorkflowAssignmentOptions
 ) {
+  // Form / mappings use tenant_professions ids; job_requisitions.profession_id
+  // stores professions ids. Keep the form id for workflow matching so save does
+  // not rematch against a different id space and drop a specific mapping.
+  const routingProfessionId = input.professionId?.trim() || null;
   input.professionId = await resolveProfessionIdForSave(supabase, tenantId, input);
 
   let existingJobForMatchInvalidation: Record<string, unknown> | null = null;
@@ -593,10 +597,14 @@ export async function saveJobRequisition(
     previousWorkflowId = existingJob?.workflow_id ? String(existingJob.workflow_id) : null;
   }
 
+  const workflowMatchInput: JobRequisitionInput = {
+    ...input,
+    professionId: routingProfessionId || input.professionId,
+  };
   const { match, assignmentMode, assignmentError } = await resolveJobWorkflowAssignment(
     supabase,
     tenantId,
-    input,
+    workflowMatchInput,
     options
   );
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
@@ -933,7 +941,8 @@ export async function transitionJobStatus(
   } else if (toStatus === "archived") {
     patch.archived_at = now;
     patch.closed_at = null;
-    patch.published_at = null;
+    // Keep original posted date so Date posted stays accurate after archive.
+    patch.published_at = existing.published_at ? String(existing.published_at) : null;
   }
 
   const { data, error } = await supabase
@@ -1090,7 +1099,9 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       row.commission_fixed_amount == null ? null : Number(row.commission_fixed_amount),
     payRateMin: row.pay_rate_min == null ? null : Number(row.pay_rate_min),
     payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
-    targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
+    targetStartDate: row.target_start_date
+      ? String(row.target_start_date).slice(0, 10)
+      : null,
     duration: row.duration ? String(row.duration) : null,
     shiftType: row.shift_type ? String(row.shift_type) : null,
     shiftDetails: row.shift_details ? String(row.shift_details) : null,
@@ -1110,7 +1121,9 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     qualifications: row.qualifications ? String(row.qualifications) : null,
     responsibilities: row.responsibilities ? String(row.responsibilities) : null,
     benefits: row.benefits ? String(row.benefits) : null,
-    applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
+    applicationDeadline: row.application_deadline
+      ? String(row.application_deadline).slice(0, 10)
+      : null,
     numberOfPositions:
       row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
     yearsOfExperience: row.years_of_experience
@@ -1538,7 +1551,7 @@ export async function listPublicJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)",
+      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)",
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
@@ -1581,7 +1594,7 @@ export async function getPublishedJobByToken(
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
+      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)

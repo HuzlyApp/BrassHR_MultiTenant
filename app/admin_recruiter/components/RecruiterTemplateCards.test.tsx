@@ -12,4 +12,19 @@ describe("archived document template actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete", exact: true }));
     expect(action).toHaveBeenCalledWith("delete");
   });
+
+  it("offers Move to another folder after Duplicate", () => {
+    const action = vi.fn();
+    const template = {
+      id: "template-b",
+      name: "Active template",
+      status: "active",
+      category: "offer_letter",
+      updated_at: "2026-11-24T00:00:00Z",
+    } as RecruiterTemplateListItem;
+    render(<TemplateCard template={template} onAction={action} />);
+    fireEvent.click(screen.getByRole("button", { name: "Template actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move to another folder" }));
+    expect(action).toHaveBeenCalledWith("move");
+  });
 });

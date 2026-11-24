@@ -1018,7 +1018,25 @@ export default function JobDetailsClient({ jobId }: Props) {
         open={importOpen}
         jobId={jobId}
         onClose={() => setImportOpen(false)}
-        onImported={() => {
+        onImported={(result) => {
+          const added = Number(result?.importedCount ?? 0);
+          if (added > 0) {
+            setPipelineSummary((current) => {
+              const base =
+                current ??
+                emptyJobPipelineSummary(
+                  String(job?.source_type ?? "")
+                    .trim()
+                    .toLowerCase() === "msp"
+                );
+              return {
+                ...base,
+                all: base.all + added,
+                intake: base.intake + added,
+              };
+            });
+          }
+          invalidateStaffDetailCache(`/api/admin/jobs/${encodeURIComponent(jobId)}`);
           void load({ silent: true });
         }}
       />

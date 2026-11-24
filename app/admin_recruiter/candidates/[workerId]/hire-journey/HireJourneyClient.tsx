@@ -107,6 +107,10 @@ export default function HireJourneyClient({
   const compact = layout === "tab";
   const [profile, setProfile] = useState<CandidateProfilePayload | null>(null);
   const [view, setView] = useState<CandidateWorkflowPhaseView | null>(null);
+  const [statusOverride, setStatusOverride] = useState<{
+    statusId: string;
+    statusName: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +146,14 @@ export default function HireJourneyClient({
       const profileResult = await profilePromise;
       if (profileResult?.ok) {
         setProfile(profileResult.payload);
+        const loadedStatusName = profileResult.payload.applications?.[0]?.statusName?.trim();
+        const loadedPhaseStatusId = phaseResult.payload.primaryApplication?.statusId?.trim();
+        setStatusOverride((current) => {
+          if (!current) return null;
+          if (loadedPhaseStatusId && loadedPhaseStatusId === current.statusId) return null;
+          if (loadedStatusName && loadedStatusName === current.statusName) return null;
+          return current;
+        });
       } else if (!silent) {
         setProfile(null);
       }
@@ -210,17 +222,55 @@ export default function HireJourneyClient({
     dispatchCandidatePipelineRefresh(workerId);
   }, [load, workerId]);
 
-  const sidebarProfile = useMemo(() => buildSidebarProfile(profile, view), [profile, view]);
+  const sidebarProfile = useMemo(() => {
+    const base = buildSidebarProfile(profile, view);
+    if (!statusOverride?.statusName) return base;
+    return { ...base, statusLabel: statusOverride.statusName };
+  }, [profile, view, statusOverride]);
   const phaseApplication = view?.primaryApplication ?? null;
   const primaryApplication = profile?.applications?.[0] ?? null;
-  const applicationId = primaryApplication?.id ?? phaseApplication?.id ?? null;
+  // Prefer hire-journey phase application (in-context job) over newest list row (BUG-189).
+  const applicationId = phaseApplication?.id ?? primaryApplication?.id ?? null;
   const knownApplication: KnownStageApplication | null = phaseApplication
     ? {
-        status_id: phaseApplication.statusId,
-        status: phaseApplication.status,
+        status_id: statusOverride?.statusId ?? phaseApplication.statusId,
+        status: statusOverride?.statusName ?? phaseApplication.status,
         workflow_id: phaseApplication.workflowId,
       }
     : null;
+
+  const handleStatusChanged = useCallback(
+    (next: { statusName: string; statusId: string }) => {
+      setStatusOverride({ statusId: next.statusId, statusName: next.statusName });
+      setProfile((current) => {
+        if (!current?.applications?.length) return current;
+        const [first, ...rest] = current.applications;
+        return {
+          ...current,
+          applications: [
+            {
+              ...first,
+              statusName: next.statusName,
+              status: next.statusName,
+            },
+            ...rest,
+          ],
+        };
+      });
+      setView((current) => {
+        if (!current?.primaryApplication) return current;
+        return {
+          ...current,
+          primaryApplication: {
+            ...current.primaryApplication,
+            statusId: next.statusId,
+            status: next.statusName,
+          },
+        };
+      });
+    },
+    []
+  );
   const postHireVisible = Boolean(view?.postHireVisible);
   const postHireBlock = view?.postHire ?? null;
   const workflowHasPostHire = view ? view.workflowHasPostHireSteps : true;
@@ -258,10 +308,11 @@ export default function HireJourneyClient({
           activationFailed={Boolean(view?.postHireActivationFailed)}
           applicationId={applicationId}
           jobTitle={primaryApplication?.jobTitle}
-          onRetry={() => void load({ bust: true })}
-          onScheduled={() => refreshJourney()}
-          onWorkflowChanged={() => refreshJourney()}
-        />
+        onRetry={() => void load({ bust: true })}
+        onScheduled={() => refreshJourney()}
+        onWorkflowChanged={() => refreshJourney()}
+        onStatusChanged={handleStatusChanged}
+      />
       )
     ) : (
       <HireStageBoard
@@ -281,6 +332,7 @@ export default function HireJourneyClient({
         onRetry={() => void load({ bust: true })}
         onScheduled={() => refreshJourney()}
         onWorkflowChanged={() => refreshJourney()}
+        onStatusChanged={handleStatusChanged}
         onRequestPostHireTab={openPostHireTab}
         onPostHireActivated={async () => {
           await refreshJourney();

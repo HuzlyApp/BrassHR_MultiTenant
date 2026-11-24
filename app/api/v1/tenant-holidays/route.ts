@@ -9,7 +9,12 @@ export async function GET(request: Request) {
     const context = await requireSchedulingContext(request);
     if (context instanceof NextResponse) return context;
     const parsed = holidayQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) {
+      return invalidSchedule(parsed.error, {
+        optional: ["date_from", "date_to", "page", "limit"],
+        example: "/api/v1/tenant-holidays?date_from=2026-11-01&date_to=2026-12-31",
+      });
+    }
     return NextResponse.json(await listTenantHolidays(context.supabase, context.tenantId, parsed.data),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return schedulingError(error); }
@@ -19,7 +24,12 @@ export async function POST(request: Request) {
     const context = await requireSchedulingContext(request);
     if (context instanceof NextResponse) return context;
     const parsed = holidaySchema.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) {
+      return invalidSchedule(parsed.error, {
+        required: ["name", "holiday_date", "is_paid"],
+        example: '{"name":"Thanksgiving","holiday_date":"2026-11-26","is_paid":true}',
+      });
+    }
     const { data, error } = await context.supabase.from("tenant_holidays").insert({ ...parsed.data, tenant_id: context.tenantId })
       .select("id,name,holiday_date,is_paid").single();
     if (error) throw error;

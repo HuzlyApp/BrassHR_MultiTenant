@@ -54,6 +54,8 @@ function useMenu() {
   return { open, setOpen, ref };
 }
 
+export type TemplateCardAction = "duplicate" | "move" | "archive" | "delete" | "signing-request";
+
 export function TemplateCard({
   template,
   busy,
@@ -63,7 +65,7 @@ export function TemplateCard({
   template: RecruiterTemplateListItem;
   busy?: boolean;
   showDefaultBadge?: boolean;
-  onAction: (action: "duplicate" | "archive" | "delete" | "signing-request") => void;
+  onAction: (action: TemplateCardAction) => void;
 }) {
   const menu = useMenu();
   const badgeLabel = showDefaultBadge && template.status === "active" ? "Default" : template.status;
@@ -98,7 +100,7 @@ export function TemplateCard({
               <MoreHorizontal className="h-4 w-4" />
             </button>
             {menu.open ? (
-              <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
                 <Link
                   href={`/admin_recruiter/template-builder/${template.id}`}
                   className="block px-3 py-2 text-sm text-[#344054] hover:bg-[#F9FAFB]"
@@ -122,6 +124,16 @@ export function TemplateCard({
                   }}
                 >
                   Duplicate
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-[#344054] hover:bg-[#F9FAFB]"
+                  onClick={() => {
+                    menu.setOpen(false);
+                    onAction("move");
+                  }}
+                >
+                  Move to another folder
                 </button>
                 {template.status === "active" ? (
                   <button

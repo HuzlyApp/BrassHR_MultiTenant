@@ -1,9 +1,61 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import RolePermissionsPanel from "./RolePermissionsPanel";
+import RolePermissionsPanel, { visualForRole } from "./RolePermissionsPanel";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe("visualForRole user type", () => {
+  it("keeps Admin only for admin roles", () => {
+    expect(
+      visualForRole({
+        roleKey: "admin",
+        label: "Admin",
+        description: "",
+        isSystem: true,
+        isAdmin: true,
+        userCount: 1,
+        permissions: [],
+      }).typeLabel
+    ).toBe("Admin");
+  });
+
+  it("does not label a Hiring-only custom role as Admin", () => {
+    const visual = visualForRole(
+      {
+        roleKey: "qa_test_role",
+        label: "QA-TEST Role",
+        description: "",
+        isSystem: false,
+        isAdmin: false,
+        userCount: 0,
+        permissions: [
+          { resourceKey: "hiring", canView: true, canEdit: true, canDelete: true },
+        ],
+      },
+      0
+    );
+    expect(visual.typeLabel).not.toBe("Admin");
+    expect(visual.typeLabel).toBe("Recruitment");
+  });
+
+  it("uses Custom for non-admin roles without known grants", () => {
+    expect(
+      visualForRole(
+        {
+          roleKey: "odd_role",
+          label: "Odd Role",
+          description: "",
+          isSystem: false,
+          isAdmin: false,
+          userCount: 0,
+          permissions: [],
+        },
+        0
+      ).typeLabel
+    ).toBe("Custom");
+  });
+});
 
 describe("roles pagination", () => {
   it("shows six roles on the first page and the seventh on the next", async () => {

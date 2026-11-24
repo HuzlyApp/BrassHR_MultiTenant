@@ -25,6 +25,7 @@ type BundleAppRow = {
   ai_match_category: string | null;
   ai_match_display_category: string | null;
   ai_match_stage?: string | null;
+  submitted_at?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
   application_statuses:
@@ -114,6 +115,7 @@ function toStatusSummary(
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
     referenceSource: normalizeApplicationReferenceSource(row.source),
+    appliedAt: row.submitted_at?.trim() || row.created_at?.trim() || null,
     departmentName: job?.department?.trim() || null,
     ambiguous,
   };
@@ -169,6 +171,7 @@ export async function loadCandidateListApplicationBundle(
           "ai_match_category",
           "ai_match_display_category",
           "ai_match_stage",
+          "submitted_at",
           "updated_at",
           "created_at",
           "application_statuses(id, name, system_key)",

@@ -31,7 +31,9 @@ import {
   TEXT_SECONDARY,
 } from "../constants";
 import ConfigureMappingModal from "@/app/components/workflow-mappings/ConfigureMappingModal";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 
 type OnboardingFlow = OnboardingFlowListItem & {
   employmentType?: string | null;
@@ -43,7 +45,7 @@ type FlowSaveStatus = "published" | "draft";
 
 type SelectOption = { id: string; label: string };
 
-function CloseIcon() {
+function CloseIcon({ stroke = "white" }: { stroke?: string }) {
   return (
     <svg
       width="14"
@@ -53,8 +55,8 @@ function CloseIcon() {
       aria-hidden
       className="block shrink-0"
     >
-      <path d="M3.5 3.5L10.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
-      <path d="M10.5 3.5L3.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <path d="M3.5 3.5L10.5 10.5" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.5 3.5L3.5 10.5" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -141,6 +143,10 @@ type SearchCheckboxSelectProps = {
   onChange: (id: string) => void;
   disabled?: boolean;
   iconType?: "folder" | "template";
+  /** When false, hides the “1 added” helper under the control. */
+  showSelectedHint?: boolean;
+  /** Raise the open panel above modal footers / clipped parents. */
+  elevated?: boolean;
 };
 
 function SearchCheckboxSelect({
@@ -152,6 +158,8 @@ function SearchCheckboxSelect({
   onChange,
   disabled = false,
   iconType = "folder",
+  showSelectedHint = true,
+  elevated = false,
 }: SearchCheckboxSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -192,11 +200,12 @@ function SearchCheckboxSelect({
           aria-controls={listboxId}
           onClick={() => !disabled && setOpen((v) => !v)}
           className={`flex h-10 w-full min-w-0 items-center justify-between rounded-lg border bg-white px-3 text-left text-sm outline-none transition max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:px-3.5 ${
-            open ? "rounded-b-none border-b-0" : ""
+            open && !elevated ? "rounded-b-none border-b-0" : ""
           }`}
           style={{
             borderColor: CARD_BORDER,
             color: selectedLabel ? TEXT_PRIMARY : TEXT_MUTED,
+            backgroundColor: "#FFFFFF",
           }}
         >
           <span className="min-w-0 truncate">{selectedLabel ?? triggerPlaceholder}</span>
@@ -205,17 +214,21 @@ function SearchCheckboxSelect({
 
         {open && !disabled ? (
           <div
-            className="absolute left-0 right-0 top-full z-20 overflow-hidden rounded-b-lg border border-t-0 bg-white shadow-sm"
-            style={{ borderColor: CARD_BORDER }}
+            className={
+              elevated
+                ? "absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-lg border bg-white shadow-lg"
+                : "absolute left-0 right-0 top-full z-20 overflow-hidden rounded-b-lg border border-t-0 bg-white shadow-sm"
+            }
+            style={{ borderColor: CARD_BORDER, backgroundColor: "#FFFFFF" }}
           >
-            <div className="border-b px-3 py-2.5" style={{ borderColor: CARD_BORDER }}>
+            <div className="border-b bg-white px-3 py-2.5" style={{ borderColor: CARD_BORDER }}>
               <div className="relative">
                 <input
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="h-9 w-full rounded-md border-0 bg-transparent py-2 pl-1 pr-9 text-sm outline-none"
+                  className="h-9 w-full rounded-md border-0 bg-white py-2 pl-1 pr-9 text-sm outline-none"
                   style={{ color: TEXT_PRIMARY }}
                   aria-label={searchPlaceholder}
                 />
@@ -229,7 +242,7 @@ function SearchCheckboxSelect({
               id={listboxId}
               role="listbox"
               aria-label={searchPlaceholder}
-              className="max-h-[160px] overflow-y-auto py-1"
+              className="max-h-[200px] overflow-y-auto bg-white py-1"
             >
               {filtered.length === 0 ? (
                 <li className="px-3.5 py-3 text-sm" style={{ color: TEXT_MUTED }}>
@@ -277,7 +290,7 @@ function SearchCheckboxSelect({
         ) : null}
       </div>
 
-      {selectedId ? (
+      {showSelectedHint && selectedId ? (
         <p className="mt-1.5 text-right text-xs leading-[18px]" style={{ color: TEXT_MUTED }}>
           1 added
         </p>
@@ -793,6 +806,164 @@ function TrashIcon() {
   );
 }
 
+type MoveFlowToLibraryModalProps = {
+  open: boolean;
+  flow: OnboardingFlow | null;
+  folderOptions: SelectOption[];
+  saving?: boolean;
+  onClose: () => void;
+  onMove: (libraryId: string) => void | Promise<void>;
+};
+
+function MoveFlowToLibraryModal({
+  open,
+  flow,
+  folderOptions,
+  saving = false,
+  onClose,
+  onMove,
+}: MoveFlowToLibraryModalProps) {
+  const branding = useTenantBranding();
+  const brandStyle = brandingToCssVars(branding) as CSSProperties;
+  const currentLibraryId = flow?.libraryId ?? "";
+  const availableFolders = useMemo(
+    () => folderOptions.filter((option) => option.id !== currentLibraryId),
+    [folderOptions, currentLibraryId]
+  );
+  const [folderId, setFolderId] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !saving) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open, onClose, saving]);
+
+  useEffect(() => {
+    if (!open) {
+      setFolderId("");
+      setFormError(null);
+      return;
+    }
+    setFolderId(availableFolders[0]?.id ?? "");
+    setFormError(null);
+  }, [open, availableFolders]);
+
+  if (!open || !flow) return null;
+
+  const canSubmit = Boolean(folderId) && !saving && availableFolders.length > 0;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]"
+      style={brandStyle}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="move-flow-library-title"
+        className="relative w-full max-w-[440px] overflow-visible rounded-2xl border bg-white shadow-xl"
+        style={{ borderColor: CARD_BORDER, backgroundColor: "#FFFFFF" }}
+      >
+        <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: CARD_BORDER }}>
+          <div className="min-w-0">
+            <h3 id="move-flow-library-title" className="text-lg font-semibold" style={{ color: TEXT_PRIMARY }}>
+              Move to library
+            </h3>
+            <p className="mt-1 text-sm" style={{ color: TEXT_MUTED }}>
+              Move <span className="font-medium text-[#344054]">{flow.name}</span> to another folder.
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={saving}
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F2F4F7] text-[#667085] hover:bg-[#E4E7EC] disabled:opacity-50"
+          >
+            <CloseIcon stroke="#667085" />
+          </button>
+        </div>
+
+        <div className="relative z-10 space-y-3 px-5 py-4">
+          {availableFolders.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-[#E4E7EC] bg-[#F9FAFB] px-4 py-5 text-sm" style={{ color: TEXT_MUTED }}>
+              No other libraries available for this tenant. Create a folder first, then move this workflow.
+            </p>
+          ) : (
+            <div className="relative z-20 min-w-0 pb-2">
+              <label
+                htmlFor="move-flow-folder"
+                className="mb-1.5 block text-sm font-medium leading-5"
+                style={{ color: TEXT_PRIMARY }}
+              >
+                Select library
+              </label>
+              <SearchCheckboxSelect
+                id="move-flow-folder"
+                triggerPlaceholder="Select library"
+                searchPlaceholder="Search library"
+                options={availableFolders}
+                selectedId={folderId}
+                onChange={(id) => {
+                  setFolderId(id);
+                  setFormError(null);
+                }}
+                disabled={saving}
+                iconType="folder"
+                showSelectedHint={false}
+                elevated
+              />
+            </div>
+          )}
+          {formError ? <p className="text-sm text-[#B42318]">{formError}</p> : null}
+        </div>
+
+        <div className="relative z-0 flex items-center justify-end gap-3 border-t px-5 py-4" style={{ borderColor: CARD_BORDER }}>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onClose}
+            className="inline-flex h-10 items-center justify-center rounded-lg border bg-white px-4 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50"
+            style={{ borderColor: CARD_BORDER }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => {
+              if (!folderId) {
+                setFormError("Select a library");
+                return;
+              }
+              void (async () => {
+                try {
+                  await onMove(folderId);
+                } catch (error) {
+                  setFormError(error instanceof Error ? error.message : "Failed to move workflow");
+                }
+              })();
+            }}
+            className="inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50"
+            style={{ backgroundColor: BRAND_SECONDARY_BG }}
+          >
+            {saving ? "Moving…" : "Move"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 type FlowCardProps = {
   flow: OnboardingFlow;
   builderHref: string;
@@ -800,10 +971,20 @@ type FlowCardProps = {
   deleting?: boolean;
   onDelete: (flow: OnboardingFlow) => void;
   onDuplicate: (flow: OnboardingFlow) => void;
+  onMove: (flow: OnboardingFlow) => void;
   onUnpublish: (flow: OnboardingFlow) => void;
 };
 
-export function FlowCard({ flow, builderHref, viewHref, deleting = false, onDelete, onDuplicate, onUnpublish }: FlowCardProps) {
+export function FlowCard({
+  flow,
+  builderHref,
+  viewHref,
+  deleting = false,
+  onDelete,
+  onDuplicate,
+  onMove,
+  onUnpublish,
+}: FlowCardProps) {
   const published = flow.status === "published";
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -925,6 +1106,18 @@ export function FlowCard({ flow, builderHref, viewHref, deleting = false, onDele
                   </Link>
                   <button type="button" role="menuitem" disabled={deleting} onClick={() => { setMenuOpen(false); onDuplicate(flow); }}
                     className="block w-full px-3 py-2 text-left text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50">Duplicate</button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={deleting}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onMove(flow);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50"
+                  >
+                    Move to library
+                  </button>
                   {flow.status === "published" ? <button type="button" role="menuitem" disabled={deleting} onClick={() => { setMenuOpen(false); onUnpublish(flow); }}
                     className="block w-full px-3 py-2 text-left text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-50">Unpublish</button> : null}
                   <button
@@ -974,6 +1167,8 @@ function OnboardingFlowsPageContent({
   const [activeTab, setActiveTab] = useState<FilterTab>("published");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [deletingFlowId, setDeletingFlowId] = useState<string | null>(null);
+  const [movingFlow, setMovingFlow] = useState<OnboardingFlow | null>(null);
+  const [movingFlowBusy, setMovingFlowBusy] = useState(false);
   const [mappingSetup, setMappingSetup] = useState<{
     workflowId: string;
     workflowName: string;
@@ -1124,6 +1319,32 @@ function OnboardingFlowsPageContent({
     finally { setDeletingFlowId(null); }
   }
 
+  const handleMoveFlowToLibrary = useCallback(
+    async (libraryId: string) => {
+      if (!movingFlow) return;
+      const target = folderOptions.find((option) => option.id === libraryId);
+      setMovingFlowBusy(true);
+      setDeletingFlowId(movingFlow.id);
+      try {
+        await actOnFlow({ flowId: movingFlow.id, action: "move", libraryId });
+        toast.success(
+          target?.label
+            ? `Moved ${movingFlow.name} to ${target.label}`
+            : `Moved ${movingFlow.name}`
+        );
+        setMovingFlow(null);
+        await refetch();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to move workflow");
+        throw error;
+      } finally {
+        setMovingFlowBusy(false);
+        setDeletingFlowId(null);
+      }
+    },
+    [actOnFlow, folderOptions, movingFlow, refetch]
+  );
+
   const sectionTitle = activeTab === "published" ? "Published Flows" : "Unpublished Flows";
   const libraryLabel = activeLibrary?.name ?? onboardingLibrary?.name ?? "Onboarding Flows";
   const isPageLoading = librariesLoading || (!effectiveLibraryId && !librariesError);
@@ -1155,6 +1376,7 @@ function OnboardingFlowsPageContent({
             deleting={deletingFlowId === flow.id}
             onDelete={(target) => void handleDeleteFlow(target)}
             onDuplicate={(target) => void handleFlowAction(target, "duplicate")}
+            onMove={(target) => setMovingFlow(target)}
             onUnpublish={(target) => void handleFlowAction(target, "unpublish")}
           />
         ))}
@@ -1260,6 +1482,20 @@ function OnboardingFlowsPageContent({
     </>
   );
 
+  const moveModal = (
+    <MoveFlowToLibraryModal
+      open={movingFlow !== null}
+      flow={movingFlow}
+      folderOptions={folderOptions}
+      saving={movingFlowBusy}
+      onClose={() => {
+        if (movingFlowBusy) return;
+        setMovingFlow(null);
+      }}
+      onMove={handleMoveFlowToLibrary}
+    />
+  );
+
   if (hubMode) {
     return (
       <>
@@ -1273,6 +1509,7 @@ function OnboardingFlowsPageContent({
           defaultFolderId={defaultFolderId}
           saving={isCreating || templatesLoading}
         />
+        {moveModal}
         <ConfigureMappingModal
           open={mappingSetup !== null}
           workflowId={mappingSetup?.workflowId ?? ""}
@@ -1404,6 +1641,7 @@ function OnboardingFlowsPageContent({
         defaultFolderId={defaultFolderId}
         saving={isCreating || templatesLoading}
       />
+      {moveModal}
 
       <ConfigureMappingModal
         open={mappingSetup !== null}

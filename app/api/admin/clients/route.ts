@@ -303,6 +303,8 @@ export async function POST(req: NextRequest) {
 
     if (companyName.length > 120) return NextResponse.json({ error: "Company name must be 120 characters or fewer." }, { status: 400 });
 
+    const contactPerson = String(body.contactPerson ?? body.contact_person ?? "").trim();
+
     const { data: created, error } = await supabase
       .from("clients")
       .insert({
@@ -329,7 +331,37 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    return NextResponse.json({ client: created }, { status: 201 });
+    // Client contact is displayed from facility.about ("Contact Person: …").
+    // Seed a primary facility so the list column persists after create/reload.
+    if (contactPerson && created?.id) {
+      const addressParts = [
+        body.address ? String(body.address).trim() : "",
+        [body.city ? String(body.city).trim() : "", body.state ? String(body.state).trim() : ""]
+          .filter(Boolean)
+          .join(", "),
+        body.zipCode || body.zip_code ? String(body.zipCode || body.zip_code).trim() : "",
+      ].filter(Boolean);
+      const { error: facilityError } = await supabase.from("facility").insert({
+        tenant_id: scope.tenantId,
+        client_id: created.id,
+        name: companyName,
+        address: addressParts.join(", ") || null,
+        about: `Contact Person: ${contactPerson}`,
+      });
+      if (facilityError) {
+        console.error("[admin/clients POST] facility seed error:", facilityError);
+      }
+    }
+
+    return NextResponse.json(
+      {
+        client: {
+          ...created,
+          client_contact: contactPerson || "—",
+        },
+      },
+      { status: 201 }
+    );
   } catch (err) {
     console.error("[admin/clients POST]", err);
     return NextResponse.json(

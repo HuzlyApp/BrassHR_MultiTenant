@@ -1155,6 +1155,8 @@ export async function GET(req: NextRequest) {
       job_source_type: jobSourceType,
       job_industry_key: jobIndustryKey,
       profession_industry_key: professionIndustryKey,
+      /** Application submit/create time — header Application Date (not worker.created_at). */
+      application_applied_at: asTrimmedString(appSummary?.appliedAt) || null,
       activity: {
         source: resolvedSource,
         created_at: createdAt,

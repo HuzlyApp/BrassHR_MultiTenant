@@ -50,6 +50,8 @@ type ChromeProfilePayload = {
   job_title?: string | null;
   /** Job requisition UUID for the applied-job header link. */
   job_requisition_id?: string | null;
+  /** job_applications.submitted_at || created_at for header Application Date. */
+  application_applied_at?: string | null;
   activity?: { source?: string | null };
   onboardingSteps?: Array<{
     state: "complete" | "in_progress" | "pending";
@@ -58,6 +60,16 @@ type ChromeProfilePayload = {
   onboardingCompletion?: { percent?: number | null };
   error?: string;
 };
+
+function chromeHasApplication(profile: ChromeProfilePayload | null): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.job_requisition_id?.trim() ||
+      profile.job_id?.trim() ||
+      profile.job_title?.trim() ||
+      profile.worker?.job_id?.trim()
+  );
+}
 
 type CandidateDetailChromeContextValue = {
   active: true;
@@ -85,7 +97,12 @@ function formatHeaderDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function CandidateDetailChromeInner({
@@ -216,15 +233,22 @@ function CandidateDetailChromeInner({
             phone={worker?.phone ? formatPhoneForDisplay(worker.phone) : null}
             location={location}
             statusLabel={worker?.status_label ?? null}
-            applicationDate={formatHeaderDate(worker?.created_at)}
+            applicationDate={formatHeaderDate(
+              profile?.application_applied_at ?? worker?.created_at
+            )}
             jobId={worker?.job_id ?? profile?.job_id ?? null}
             source={profile?.activity?.source ?? null}
             progressPercent={progressPercent}
             progressInProgress={progressInProgress}
             progressUpcoming={progressUpcoming}
-            progressDate={formatHeaderDate(worker?.updated_at ?? worker?.created_at)}
+            progressDate={formatHeaderDate(
+              profile?.application_applied_at ??
+                worker?.updated_at ??
+                worker?.created_at
+            )}
             onMessageClick={() => setCommOpen(true)}
             messageDisabled={!worker?.email?.trim() && !worker?.phone?.trim()}
+            hasApplication={chromeHasApplication(profile)}
           />
           <DetailedTabs
             persistent

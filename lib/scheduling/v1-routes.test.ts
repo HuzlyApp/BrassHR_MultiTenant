@@ -21,6 +21,23 @@ describe("v1 scheduling route boundaries", () => {
     context.load.mockResolvedValue({ supabase: {}, tenantId: "authorized", features: {} });
     expect((await schedules(new Request("https://example.test/api/v1/schedules?date_from=2026-02-30&date_to=2026-03-01"))).status).toBe(422);
   });
+  it("returns required param guidance when schedule/who-is-off query is empty (BUG-203)", async () => {
+    context.load.mockResolvedValue({ supabase: {}, tenantId: "authorized", features: {} });
+    const bare = new Request("https://example.test/api/v1/schedules");
+    const scheduleRes = await schedules(bare);
+    expect(scheduleRes.status).toBe(422);
+    const scheduleBody = await scheduleRes.json();
+    expect(scheduleBody.code).toBe("VALIDATION_ERROR");
+    expect(scheduleBody.required).toEqual(["date_from", "date_to"]);
+    expect(String(scheduleBody.error)).toMatch(/date_from/i);
+    expect(scheduleBody.example).toContain("/api/v1/schedules?");
+
+    const offRes = await whoIsOff(new Request("https://example.test/api/v1/schedules/who-is-off"));
+    expect(offRes.status).toBe(422);
+    const offBody = await offRes.json();
+    expect(offBody.required).toEqual(["date_from", "date_to"]);
+    expect(offBody.example).toContain("who-is-off?");
+  });
   it("rejects holiday tenant injection before inserting", async () => {
     context.load.mockResolvedValue({ supabase: {}, tenantId: "authorized", features: {} });
     const result = await holiday(new Request("https://example.test/api/v1/tenant-holidays", { method: "POST", body: JSON.stringify({

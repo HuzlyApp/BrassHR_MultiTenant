@@ -29,7 +29,7 @@ import {
   resolvePublishedFlowForJobWorkflow,
 } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
-import { runAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
+import { scheduleAutoQuickMatchForApplications } from "@/lib/jobs/match-analysis/auto-quick-match";
 import { ensureApplicationResumeFromWorker } from "@/lib/jobs/match-analysis/ensure-application-resume";
 import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
@@ -104,11 +104,16 @@ export type ImportMutationResult = {
   jobTitle: string;
   jobRef: string;
   message: string;
-  /** Step 1 Quick Match summary when résumés were ready for analysis. */
+  /**
+   * Step 1 Quick Match: scheduled in the background after import so Candidates
+   * Activity counters can refresh immediately (BUG-173).
+   */
   autoQuickMatch: {
     total: number;
     analyzed: number;
     failed: number;
+    /** True when Quick Match was queued via after() rather than awaited. */
+    pending?: boolean;
   } | null;
 };
 
@@ -1395,19 +1400,20 @@ export async function importExistingCandidatesToWorkspace(
   const skippedAlreadyAddedCount = skippedAlready.length;
   let autoQuickMatch: ImportMutationResult["autoQuickMatch"] = null;
   if (importedApplicationIds.length) {
-    // Await Step 1 like Add Candidate — fire-and-forget after() was often killed mid-run.
-    const results = await runAutoQuickMatchForApplications({
+    // Schedule via after() so the HTTP response returns and Job Details can
+    // refresh Candidates Activity counts without waiting on Quick Match.
+    scheduleAutoQuickMatchForApplications({
       supabase,
       tenantId: input.tenantId,
       jobApplicationIds: importedApplicationIds,
       analyzedByUserId: input.staffUserId,
       reason: "import_existing_candidates",
     });
-    const analyzed = results.filter((row) => row.status === "ANALYZED").length;
     autoQuickMatch = {
-      total: results.length,
-      analyzed,
-      failed: results.length - analyzed,
+      total: importedApplicationIds.length,
+      analyzed: 0,
+      failed: 0,
+      pending: true,
     };
   }
   return {

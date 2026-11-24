@@ -129,8 +129,12 @@ export function formatJobDetailsPay(job: JobDetailsRow): string {
 }
 
 export function formatJobDetailsPostedDate(job: JobDetailsRow): string {
-  if (String(job.status).trim().toLowerCase() === "draft" || !job.published_at) return "Not posted";
-  return formatJobDetailsDate(job.published_at);
+  const status = String(job.status).trim().toLowerCase();
+  if (!job.published_at) return "Not posted";
+  if (status === "draft") return "Not posted";
+  const posted = formatJobDetailsDate(job.published_at);
+  if (status === "archived") return `${posted} (archived)`;
+  return posted;
 }
 
 export function formatJobDetailsLocation(job: JobDetailsRow): string {
