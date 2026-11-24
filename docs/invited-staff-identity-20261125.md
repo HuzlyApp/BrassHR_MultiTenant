@@ -32,4 +32,13 @@ Account profiles are cached by user ID and rejected if fetched for a different i
 
 Tracked as BUG-205 through BUG-207, In Progress until deployed verification. Use separate Admin and invitee browser profiles with a real readable inbox. Verify HR and Manager each retain their assigned role, land on an authorized page, and receive only configured permissions. Reinvite an existing tenant email with different case and role and confirm 409 with no role/password change. Open a reset link with an existing Admin session, switch accounts in another tab, and confirm submission refuses the changed session. Confirm both users can still sign in with their own credentials afterward. No passwords or active reset links should be added to the tracker.
 
-Development/staging merges remain pending the earlier all-verified release condition. This review branch is not a deployed fix.
+The original fixes were subsequently merged into development (92905bfc) and staging (113903aa) at the user's request. Vercel confirms staging 113903aa is READY on brasshr-devmode.vercel.app. That deployment check establishes code availability, not a successful real-inbox QA walkthrough.
+
+## Follow-up fixes for BUG-205–207
+
+- BUG-205: the header now uses the server-authenticated role for the selected tenant rather than the account's home profile role. The UI accepts header identity/role data only when its user ID matches the current account. Regression cases cover home Admin versus selected-tenant HR/Manager and a cached role belonging to another user.
+- BUG-206: invitation provisioning inserts the membership once, using its existing unique key, instead of upserting and replacing an existing role. The unique claim happens before profile or Auth metadata changes. A concurrent duplicate returns 409 before those changes. Mixed-case email normalization remains covered.
+- BUG-207: password setup uses the current credentials only after matching them to the verified user/session, so a rotated recovery refresh token works without falling back to a different session.
+- Follow-up regression run: 38 tests passed across nine files. A live database transaction confirmed a second Manager membership insert for an existing HR user is rejected and preserves HR; the transaction was rolled back. No migration was required.
+- Follow-up TypeScript passed; changed-file ESLint has zero errors and four warnings. The mixed-case invitation test also passed after adding an explicit normalization assertion.
+- Follow-up branch: heneralpepito/invitation-followups-20261125. QA verification columns remain unchanged; real-inbox acceptance and account-switch QA are still pending.

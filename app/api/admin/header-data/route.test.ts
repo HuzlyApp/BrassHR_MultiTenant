@@ -37,6 +37,21 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 describe("GET /api/admin/header-data", () => {
+  it("displays the selected tenant's HR role even when the home profile is Admin", async () => {
+    getCachedStaffApiSession.mockResolvedValue({ userId: "user-1", role: "hr", authUser: { id: "user-1" } });
+    fromMock.mockImplementation((table: string) => {
+      const result = () => ({ data: table === "users" ? { first_name: "Member", role: "admin", tenant_id: "other-tenant" }
+        : table === "tenants" ? { name: "Selected tenant" }
+        : table === "staff_roles" ? [{ key: "hr", label: "HR", storage_key: "hr", aliases: [], is_staff: true }]
+        : [], count: 0, error: null });
+      const query = { select: () => query, eq: () => query, order: () => query, limit: () => query,
+        maybeSingle: async () => result(), then: (resolve: (value: unknown) => unknown) => Promise.resolve(result()).then(resolve) };
+      return query;
+    });
+    const { GET } = await import("./route");
+    const response = await GET(); const data = await response.json();
+    expect(response.status).toBe(200); expect(data.role).toBe("hr"); expect(data.roleLabel).toBe("HR");
+  });
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
