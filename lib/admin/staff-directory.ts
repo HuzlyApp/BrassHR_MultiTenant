@@ -508,6 +508,26 @@ async function upsertMembership(params: {
   email: string;
   mustChangePassword: boolean;
 }): Promise<void> {
+  // Claim the membership once. Concurrent invitations must never update its role.
+  const { error: roleError } = await params.supabase.from("user_roles").insert(
+    {
+      user_id: params.userId,
+      tenant_id: params.tenantId,
+      role: params.dbRole,
+      is_active: true,
+      created_by: params.createdBy,
+    }
+  );
+  if (roleError) {
+    if (roleError.code === "23505") {
+      throw new StaffDirectoryError(
+        "This person already has a login for this organization.",
+        "DUPLICATE_MEMBERSHIP",
+        409
+      );
+    }
+    throw new StaffDirectoryError(roleError.message, "INTERNAL", 500);
+  }
   const now = nowIso();
   if (params.isHomeTenant) {
     const { error: userError } = await params.supabase.from("users").upsert(
@@ -537,27 +557,6 @@ async function upsertMembership(params: {
       }
       throw new StaffDirectoryError(userError.message, "INTERNAL", 500);
     }
-  }
-
-  const { error: roleError } = await params.supabase.from("user_roles").upsert(
-    {
-      user_id: params.userId,
-      tenant_id: params.tenantId,
-      role: params.dbRole,
-      is_active: true,
-      created_by: params.createdBy,
-    },
-    { onConflict: "user_id,tenant_id" }
-  );
-  if (roleError) {
-    if (roleError.code === "23505") {
-      throw new StaffDirectoryError(
-        "This person already has a login for this organization.",
-        "DUPLICATE_MEMBERSHIP",
-        409
-      );
-    }
-    throw new StaffDirectoryError(roleError.message, "INTERNAL", 500);
   }
 }
 
@@ -681,18 +680,6 @@ export async function inviteStaff(
       }
       userId = created.user.id;
       createdAuthUser = true;
-    } else {
-      await mergeStaffInviteAppMetadata({
-        supabase,
-        userId,
-        tenantId: params.tenantId,
-        dbRole,
-        roles: catalog,
-        firstName: parsed.firstName,
-        lastName: parsed.lastName,
-        keepHomeTenant: hasHomeTenant,
-        homeTenantId: existingProfile?.tenant_id,
-      });
     }
 
     await upsertMembership({
@@ -707,6 +694,20 @@ export async function inviteStaff(
       email: parsed.email,
       mustChangePassword: needsPasswordSetup,
     });
+    if (!createdAuthUser) {
+      await mergeStaffInviteAppMetadata({
+        supabase,
+        userId,
+        tenantId: params.tenantId,
+        dbRole,
+        roles: catalog,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        keepHomeTenant: hasHomeTenant,
+        homeTenantId: existingProfile?.tenant_id,
+      });
+    }
+
     if (needsPasswordSetup && hasHomeTenant) {
       await supabase.from("users").update({ must_change_password: true }).eq("id", userId);
     }

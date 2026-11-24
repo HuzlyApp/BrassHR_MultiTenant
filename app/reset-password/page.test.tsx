@@ -54,6 +54,14 @@ function submit() {
   fireEvent.click(screen.getByRole("button", { name: "Update password" }));
 }
 describe("invitation password identity", () => {
+  it("uses rotated credentials only when they still belong to the verified recovery session", async () => {
+    render(<ResetPasswordPage />); await ready();
+    mocks.current = { ...mocks.verified!, refresh_token: "hr-rotated-refresh" };
+    mocks.setSession.mockResolvedValue({ data: { session: mocks.current }, error: null });
+    submit();
+    await waitFor(() => expect(mocks.update).toHaveBeenCalled());
+    expect(mocks.setSession).toHaveBeenCalledWith(expect.objectContaining({ refresh_token: "hr-rotated-refresh" }));
+  });
   it("verifies the invitee rather than updating the signed-in admin", async () => {
     render(<ResetPasswordPage />); await ready(); submit();
     await waitFor(() => expect(mocks.update).toHaveBeenCalledWith({ password: "Invited2026!Secure" }));
