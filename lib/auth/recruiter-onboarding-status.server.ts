@@ -231,11 +231,14 @@ export async function resolveRecruiterOnboardingStatus(
   }
 
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const effectiveRole = roleForRequestedTenant?.role ?? fallbackRole ?? null;
   const smbOwner =
-    isSmbTenantCategory(tenantCategory) ||
-    isSmbTenantCategory(meta.tenant_category) ||
-    meta.is_staffing_company === false ||
-    meta.is_staffing_company === "false";
+    parseAppRole(effectiveRole) === "admin" && (
+      isSmbTenantCategory(tenantCategory) ||
+      isSmbTenantCategory(meta.tenant_category) ||
+      meta.is_staffing_company === false ||
+      meta.is_staffing_company === "false"
+    );
 
   const redirectTarget = godAdmin
     ? "/godadmin/tenants"
@@ -252,7 +255,7 @@ export async function resolveRecruiterOnboardingStatus(
 
   return {
     userId: user.id,
-    role: roleForRequestedTenant?.role ?? fallbackRole ?? null,
+    role: effectiveRole,
     godAdmin,
     activeTenantId,
     requestedTenantId,

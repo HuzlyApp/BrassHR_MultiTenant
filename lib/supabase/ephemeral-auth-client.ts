@@ -10,6 +10,7 @@ export function createEphemeralAuthClient(): SupabaseClient | null {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+      detectSessionInUrl: false,
       flowType: "implicit",
     },
   });

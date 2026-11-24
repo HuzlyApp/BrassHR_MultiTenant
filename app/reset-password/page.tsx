@@ -1,5 +1,6 @@
 "use client";
 
+import type { Session } from "@supabase/supabase-js";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,9 +28,11 @@ import {
 } from "@/lib/auth/password-reset-return";
 import {
   authSessionIsPasswordRecovery,
+  passwordRecoverySessionMatches,
   planPasswordRecoverySession,
   readPasswordRecoveryLinkParams,
 } from "@/lib/auth/password-recovery-session";
+import { createEphemeralAuthClient } from "@/lib/supabase/ephemeral-auth-client";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
@@ -39,8 +42,7 @@ const RESET_LINK_INVALID_MESSAGE =
   "This reset link is invalid or has expired. Request a new one from the sign-in page.";
 
 /** Survives React Strict Mode remounts so a one-time token is not verified twice. */
-const consumedRecoveryTokenHashes = new Set<string>();
-const consumedRecoveryCodes = new Set<string>();
+const recoveryExchanges = new Map<string, Promise<Session>>();
 
 const titleClassName =
   "whitespace-nowrap text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19] max-[399px]:whitespace-normal max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[26px] min-[400px]:max-[549px]:leading-[31px] min-[550px]:max-[1079px]:text-[27px] min-[550px]:max-[1079px]:leading-[32px]";
@@ -166,160 +168,74 @@ function ResetPasswordContent() {
   const [sessionReady, setSessionReady] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [recoveryAccountEmail, setRecoveryAccountEmail] = useState<string | null>(null);
-  const consumedLinkRef = useRef(false);
+  const recoverySessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     let alive = true;
-
-    const markRecoveryReady = (email: string | null) => {
+    const unlock = (session: Session) => {
       if (!alive) return;
-      consumedLinkRef.current = true;
-      setFormError(null);
-      setRecoveryAccountEmail(email);
+      recoverySessionRef.current = session;
+      setRecoveryAccountEmail(session.user.email ?? null);
       setRecoveryReady(true);
+      setFormError(null);
     };
-
-    const markInvalidLink = () => {
-      // Never overwrite a session that already unlocked the form (e.g. URL cleaned
-      // after verify, Strict Mode remount, or AuthSessionSync router.refresh).
-      if (!alive || consumedLinkRef.current || recoveryReady) return;
-      setFormError(RESET_LINK_INVALID_MESSAGE);
-    };
-
     void (async () => {
       try {
-        // Already verified on this page — ignore follow-up effect runs when the
-        // one-time token is stripped from the URL after a successful exchange.
-        if (recoveryReady || consumedLinkRef.current) {
-          if (alive) {
-            setFormError(null);
-            setRecoveryReady(true);
+        const { data: { session: existing } } = await supabaseBrowser.auth.getSession();
+        if (recoverySessionRef.current) {
+          if (!passwordRecoverySessionMatches(existing, recoverySessionRef.current)) {
+            throw new Error(RESET_LINK_INVALID_MESSAGE);
           }
           return;
         }
-
-        // Supabase may bounce failed verify here with hash errors (old action_link flow).
-        if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
-          markInvalidLink();
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-          return;
-        }
-
-        const {
-          data: { session: existing },
-        } = await supabaseBrowser.auth.getSession();
         const link = readPasswordRecoveryLinkParams(searchParams);
         const plan = planPasswordRecoverySession({
           hasExistingSession: Boolean(existing),
           sessionIsRecovery: authSessionIsPasswordRecovery(existing),
           link,
         });
-
-        if (plan === "reuse-recovery-session") {
-          markRecoveryReady(existing?.user.email ?? null);
+        if (plan === "reuse-recovery-session" && existing) {
+          unlock(existing);
           return;
         }
-
-        const tokenHash = link.tokenHash;
-        const type = link.type || "recovery";
-        const code = link.code;
-
-        // Token already exchanged (Strict Mode double-mount). Reuse the session.
-        if (tokenHash && consumedRecoveryTokenHashes.has(tokenHash)) {
-          const {
-            data: { session },
-          } = await supabaseBrowser.auth.getSession();
-          if (session) {
-            markRecoveryReady(session.user.email ?? null);
-            return;
-          }
+        if (plan !== "verify-link") throw new Error(RESET_LINK_INVALID_MESSAGE);
+        const key = link.tokenHash ? `token:${link.tokenHash}` : `code:${link.code}`;
+        let exchange = recoveryExchanges.get(key);
+        if (!exchange) {
+          exchange = (async () => {
+            // The exchange response identifies the invitee. Never substitute getUser()
+            // from the shared browser session, which another tab can change.
+            const result = link.tokenHash
+              ? await supabaseBrowser.auth.verifyOtp({ type: "recovery", token_hash: link.tokenHash })
+              : await supabaseBrowser.auth.exchangeCodeForSession(link.code!);
+            if (result.error || !result.data.session) throw new Error(RESET_LINK_INVALID_MESSAGE);
+            return result.data.session;
+          })();
+          recoveryExchanges.set(key, exchange);
         }
-        if (code && consumedRecoveryCodes.has(code)) {
-          const {
-            data: { session },
-          } = await supabaseBrowser.auth.getSession();
-          if (session) {
-            markRecoveryReady(session.user.email ?? null);
-            return;
-          }
+        const verified = await exchange;
+        const { data: { session: current } } = await supabaseBrowser.auth.getSession();
+        if (!passwordRecoverySessionMatches(current, verified)) throw new Error(RESET_LINK_INVALID_MESSAGE);
+        unlock(verified);
+        if (alive) {
+          const next = new URL(window.location.href);
+          next.searchParams.delete("token_hash");
+          next.searchParams.delete("type");
+          next.searchParams.delete("code");
+          window.history.replaceState(null, "", next.pathname + next.search);
         }
-
-        if (plan === "reject") {
-          markInvalidLink();
-          return;
-        }
-
-        if (existing) {
-          await supabaseBrowser.auth.signOut();
-        }
-
-        if (tokenHash && type === "recovery") {
-          const { error } = await supabaseBrowser.auth.verifyOtp({
-            type: "recovery",
-            token_hash: tokenHash,
-          });
-          if (error) {
-            // Race: a parallel effect may have already verified this one-time token.
-            if (consumedRecoveryTokenHashes.has(tokenHash)) {
-              const {
-                data: { session },
-              } = await supabaseBrowser.auth.getSession();
-              if (session) {
-                markRecoveryReady(session.user.email ?? null);
-                return;
-              }
-            }
-            markInvalidLink();
-            return;
-          }
-          consumedRecoveryTokenHashes.add(tokenHash);
-          const {
-            data: { user },
-          } = await supabaseBrowser.auth.getUser();
-          if (alive) {
-            markRecoveryReady(user?.email ?? null);
-            const next = new URL(window.location.href);
-            next.searchParams.delete("token_hash");
-            next.searchParams.delete("type");
-            window.history.replaceState(null, "", next.pathname + next.search);
-          }
-          return;
-        }
-
-        if (code) {
-          const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
-          if (error) {
-            if (consumedRecoveryCodes.has(code)) {
-              const {
-                data: { session },
-              } = await supabaseBrowser.auth.getSession();
-              if (session) {
-                markRecoveryReady(session.user.email ?? null);
-                return;
-              }
-            }
-            markInvalidLink();
-            return;
-          }
-          consumedRecoveryCodes.add(code);
-          const {
-            data: { user },
-          } = await supabaseBrowser.auth.getUser();
-          markRecoveryReady(user?.email ?? null);
-          return;
-        }
-
-        markInvalidLink();
       } catch {
-        markInvalidLink();
+        if (alive) {
+          recoverySessionRef.current = null;
+          setRecoveryReady(false);
+          setFormError(RESET_LINK_INVALID_MESSAGE);
+        }
       } finally {
         if (alive) setSessionReady(true);
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [searchParams, recoveryReady]);
+    return () => { alive = false; };
+  }, [searchParams]);
 
   const errors = useMemo(
     () => (attempted ? fieldErrors(newPassword, confirmPassword) : { newPassword: null, confirmPassword: null }),
@@ -342,15 +258,27 @@ function ResetPasswordContent() {
       const {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
-      if (!session) {
+      const verified = recoverySessionRef.current;
+      if (!recoveryReady || !passwordRecoverySessionMatches(session, verified)) {
         setFormError(RESET_LINK_INVALID_MESSAGE);
         return;
       }
 
-      await updateAuthUserPassword(supabaseBrowser, newPassword);
+      // Use an isolated client pinned to the verified recovery session. A cookie
+      // change between the check above and updateUser cannot target another user.
+      const recoveryClient = createEphemeralAuthClient();
+      if (!recoveryClient || !verified) throw new Error(RESET_LINK_INVALID_MESSAGE);
+      const { data: bound, error: bindError } = await recoveryClient.auth.setSession({
+        access_token: verified.access_token,
+        refresh_token: verified.refresh_token,
+      });
+      if (bindError || !passwordRecoverySessionMatches(bound.session, verified)) {
+        throw new Error(RESET_LINK_INVALID_MESSAGE);
+      }
+      await updateAuthUserPassword(recoveryClient, newPassword);
       const setupRes = await fetch("/api/auth/password-setup-complete", {
         method: "POST",
-        credentials: "include",
+        headers: { Authorization: `Bearer ${bound.session!.access_token}` },
       });
       if (!setupRes.ok) {
         const payload = (await setupRes.json().catch(() => ({}))) as { error?: string };
@@ -361,7 +289,11 @@ function ResetPasswordContent() {
         );
         // Password is already updated in Auth; login OTP send will clear the gate.
       }
-      await supabaseBrowser.auth.signOut();
+      const { data: { session: afterUpdate } } = await supabaseBrowser.auth.getSession();
+      if (passwordRecoverySessionMatches(afterUpdate, verified)) {
+        await supabaseBrowser.auth.signOut({ scope: "local" });
+      }
+      recoverySessionRef.current = null;
       setSuccess(true);
       setTimeout(() => {
         router.push(signInHref);

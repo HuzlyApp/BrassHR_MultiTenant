@@ -63,6 +63,22 @@ function amrMethodsFromJwt(accessToken: string | null | undefined): string[] {
 
 const PASSWORD_SETUP_AMR_METHODS = new Set(["recovery", "invite"]);
 
+/** A recovery form is bound to one Auth identity and one session, including refreshes. */
+export function passwordRecoverySessionMatches(
+  current: Session | null | undefined,
+  verified: Session | null | undefined
+): boolean {
+  if (!current?.user.id || current.user.id !== verified?.user.id) return false;
+  const sessionId = (session: Session): string | null => {
+    try {
+      const payload = JSON.parse(decodeJwtPayload(session.access_token.split(".")[1])) as { session_id?: unknown };
+      return typeof payload.session_id === "string" && payload.session_id ? payload.session_id : null;
+    } catch { return null; }
+  };
+  const expected = sessionId(verified);
+  return Boolean(expected && sessionId(current) === expected);
+}
+
 /** True only when this session was created from a recovery / invite link. */
 export function authSessionIsPasswordRecovery(session: Session | null | undefined): boolean {
   if (!session?.access_token) return false;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { clearStaffListSessionCache } from "@/lib/lists/staff-list-session-cache";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -22,10 +23,11 @@ import {
  * token-free bus (BroadcastChannel + storage) so UI/middleware refresh promptly.
  */
 export default function AuthSessionSync() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   const lastHandledAtRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const clearingRef = useRef(false);
@@ -97,6 +99,7 @@ export default function AuthSessionSync() {
       lastUserIdRef.current = result.userId;
       if (previousUserId && result.userId && previousUserId !== result.userId) {
         clearStaffListSessionCache();
+        queryClient.clear();
       }
       const sessionChanged = previousUserId !== result.userId;
 
@@ -155,6 +158,7 @@ export default function AuthSessionSync() {
 
       if (event === "SIGNED_OUT") {
         clearStaffListSessionCache();
+        queryClient.clear();
         lastUserIdRef.current = null;
         if (isSessionGuardedPath(pathnameRef.current)) {
           router.replace(idleLogoutRedirectPath(pathnameRef.current));
@@ -173,6 +177,9 @@ export default function AuthSessionSync() {
           lastUserIdRef.current !== nextUserId)
       ) {
         clearStaffListSessionCache();
+        if (lastUserIdRef.current !== nextUserId) {
+          queryClient.clear();
+        }
       }
 
       lastUserIdRef.current = nextUserId;
@@ -195,7 +202,7 @@ export default function AuthSessionSync() {
       bus.close();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [router]);
+  }, [router, queryClient]);
 
   return null;
 }

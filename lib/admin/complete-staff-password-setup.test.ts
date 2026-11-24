@@ -10,6 +10,21 @@ vi.mock("@/lib/cache", () => ({
 }));
 
 describe("completeStaffPasswordSetup", () => {
+  it("does not claim an invitation by email when it is bound to another identity", async () => {
+    const update = vi.fn();
+    const emailLookup = vi.fn();
+    const supabase = { from: (table: string) => {
+      const query = { select: () => query, eq: () => query, in: () => query, update,
+        ilike: emailLookup,
+        maybeSingle: async () => ({ data: { id: "hr", must_change_password: false }, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: table === "staff_invitations" ? [] : null, error: null }).then(resolve),
+      };
+      return query;
+    } };
+    await completeStaffPasswordSetup(supabase as never, { userId: "hr", email: "shared@real-mail.test" });
+    expect(emailLookup).not.toHaveBeenCalled(); expect(update).not.toHaveBeenCalled();
+  });
+
   it("clears the recruiter password gate and accepts that user's pending invite", async () => {
     const userUpdates: Record<string, unknown>[] = [];
     const inviteUpdates: Record<string, unknown>[] = [];

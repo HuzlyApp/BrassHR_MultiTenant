@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Session } from "@supabase/supabase-js";
 import {
   authSessionIsPasswordRecovery,
+  passwordRecoverySessionMatches,
   planPasswordRecoverySession,
   readPasswordRecoveryLinkParams,
 } from "@/lib/auth/password-recovery-session";
@@ -83,5 +84,25 @@ describe("authSessionIsPasswordRecovery", () => {
       user: { id: "admin-1" },
     } as unknown as Session;
     expect(authSessionIsPasswordRecovery(session)).toBe(false);
+  });
+});
+
+describe("passwordRecoverySessionMatches", () => {
+  function session(userId: string, sessionId: string, expiry = 1) {
+    const payload = Buffer.from(JSON.stringify({ session_id: sessionId, exp: expiry })).toString("base64url");
+    return { access_token: `header.${payload}.sig`, user: { id: userId } } as Session;
+  }
+  it("rejects an admin session replacing the invitee", () => {
+    expect(passwordRecoverySessionMatches(session("admin", "admin-session"), session("hr", "hr-session"))).toBe(false);
+  });
+  it("rejects another session of the same account", () => {
+    expect(passwordRecoverySessionMatches(session("hr", "password-login"), session("hr", "recovery"))).toBe(false);
+  });
+  it("allows a refreshed token from the verified session", () => {
+    expect(passwordRecoverySessionMatches(session("hr", "recovery", 2), session("hr", "recovery", 1))).toBe(true);
+  });
+  it("rejects missing or malformed session identity", () => {
+    expect(passwordRecoverySessionMatches(null, session("hr", "recovery"))).toBe(false);
+    expect(passwordRecoverySessionMatches({ access_token: "bad", user: { id: "hr" } } as Session, session("hr", "recovery"))).toBe(false);
   });
 });
