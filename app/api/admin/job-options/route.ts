@@ -3,6 +3,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { EMPLOYMENT_TYPES, SOURCE_TYPES } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { industryKeyFromLegacyLabel } from "@/lib/ai-catalog/industry-catalog";
+import { resolveOnboardingLibraryForFlows } from "@/lib/onboarding/onboarding-libraries";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function GET() {
@@ -14,6 +15,21 @@ export async function GET() {
   try {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    // Align override dropdown with the default Workflows library list (BUG-154).
+    const defaultLibrary = await resolveOnboardingLibraryForFlows(supabase, tenantId, {
+      librarySlug: "onboarding",
+    });
+
+    let workflowsQuery = supabase
+      .from("onboarding_flows")
+      .select("id, name, library_id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "published")
+      .order("name");
+    if (defaultLibrary?.id) {
+      workflowsQuery = workflowsQuery.eq("library_id", defaultLibrary.id);
+    }
 
     const [professions, specialties, workflows, tenant] = await Promise.all([
       supabase
@@ -28,12 +44,7 @@ export async function GET() {
         .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
         .eq("is_active", true)
         .order("name"),
-      supabase
-        .from("onboarding_flows")
-        .select("id, name")
-        .eq("tenant_id", tenantId)
-        .eq("status", "published")
-        .order("name"),
+      workflowsQuery,
       supabase.from("tenants").select("id, name, primary_industry_key, industry").eq("id", tenantId).maybeSingle(),
     ]);
     const error = professions.error ?? specialties.error ?? workflows.error ?? tenant.error;
@@ -50,7 +61,10 @@ export async function GET() {
     return NextResponse.json({
       professions: professions.data ?? [],
       specialties: specialties.data ?? [],
-      workflows: auth.role === "admin" || auth.godAdmin ? workflows.data ?? [] : [],
+      workflows:
+        auth.role === "admin" || auth.godAdmin
+          ? (workflows.data ?? []).map((row) => ({ id: row.id, name: row.name }))
+          : [],
       employmentTypes: EMPLOYMENT_TYPES,
       sourceTypes: SOURCE_TYPES,
       employerOfRecordOptions,

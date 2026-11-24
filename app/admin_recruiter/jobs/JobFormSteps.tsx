@@ -537,7 +537,7 @@ export function JobFormStepRequisition({
           />
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
-              Placement type
+              Work location type
             </label>
             <select
               id="job-location-type"
@@ -546,7 +546,7 @@ export function JobFormStepRequisition({
               value={ui.jobLocationType}
               onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
             >
-              <option value="">Select Placement type</option>
+              <option value="">Select work location type</option>
               {JOB_FORM_LOCATION_TYPES.map((value) => (
                 <option key={value} value={value}>
                   {value}
