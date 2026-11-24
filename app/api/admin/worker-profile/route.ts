@@ -21,8 +21,9 @@ import {
 import { mapAdminOnboardingProgress } from "@/lib/admin-onboarding-progress"
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
 import { loadOnboardingApplicationSubmission } from "@/lib/onboarding/load-onboarding-application-submission"
-import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-session"
+import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
+import { resolveStaffTenantId } from "@/lib/jobs/tenant"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import {
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest) {
     const applicationId =
       applicationIdCheck && applicationIdCheck.ok ? applicationIdCheck.value : null
 
-    const auth = await requireApiSession()
+    const auth = await requireStaffApiSession()
     if (auth instanceof NextResponse) return auth
 
     const url = getSupabaseUrl()
@@ -119,11 +120,15 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key)
+    const selectedTenantId = await resolveStaffTenantId(supabase, auth)
+    if (!selectedTenantId) return NextResponse.json({ error: "Select a company first." }, { status: 400 })
+    const resumeOnly = req.nextUrl.searchParams.get("view") === "resume"
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
       .select("*")
       .eq("id", workerId)
+      .eq("tenant_id", selectedTenantId)
       .maybeSingle()
 
     if (wErr) throw wErr
@@ -143,7 +148,7 @@ export async function GET(req: NextRequest) {
     const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
 
     const [tenantResult, reqResult, docResult] = await Promise.all([
-      tenantIdForWorker
+      tenantIdForWorker && !resumeOnly
         ? supabase
             .from("tenants")
             .select("onboarding_config_version")
@@ -153,13 +158,14 @@ export async function GET(req: NextRequest) {
       supabase
         .from("worker_requirements")
         .select("resume_path")
+        .eq("tenant_id", selectedTenantId)
         .or(
           userIdForLegacy
             ? `worker_id.eq.${workerId},worker_id.eq.${userIdForLegacy}`
             : `worker_id.eq.${workerId}`
         )
         .limit(1),
-      supabase.from("worker_documents").select("*").eq("worker_id", workerId).maybeSingle(),
+      resumeOnly ? Promise.resolve({ data: null }) : supabase.from("worker_documents").select("*").eq("tenant_id", selectedTenantId).eq("worker_id", workerId).maybeSingle(),
     ])
 
     let onboardingConfigVersion = 0
@@ -247,6 +253,22 @@ export async function GET(req: NextRequest) {
       } else {
         resumeUrl = signed?.signedUrl ?? null
       }
+    }
+
+    if (resumeOnly) {
+      void writeActivityLog({ actorUserId: auth.devBypass ? null : auth.userId, tenantId: selectedTenantId, action: "worker.profile.view", entityType: "worker", entityId: workerId, metadata: { route: "GET /api/admin/worker-profile", view: "resume" }, request: req })
+      return NextResponse.json({
+        worker: {
+          id: workerId,
+          first_name: asTrimmedString(w.first_name), last_name: asTrimmedString(w.last_name),
+          email: asTrimmedString(w.email), phone: asTrimmedString(w.phone),
+          city: asTrimmedString(w.city), state: asTrimmedString(w.state),
+          job_role: asTrimmedString(w.job_role), status: asTrimmedString(w.status),
+          status_label: asTrimmedString(w.status) ? formatPipelineStatusLabel(String(w.status)) : null,
+          profile_photo_url: await resolveWorkerProfilePhotoUrl(supabase, asTrimmedString(w.profile_photo)),
+        },
+        requirements: { resume_path: resumePathCanonical, resume_url: resumeUrl },
+      }, { headers: { "Cache-Control": "private, no-store" } })
     }
 
     const { data: docRow } = docResult

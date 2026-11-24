@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
 import { requireResendConfig } from "@/lib/communication/env";
 import {
   plainTextToHtml,
@@ -20,6 +21,8 @@ export type SendCandidateEmailResult =
 export async function sendCandidateEmail(
   input: SendCandidateEmailInput
 ): Promise<SendCandidateEmailResult> {
+  const recipientError = emailDeliveryValidationMessage(input.to);
+  if (recipientError) return { ok: false, error: recipientError };
   let config: ReturnType<typeof requireResendConfig>;
   try {
     config = requireResendConfig();
@@ -52,7 +55,7 @@ export async function sendCandidateEmail(
 
     if (error) {
       console.error("[communication/email] Resend error", { name: error.name });
-      return { ok: false, error: error.message || "Failed to send email" };
+      return { ok: false, error: "Email could not be sent. Check the recipient address and your email integration, then try again." };
     }
 
     return { ok: true, messageId: data?.id ?? null };

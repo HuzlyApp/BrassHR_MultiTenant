@@ -1,5 +1,7 @@
 "use client";
 
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
+
 import {
   type CSSProperties,
   type FormEvent,
@@ -318,9 +320,6 @@ export default function AdminConsolePanel({
         ?? roleOptions.find((option) => !option.isAdmin)?.key
         ?? "recruiter";
     }
-    if (nextTab === "admins") {
-      return roleOptions.find((option) => option.isAdmin)?.key ?? "admin";
-    }
     return roleOptions.find((option) => option.key === "recruiter")?.key
       ?? roleOptions.find((option) => !option.isAdmin)?.key
       ?? "recruiter";
@@ -343,6 +342,11 @@ export default function AdminConsolePanel({
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.trim().length > 254) {
       setFormError("Enter a valid email address.");
+      return;
+    }
+    const recipientError = emailDeliveryValidationMessage(email);
+    if (recipientError) {
+      setFormError(recipientError);
       return;
     }
     setSubmitting(true);
@@ -826,6 +830,9 @@ export default function AdminConsolePanel({
                 className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#012352]"
               />
             </label>
+            {emailDeliveryValidationMessage(email) ? (
+              <p role="status" className="mt-2 text-sm text-[#B91C1C]">{emailDeliveryValidationMessage(email)}</p>
+            ) : null}
             <label className="mt-3 block space-y-1.5">
               <span className="text-sm font-semibold text-[#0F172A]">Role</span>
               <select

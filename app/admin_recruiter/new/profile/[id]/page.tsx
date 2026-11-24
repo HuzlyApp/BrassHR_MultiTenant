@@ -17,7 +17,7 @@ import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 // import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import AssignFacilityModal from "../../../components/AssignFacilityModal";
 import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
-import { CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
+import { CandidateApplicationStatusControl, CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
 import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
 import CandidateDetailPayRateField from "../../../components/CandidateDetailPayRateField";
@@ -1090,7 +1090,15 @@ export default function NewApplicantProfilePage() {
                           Work Status
                         </div>
                         <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#111827] sm:px-5">
-                          {w?.status_label ?? "—"}
+                          <CandidateApplicationStatusControl
+                            workerId={applicantId}
+                            fallbackStatus={w?.status_label}
+                            actionLabel={/closed|rejected|disapproved|archived/i.test(w?.status_label || w?.status || "") ? "Reactivate" : undefined}
+                            onStatusChanged={() => {
+                              dispatchCandidatePipelineRefresh(applicantId);
+                              void reloadProfile().catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not refresh the candidate."));
+                            }}
+                          />
                         </div>
                       </div>
                       <CandidateDetailPayRateField

@@ -53,6 +53,9 @@ function pageNumbers(current: number, total: number): number[] {
 
 export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [clients, setClients] = useState<ClientTableRow[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const [page, setPage] = useState(1);
@@ -220,6 +223,8 @@ export default function ClientsPage() {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(pageSize),
+        q: query,
+        ...(showArchived ? { archived: "1" } : {}),
       });
 
       const res = await fetch(`/api/admin/clients?${params.toString()}`, {
@@ -254,7 +259,7 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, query, showArchived]);
 
   useEffect(() => {
     void loadData();
@@ -345,6 +350,12 @@ export default function ClientsPage() {
       </div>
 
       {/* 4 Metric / KPI Summary Cards */}
+      <form className="mb-4 flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(searchDraft.trim()); setPage(1); }}>
+        <label className="sr-only" htmlFor="client-search">Search clients</label>
+        <input id="client-search" type="search" className="h-10 rounded-lg border px-3 text-sm" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Search clients or contacts" />
+        <button className="rounded-lg border px-3 py-2 text-sm" type="submit">Search</button>
+        <button className="rounded-lg border px-3 py-2 text-sm" type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setPage(1); }}>{showArchived ? "Show active clients" : "Show archived clients"}</button>
+      </form>
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Card 1: Active clients */}
         <div className="flex items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
@@ -479,7 +490,7 @@ export default function ClientsPage() {
                 sortedClients.map((row, idx) => (
                   <tr key={row.id || idx} className="transition-colors hover:bg-[#F8FAFC]/70">
                     <td className="px-6 py-4 font-medium text-sm text-[#BC8B41] hover:underline cursor-pointer">
-                      <Link href={`/admin_recruiter/facilities?client=${row.id}`}>
+                      <Link href={`/admin_recruiter/clients/${row.id}`}>
                         {row.company_name}
                       </Link>
                     </td>

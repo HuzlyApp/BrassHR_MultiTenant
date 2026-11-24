@@ -155,7 +155,10 @@ export function formatRoutingCriteriaLabel(input: {
   if (input.specialtyName?.trim()) parts.push(input.specialtyName.trim());
   if (input.locationType?.trim()) parts.push(input.locationType.trim());
   if (input.location?.trim()) parts.push(input.location.trim());
-  if (input.yearsOfExperience?.trim()) parts.push(`${input.yearsOfExperience.trim()} yrs`);
+  if (input.yearsOfExperience?.trim()) {
+    const experience = input.yearsOfExperience.trim().replace(/\s*(?:years?|yrs?)\s*$/i, "").trim();
+    parts.push(`${experience} yrs`);
+  }
   return parts.join(" + ");
 }
 

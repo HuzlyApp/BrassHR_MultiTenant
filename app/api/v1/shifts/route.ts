@@ -4,6 +4,16 @@ import { shiftSchema } from "@/lib/scheduling/v1-contract";
 import { createScheduleShift } from "@/lib/scheduling/v1-service";
 
 export const runtime = "nodejs";
+export async function GET() {
+  return NextResponse.json(
+    {
+      error: "Method not allowed",
+      message: "Use POST to create a shift. Use GET /api/v1/schedules with date_from and date_to to read schedules.",
+    },
+    { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } }
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const context = await requireSchedulingContext(request);

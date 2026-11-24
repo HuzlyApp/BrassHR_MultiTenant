@@ -200,7 +200,7 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
       icon: { src: `${JOBS_ICONS}/kpi-bag.svg`, bg: "#DFEBFF", leafWidth: 30, leafHeight: 30 },
     },
     {
-      label: "Total Candidates",
+      label: "Active Candidate Profiles",
       value: totalCandidates,
       href: CANDIDATES_HREF,
       icon: {

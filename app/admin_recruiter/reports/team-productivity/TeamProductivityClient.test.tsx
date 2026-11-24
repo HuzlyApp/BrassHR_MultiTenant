@@ -122,6 +122,7 @@ describe("TeamProductivityClient", () => {
     expect(await screen.findByText("Team Productivity KPI")).toBeTruthy();
     expect(await screen.findByText("Total employees")).toBeTruthy();
     expect(await screen.findByText("Alex Recruiter")).toBeTruthy();
+    expect(screen.getByText("alex@example.com")).toBeTruthy();
     expect(screen.getByText(/Engaged session time measures interaction/i)).toBeTruthy();
   });
 });

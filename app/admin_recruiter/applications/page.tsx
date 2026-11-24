@@ -878,7 +878,7 @@ export default function JobApplicationsPage() {
     review: TimeframeKey;
     hired: TimeframeKey;
   }>({
-    total: "30_days",
+    total: "all_time",
     shortlisted: "30_days",
     review: "30_days",
     hired: "30_days",

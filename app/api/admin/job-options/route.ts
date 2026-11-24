@@ -21,15 +21,13 @@ export async function GET() {
       librarySlug: "onboarding",
     });
 
-    let workflowsQuery = supabase
+    const workflowsQuery = defaultLibrary?.id ? supabase
       .from("onboarding_flows")
       .select("id, name, library_id")
       .eq("tenant_id", tenantId)
       .eq("status", "published")
-      .order("name");
-    if (defaultLibrary?.id) {
-      workflowsQuery = workflowsQuery.eq("library_id", defaultLibrary.id);
-    }
+      .eq("library_id", defaultLibrary.id)
+      .order("name") : Promise.resolve({ data: [], error: null });
 
     const [professions, specialties, workflows, tenant] = await Promise.all([
       supabase

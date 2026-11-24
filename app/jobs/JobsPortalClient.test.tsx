@@ -115,6 +115,14 @@ async function renderBoard(search = "tenant=zipstaff", desktop = true) {
 }
 
 describe("JobsPortalClient", () => {
+  it("labels job type, payroll type and MSP employer separately on an R&R posting", async () => {
+    mockJobsResponse({ jobs: [makeJob("rr-1", "MSP role", { source_type: "MSP", placement_type: "Recruit_and_Release", eor_type: "MSP", msp_name: "QA MSP", shift_type: "Full-time", employment_type: "Contract" })], total: 1 });
+    await renderBoard("tenant=zipstaff&job=rr-1");
+    expect(await screen.findByText("Job type: Full-time")).toBeInTheDocument();
+    expect(screen.getByText("Payroll type: Contract")).toBeInTheDocument();
+    expect(screen.getByText("Employer of record: QA MSP (MSP)")).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     mockJobsResponse();
     stubMatchMedia(true);

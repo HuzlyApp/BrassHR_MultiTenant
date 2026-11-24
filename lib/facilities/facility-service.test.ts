@@ -15,6 +15,7 @@ function database(responses: Record<string, unknown>) {
     const q = {
       select: () => q, order: () => q, limit: () => q,
       eq: (key: string, value: unknown) => { call.filters.push([key, value]); return q; },
+      is: (key: string, value: unknown) => { call.filters.push([key, value]); return q; },
       insert: (value: unknown) => { call.inserted = value; return q; },
       maybeSingle: () => Promise.resolve({ data: responses[table] ?? null, error: null }),
       single: () => Promise.resolve({ data: { id: "facility-created" }, error: null }),
@@ -37,7 +38,7 @@ describe("facility validation", () => {
   it("rejects a client not belonging to the scoped tenant", async () => {
     const { db, calls } = database({ facility: [] });
     await expect(createFacility(db, tenantId, valid)).rejects.toThrow("from this tenant");
-    expect(calls.find((call) => call.table === "clients")?.filters).toEqual([["tenant_id", tenantId], ["id", clientId]]);
+    expect(calls.find((call) => call.table === "clients")?.filters).toEqual([["tenant_id", tenantId], ["id", clientId], ["archived_at", null]]);
     expect(calls.some((call) => call.inserted)).toBe(false);
   });
   it("persists the explicitly selected tenant client", async () => {

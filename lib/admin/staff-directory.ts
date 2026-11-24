@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { NEXUS_PLATFORM } from "@/lib/auth/platform-shared";
@@ -620,6 +621,9 @@ export async function inviteStaff(
   if ("error" in parsed) {
     throw new StaffDirectoryError(parsed.error, "VALIDATION", 400);
   }
+
+  const recipientError = emailDeliveryValidationMessage(parsed.email);
+  if (recipientError) throw new StaffDirectoryError(recipientError, "VALIDATION", 400);
 
   const tenant = await loadTenant(supabase, params.tenantId);
   const invitedRole = matchStaffRole(parsed.role, catalog);

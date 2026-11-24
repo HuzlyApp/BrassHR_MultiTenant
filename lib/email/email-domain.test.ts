@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CURRENT_EMAIL_DOMAIN,
+  emailDeliveryValidationMessage,
   emailLookupVariants,
   emailsMatchWithLegacyDomain,
   extractBareEmailAddress,
@@ -8,6 +9,15 @@ import {
   migrateEmailDomain,
   toLegacyEmailVariant,
 } from "@/lib/email/email-domain";
+
+describe("email delivery validation", () => {
+  it.each(["qa@example.com", "QA <qa@EXAMPLE.NET>", "qa@sub.example.org"])("explains reserved recipients before delivery: %s", (email) => {
+    expect(emailDeliveryValidationMessage(email)).toContain("real inbox you control");
+  });
+  it.each(["qa@brasshr.com", "qa@myexample.com", "qa@example.com.org"])("preserves real recipient domains: %s", (email) => {
+    expect(emailDeliveryValidationMessage(email)).toBeNull();
+  });
+});
 
 describe("migrateEmailDomain", () => {
   it("migrates @nexusmedpro.com to @brasshr.com preserving local-part", () => {

@@ -577,7 +577,7 @@ async function proxyInner(request: NextRequest) {
       const destination = resolvePostAuthRedirectForUser(
         onboardingStatus,
         user,
-        "/admin_recruiter/launch-pad"
+        "/admin_recruiter/settings/billing"
       );
       return redirectAuthenticatedUser(request, response, user, destination);
     }

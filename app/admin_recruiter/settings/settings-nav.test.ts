@@ -158,6 +158,7 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(appGroup?.items.map((item) => item.id)).toEqual([
       "company-profile",
       "user-management",
+      "roles",
       "departments",
       "branding",
       "integrations",
@@ -168,10 +169,13 @@ describe("Settings Navigation & Mini-Sidebar Persistence", () => {
     expect(appGroup?.items.some((item) => item.id === "help")).toBe(false);
     expect(
       SETTINGS_NAV_GROUPS.flatMap((g) => g.items).some((item) => item.id === "roles")
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isSettingsNavItemActive(userManagementItem!, "/admin_recruiter/settings/roles")
-    ).toBe(true);
+    ).toBe(false);
+    const rolesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find((item) => item.id === "roles")!;
+    expect(rolesItem.label).toBe("Roles & Permissions");
+    expect(isSettingsNavItemActive(rolesItem, "/admin_recruiter/settings/roles/new")).toBe(true);
 
     const templatesItem = SETTINGS_NAV_GROUPS.flatMap((g) => g.items).find(
       (item) => item.id === "templates"
