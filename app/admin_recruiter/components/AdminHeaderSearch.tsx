@@ -3,11 +3,15 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
+  type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   adminHeaderSearchShortcuts,
@@ -17,6 +21,149 @@ import {
 } from "@/lib/admin/admin-header-search";
 
 const HEADER_SEARCH_ICON = "/icons/admin-recruiter/header/search.svg";
+const VIEWPORT_PAD = 8;
+const PANEL_GAP = 6;
+const PANEL_MAX_WIDTH = 420;
+
+function SearchResultsPanel({
+  anchor,
+  query,
+  loadingRemote,
+  flatResults,
+  activeIndex,
+  onHoverIndex,
+  onSelect,
+  onClose,
+  panelRef,
+}: {
+  anchor: HTMLElement;
+  query: string;
+  loadingRemote: boolean;
+  flatResults: AdminHeaderSearchItem[];
+  activeIndex: number;
+  onHoverIndex: (index: number) => void;
+  onSelect: (item: AdminHeaderSearchItem) => void;
+  onClose: () => void;
+  panelRef: RefObject<HTMLDivElement | null>;
+}) {
+  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+  const updatePosition = useCallback(() => {
+    const rect = anchor.getBoundingClientRect();
+    // Keep panel inside the main content column (avoids clipping under the mobile sidebar rail).
+    const mainWrap = document.querySelector(".admin-recruiter-main-wrap");
+    const contentLeft = mainWrap
+      ? Math.max(VIEWPORT_PAD, mainWrap.getBoundingClientRect().left + VIEWPORT_PAD)
+      : VIEWPORT_PAD;
+    const contentRight = window.innerWidth - VIEWPORT_PAD;
+    const available = Math.max(160, contentRight - contentLeft);
+    const width = Math.min(PANEL_MAX_WIDTH, Math.max(rect.width, Math.min(available, PANEL_MAX_WIDTH)), available);
+
+    let left = rect.left;
+    if (left + width > contentRight) {
+      left = contentRight - width;
+    }
+    left = Math.max(contentLeft, left);
+
+    const top = rect.bottom + PANEL_GAP;
+
+    setStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      visibility: "visible",
+    });
+  }, [anchor]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition, flatResults.length, query]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [updatePosition]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (anchor.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [anchor, onClose, panelRef]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      id="admin-header-search-results"
+      role="listbox"
+      style={style}
+      className="z-[200] max-h-[min(420px,70vh)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+    >
+      <div className="max-h-[min(380px,65vh)] overflow-y-auto py-1">
+        {flatResults.length === 0 ? (
+          <p className="px-3 py-3 text-sm text-[#64748B]">
+            {query.trim()
+              ? loadingRemote
+                ? "Searching…"
+                : "No matches found."
+              : "Type to search pages, people, or jobs."}
+          </p>
+        ) : (
+          flatResults.map((item, index) => {
+            const active = index === activeIndex;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onMouseEnter={() => onHoverIndex(index)}
+                onClick={() => onSelect(item)}
+                className={`flex w-full min-w-0 flex-col gap-0.5 px-3 py-2.5 text-left transition ${
+                  active ? "bg-[#F8FAFC]" : "bg-white hover:bg-[#F8FAFC]"
+                }`}
+              >
+                <span className="truncate text-sm font-semibold text-[#0F172A]">
+                  {item.label}
+                </span>
+                <span className="truncate text-xs text-[#64748B]">
+                  {item.kind === "person"
+                    ? `Person · ${item.description}`
+                    : item.kind === "job"
+                      ? `Job · ${item.description}`
+                      : item.description}
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+      <div className="border-t border-[#F1F5F9] px-3 py-2 text-[11px] text-[#94A3B8]">
+        Enter to open · Esc to close
+        {loadingRemote ? " · Searching records…" : ""}
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export default function AdminHeaderSearch() {
   const router = useRouter();
@@ -28,6 +175,7 @@ export default function AdminHeaderSearch() {
   const [loadingRemote, setLoadingRemote] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const pageResults = useMemo(() => searchAdminHeaderPages(query, 6), [query]);
   const shortcuts = useMemo(() => adminHeaderSearchShortcuts(query), [query]);
@@ -89,15 +237,7 @@ export default function AdminHeaderSearch() {
     };
   }, [query]);
 
-  useEffect(() => {
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, []);
+  const closePanel = useCallback(() => setOpen(false), []);
 
   const navigateTo = useCallback(
     (item: AdminHeaderSearchItem) => {
@@ -147,8 +287,8 @@ export default function AdminHeaderSearch() {
   }
 
   return (
-    <div ref={rootRef} className="relative min-w-0 flex-1 max-w-[min(100%,420px)]">
-      <label className="flex h-9 min-w-0 w-full cursor-text items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2.5 transition focus-within:border-[color:var(--brand-primary)]">
+    <div ref={rootRef} className="relative min-w-0 w-full max-w-[min(100%,420px)]">
+      <label className="flex h-8 min-w-0 w-full cursor-text items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2 transition focus-within:border-[color:var(--brand-primary)] sm:h-9 sm:px-2.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={HEADER_SEARCH_ICON}
@@ -177,56 +317,18 @@ export default function AdminHeaderSearch() {
         />
       </label>
 
-      {open ? (
-        <div
-          id="admin-header-search-results"
-          role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[130] max-h-[min(420px,70vh)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
-        >
-          <div className="max-h-[min(380px,65vh)] overflow-y-auto py-1">
-            {flatResults.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-[#64748B]">
-                {query.trim()
-                  ? loadingRemote
-                    ? "Searching…"
-                    : "No matches found."
-                  : "Type to search pages, people, or jobs."}
-              </p>
-            ) : (
-              flatResults.map((item, index) => {
-                const active = index === activeIndex;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => navigateTo(item)}
-                    className={`flex w-full min-w-0 flex-col gap-0.5 px-3 py-2.5 text-left transition ${
-                      active ? "bg-[#F8FAFC]" : "bg-white hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    <span className="truncate text-sm font-semibold text-[#0F172A]">
-                      {item.label}
-                    </span>
-                    <span className="truncate text-xs text-[#64748B]">
-                      {item.kind === "person"
-                        ? `Person · ${item.description}`
-                        : item.kind === "job"
-                          ? `Job · ${item.description}`
-                          : item.description}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          <div className="border-t border-[#F1F5F9] px-3 py-2 text-[11px] text-[#94A3B8]">
-            Enter to open · Esc to close
-            {loadingRemote ? " · Searching records…" : ""}
-          </div>
-        </div>
+      {open && rootRef.current ? (
+        <SearchResultsPanel
+          anchor={rootRef.current}
+          query={query}
+          loadingRemote={loadingRemote}
+          flatResults={flatResults}
+          activeIndex={activeIndex}
+          onHoverIndex={setActiveIndex}
+          onSelect={navigateTo}
+          onClose={closePanel}
+          panelRef={panelRef}
+        />
       ) : null}
     </div>
   );

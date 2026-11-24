@@ -261,14 +261,15 @@ export function AdminRecruiterHeader({
   }, [router, path, isDocumentTemplateEditorPage]);
 
   return (
-    <header className="admin-recruiter-topbar sticky top-0 z-40 w-full bg-white max-[999px]:z-30">
-      <div className="flex h-full min-w-0 w-full items-center gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-[30px] max-[999px]:pr-3">
-        <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2 min-[1000px]:-ml-1.5">
+    <header className="admin-recruiter-topbar sticky top-0 z-40 w-full overflow-visible bg-white max-[999px]:z-30">
+      <div className="flex h-full min-w-0 w-full items-center gap-1.5 px-2 sm:gap-3 sm:px-5 min-[1000px]:gap-3 min-[1000px]:px-[30px]">
+        {/* Left: menu / sidebar toggle — shrink on mobile so search+actions keep room */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2 min-[1000px]:-ml-1.5 min-[1000px]:min-w-0 min-[1000px]:flex-1">
           {onMenuClick ? (
             <button
               type="button"
               onClick={onMenuClick}
-              className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:hidden"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:hidden"
               aria-label="Open navigation menu"
               aria-expanded={mobileNavOpen}
               title="Open menu"
@@ -288,7 +289,7 @@ export function AdminRecruiterHeader({
             <button
               type="button"
               onClick={onSidebarToggle}
-              className="hidden h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:inline-flex"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:inline-flex"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
             >
@@ -307,7 +308,7 @@ export function AdminRecruiterHeader({
             <button
               type="button"
               onClick={handleBackClick}
-              className="inline-flex items-center gap-1 rounded-md bg-transparent px-1 py-1 transition hover:bg-slate-50"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-transparent px-1 py-1 transition hover:bg-slate-50"
               aria-label="Go back"
             >
               <ChevronLeft className="h-5 w-5 shrink-0 text-[#64748B]" aria-hidden />
@@ -316,6 +317,7 @@ export function AdminRecruiterHeader({
           ) : null}
         </div>
 
+        {/* Center: search takes remaining width on mobile; stays centered on desktop */}
         <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:gap-3">
           <div className="hidden min-[900px]:block">
             <GodAdminTenantSwitcher />
@@ -323,9 +325,10 @@ export function AdminRecruiterHeader({
           <AdminHeaderSearch />
         </div>
 
-        <div className="relative flex min-w-0 flex-1 justify-end">
-          <div className="flex items-center">
-            <div ref={messagesAreaRef} className="relative flex items-center gap-0.5">
+        {/* Right: actions stay fixed-size so they never overlap search */}
+        <div className="relative flex shrink-0 items-center justify-end min-[1000px]:min-w-0 min-[1000px]:flex-1">
+          <div className="flex items-center gap-0">
+            <div ref={messagesAreaRef} className="relative flex items-center gap-0 sm:gap-0.5">
               <button
                 type="button"
                 onClick={() => {
@@ -504,6 +507,7 @@ export function AdminRecruiterHeader({
               ) : null}
             </div>
 
+            {/* Help is also in the profile menu — hide the icon on narrow phones to free space */}
             <Link
               href="/admin_recruiter/help-support"
               onClick={() => {
@@ -511,7 +515,7 @@ export function AdminRecruiterHeader({
                 setShowNotifications(false);
                 setShowProfileMenu(false);
               }}
-              className={`ml-0.5 ${HEADER_ICON_BUTTON_CLASS}`}
+              className={`ml-0.5 hidden min-[480px]:inline-flex ${HEADER_ICON_BUTTON_CLASS}`}
               aria-label="Help and support"
               title="Help and support"
             >
@@ -526,7 +530,7 @@ export function AdminRecruiterHeader({
               />
             </Link>
 
-            <div ref={profileAreaRef} className="relative ml-5">
+            <div ref={profileAreaRef} className="relative ml-1.5 sm:ml-3 min-[1000px]:ml-5">
             <button
               type="button"
               onClick={() => {
@@ -534,7 +538,7 @@ export function AdminRecruiterHeader({
                 setShowMessages(false);
                 setShowNotifications(false);
               }}
-              className="flex max-w-full items-center gap-3 rounded-md bg-transparent transition hover:opacity-90"
+              className="flex max-w-full items-center gap-1.5 rounded-md bg-transparent transition hover:opacity-90 sm:gap-3"
               aria-label="Open profile menu"
               aria-expanded={showProfileMenu}
             >
@@ -548,7 +552,7 @@ export function AdminRecruiterHeader({
                 />
                 <span className="absolute right-0 bottom-0 size-1.5 rounded-full bg-[#6CE778]" aria-hidden />
               </span>}
-              <span className="hidden min-w-0 flex-col text-left sm:flex">
+              <span className="hidden min-w-0 flex-col text-left min-[640px]:flex">
                 <span className="-mb-[3px] max-w-[88px] truncate text-[14px] leading-5 font-semibold text-black md:max-w-[140px]">
                   {profileNameLoading ? <span className="my-1 block h-3 w-20 animate-pulse rounded bg-slate-200" /> : displayName ?? "Account"}
                 </span>
@@ -563,7 +567,7 @@ export function AdminRecruiterHeader({
               alt=""
               width={6}
               height={3.5}
-              className="h-[3.5px] w-[6px] shrink-0"
+              className="hidden h-[3.5px] w-[6px] shrink-0 min-[640px]:block"
               aria-hidden
             />
             </button>

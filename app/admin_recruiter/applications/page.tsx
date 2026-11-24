@@ -112,9 +112,7 @@ import { formatPhoneForDisplay } from "@/lib/admin/worker-profile-field-client";
 import toast from "react-hot-toast";
 import {
   BRAAS_PRIMARY,
-  BRAAS_SECONDARY,
   brandingToCssVars,
-  readableTextOnBrand,
 } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_EDITABLE_COLUMNS,
@@ -781,17 +779,6 @@ function experienceLabel(row: ApplicationRow): string {
   return `${numeric} yr${numeric === 1 ? "" : "s"} experience`;
 }
 
-function pageNumberWindow(current: number, total: number, size = 5): number[] {
-  if (total <= size) return Array.from({ length: total }, (_, index) => index + 1);
-  let start = Math.max(1, current - Math.floor(size / 2));
-  let end = start + size - 1;
-  if (end > total) {
-    end = total;
-    start = Math.max(1, end - size + 1);
-  }
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
-
 /** MSP end client (job form Contract Group / Client → msp_name). Non-MSP or empty → "". */
 function applicationClientName(row: ApplicationRow): string {
   const job = one(row.job_requisitions);
@@ -823,8 +810,6 @@ export default function JobApplicationsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
   const primaryColor = branding.primaryHex || BRAAS_PRIMARY;
-  const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
-  const textOnSecondary = readableTextOnBrand(secondaryColor);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -2903,21 +2888,34 @@ export default function JobApplicationsPage() {
     const name = applicantName(row);
     const local = row.groupedApplications?.length ? row.groupedApplications : [row];
     const expected = Math.max(Number(row.appliedJobCount ?? 1) || 1, local.length);
+    const needsFullFetch = local.length < expected || expected > 1;
     setJobsPopover({
       key,
       anchor,
       name,
       applications: local,
-      loading: local.length < expected,
+      loading: needsFullFetch,
     });
-    if (local.length >= expected) return;
+    if (!needsFullFetch) return;
 
     try {
-      const params = new URLSearchParams({ page: "1", pageSize: "50" });
       const email = applicantEmail(row).trim().toLowerCase();
       const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
-      if (workerId) params.set("workerId", workerId);
-      else if (email) params.set("q", email);
+      // Avoid `page` — that hits the unique-applicant list RPC (one row per person).
+      // Worker fetch without page returns every application for that worker.
+      const params = new URLSearchParams();
+      if (workerId) {
+        params.set("workerId", workerId);
+      } else if (email) {
+        params.set("page", "1");
+        params.set("pageSize", "50");
+        params.set("q", email);
+      } else {
+        setJobsPopover((current) =>
+          current?.key === key ? { ...current, loading: false } : current
+        );
+        return;
+      }
       const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Failed to load applications");
@@ -2928,6 +2926,19 @@ export default function JobApplicationsPage() {
         );
       }
       if (!applications.length) applications = local;
+      // Prefer full worker list; keep any local rows the API omitted (e.g. filters).
+      if (workerId && local.length) {
+        const byId = new Map(applications.map((item) => [item.id, item]));
+        for (const item of local) {
+          if (!byId.has(item.id)) byId.set(item.id, item);
+        }
+        applications = Array.from(byId.values());
+      }
+      applications = [...applications].sort((a, b) => {
+        const aTime = new Date(a.submitted_at || a.created_at).getTime();
+        const bTime = new Date(b.submitted_at || b.created_at).getTime();
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      });
       setJobsPopover((current) =>
         current?.key === key ? { ...current, applications, loading: false } : current
       );
@@ -3334,13 +3345,96 @@ export default function JobApplicationsPage() {
     }
   }
 
+  function renderApplicantCard(row: ApplicationRow) {
+    const name = applicantName(row);
+    const email = applicantEmail(row);
+    const phone = applicantPhone(row);
+    const role =
+      row.job_role ||
+      String(one(row.job_requisitions).public_title ?? "").trim() ||
+      "—";
+    const workerId = resolveApplicationWorkerId(row) || row.worker_id || row.id;
+    const profileHref = candidateApplicantProfileHref(workerId, { from: "candidates" });
+    const exp = experienceLabel(row);
+    const appliedJobCount = Number(row.appliedJobCount ?? 1);
+    const multiJob = appliedJobCount > 1;
+    return (
+      <div
+        key={row.id}
+        className="flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm transition hover:shadow-md"
+      >
+        <div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div
+                className="shrink-0"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <ListTableCheckbox
+                  checked={selectedIds.has(row.id)}
+                  onChange={() => toggleSelect(row.id)}
+                  aria-label={`Select ${name || "applicant"}`}
+                />
+              </div>
+              <CandidateListAvatar name={name || "NA"} />
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Link
+                    href={profileHref}
+                    className="truncate text-xs font-semibold text-[#374151] hover:underline"
+                  >
+                    {name}
+                  </Link>
+                  {multiJob ? (
+                    <button
+                      type="button"
+                      className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#F7EEDC] px-2 py-0.5 text-xs font-semibold leading-4 text-[#8A5A12] transition-all hover:bg-[#EEDBB8] hover:text-[#684107] hover:shadow-xs focus:outline-none focus:ring-2 focus:ring-[#8A5A12]/30 active:scale-95"
+                      title={`View all ${appliedJobCount} applications`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const same = jobsPopover?.key === applicantGroupKey(row);
+                        if (same) {
+                          setJobsPopover(null);
+                          return;
+                        }
+                        void openApplicantJobs(row, event.currentTarget);
+                      }}
+                    >
+                      {appliedJobCount}
+                    </button>
+                  ) : null}
+                </div>
+                {exp ? <p className="text-[10px] leading-[15px] text-[#6B7280]">{exp}</p> : null}
+              </div>
+            </div>
+            {renderCell("fit", row)}
+          </div>
+
+          <div className="mt-3.5 space-y-1 text-xs">
+            <p className="font-medium text-[#0F172A]">{role}</p>
+            <p className="truncate text-[#64748B]">{email}</p>
+            <p className="text-[#94A3B8]">{phone}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#F1F5F9] pt-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {renderCell("workType", row)}
+            {renderCell("currentStage", row)}
+          </div>
+          {renderCell("actions", row)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="box-border flex w-full min-w-0 max-w-full flex-col gap-5 px-4 pb-8 pt-[30px] sm:px-5 lg:px-8"
+      className="box-border flex w-full min-w-0 max-w-full flex-col gap-4 px-3 pb-8 pt-5 sm:gap-5 sm:px-5 sm:pt-[30px] lg:px-8"
       style={brandStyle}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex min-w-0 flex-col items-stretch justify-between gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-[20px] font-semibold leading-7 text-black">
             Applicants
           </h1>
@@ -3351,20 +3445,20 @@ export default function JobApplicationsPage() {
 
         {/* Optional Job selector */}
         {jobOptions.length > 0 && (
-          <div className="relative min-w-0" ref={jobMenuRef}>
+          <div className="relative w-full min-w-0 sm:w-auto" ref={jobMenuRef}>
             <button
               type="button"
               onClick={() => setJobMenuOpen((open) => !open)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-2 text-xs font-semibold text-[#334155] shadow-sm transition hover:bg-[#F8FAFC]"
+              className="inline-flex w-full max-w-full items-center justify-between gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-2 text-xs font-semibold text-[#334155] shadow-sm transition hover:bg-[#F8FAFC] sm:w-auto sm:justify-start"
             >
-              <span>{jobTitle}</span>
+              <span className="min-w-0 truncate">{jobTitle}</span>
               <ChevronDown
-                className={`h-3.5 w-3.5 text-[#94A3B8] transition ${jobMenuOpen ? "rotate-180" : ""}`}
+                className={`h-3.5 w-3.5 shrink-0 text-[#94A3B8] transition ${jobMenuOpen ? "rotate-180" : ""}`}
               />
             </button>
             {jobMenuOpen && (
               <div
-                className="absolute right-0 z-40 mt-2 max-h-80 w-72 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-xl"
+                className="absolute left-0 right-0 z-40 mt-2 max-h-80 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-xl sm:left-auto sm:right-0 sm:w-72"
                 role="listbox"
               >
                 <button
@@ -3459,6 +3553,7 @@ export default function JobApplicationsPage() {
       {/* Main Table Container */}
       <div className="w-full overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
         <CandidateBulkSelectionBar
+          flushTop
           selectedCount={selectedIds.size}
           eligibleCount={selectedEligibleCount}
           scopeLabel={
@@ -3504,86 +3599,24 @@ export default function JobApplicationsPage() {
             />
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            {displayRows.map((row) => {
-              const name = applicantName(row);
-              const email = applicantEmail(row);
-              const phone = applicantPhone(row);
-              const role =
-                row.job_role ||
-                String(one(row.job_requisitions).public_title ?? "").trim() ||
-                "—";
-              const workerId = resolveApplicationWorkerId(row) || row.worker_id || row.id;
-              const profileHref = candidateApplicantProfileHref(workerId, { from: "candidates" });
-              const exp = experienceLabel(row);
-              const appliedJobCount = Number(row.appliedJobCount ?? 1);
-              const multiJob = appliedJobCount > 1;
-              return (
-                <div
-                  key={row.id}
-                  className="flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm transition hover:shadow-md"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <CandidateListAvatar name={name || "NA"} />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <Link
-                              href={profileHref}
-                              className="truncate text-xs font-semibold text-[#374151] hover:underline"
-                            >
-                              {name}
-                            </Link>
-                            {multiJob ? (
-                              <button
-                                type="button"
-                                className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#F7EEDC] px-2 py-0.5 text-xs font-semibold leading-4 text-[#8A5A12] transition-all hover:bg-[#EEDBB8] hover:text-[#684107] hover:shadow-xs focus:outline-none focus:ring-2 focus:ring-[#8A5A12]/30 active:scale-95"
-                                title={`View all ${appliedJobCount} applications`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  const same = jobsPopover?.key === applicantGroupKey(row);
-                                  if (same) {
-                                    setJobsPopover(null);
-                                    return;
-                                  }
-                                  void openApplicantJobs(row, event.currentTarget);
-                                }}
-                              >
-                                {appliedJobCount}
-                              </button>
-                            ) : null}
-                          </div>
-                          {exp ? <p className="text-[10px] leading-[15px] text-[#6B7280]">{exp}</p> : null}
-                        </div>
-                      </div>
-                      {renderCell("fit", row)}
-                    </div>
-
-                    <div className="mt-3.5 space-y-1 text-xs">
-                      <p className="font-medium text-[#0F172A]">{role}</p>
-                      <p className="truncate text-[#64748B]">{email}</p>
-                      <p className="text-[#94A3B8]">{phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between border-t border-[#F1F5F9] pt-3">
-                    <div className="flex items-center gap-2">
-                      {renderCell("workType", row)}
-                      {renderCell("currentStage", row)}
-                    </div>
-                    {renderCell("actions", row)}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-5 lg:grid-cols-3">
+            {displayRows.length === 0 ? (
+              <p className="col-span-full px-2 py-16 text-center text-sm text-[#64748B]">
+                {highlightMultiJobApplicants
+                  ? "No applicants have applied to multiple jobs."
+                  : "No applicants match these filters."}
+              </p>
+            ) : (
+              displayRows.map((row) => renderApplicantCard(row))
+            )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          /* List view: same web table on all devices — horizontal scroll on narrow screens */
+          <div className="-mx-px overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
             <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
               <thead className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                 <tr>
-                  <th className="w-12 px-4 py-3.5 text-center cursor-pointer">
+                  <th className="w-12 cursor-pointer px-4 py-3.5 text-center">
                     <ListTableCheckbox
                       checked={allVisibleSelected}
                       indeterminate={someVisibleSelected && !allVisibleSelected}
@@ -3598,7 +3631,7 @@ export default function JobApplicationsPage() {
                     return (
                       <th
                         key={colId}
-                        className={`px-3 py-3.5 text-xs font-semibold uppercase tracking-wider text-[#475569] ${applicationListColumnClassName(colId)}`}
+                        className={`px-3 py-3.5 text-sm font-semibold uppercase tracking-wider text-[#475569] ${applicationListColumnClassName(colId)}`}
                         aria-sort={
                           sortActive
                             ? listSort.direction === "asc"
@@ -3608,15 +3641,15 @@ export default function JobApplicationsPage() {
                         }
                       >
                         {sortable ? (
-                            <ListSortableHeader
-                              label={applicationColumnLabel(colId)}
-                              align={applicationListHeaderAlign(colId)}
-                              active={Boolean(sortActive)}
-                              direction={listSort.direction}
-                              onSort={() => handleListColumnSort(colId)}
-                              className="text-[10px] font-semibold uppercase tracking-normal text-[#374151]"
-                              iconClassName="size-3.5"
-                            />
+                          <ListSortableHeader
+                            label={applicationColumnLabel(colId)}
+                            align={applicationListHeaderAlign(colId)}
+                            active={Boolean(sortActive)}
+                            direction={listSort.direction}
+                            onSort={() => handleListColumnSort(colId)}
+                            className="text-sm font-semibold uppercase tracking-wider text-[#475569]"
+                            iconClassName="size-3.5"
+                          />
                         ) : (
                           applicationColumnLabel(colId)
                         )}
@@ -3646,44 +3679,44 @@ export default function JobApplicationsPage() {
                       from: "candidates",
                     });
                     return (
-                    <tr
-                      key={row.id}
-                      className="align-middle transition-colors hover:bg-[#F8FAFC] cursor-pointer"
-                      onClick={(event) => {
-                        const target = event.target as HTMLElement | null;
-                        if (
-                          target?.closest(
-                            "a,button,input,select,textarea,label,[role='menu'],[role='menuitem'],[data-row-no-nav]"
-                          )
-                        ) {
-                          return;
-                        }
-                        router.push(profileHref);
-                      }}
-                    >
-                      <td
-                        className="px-4 py-3 text-center align-middle cursor-pointer"
-                        data-row-no-nav
+                      <tr
+                        key={row.id}
+                        className="cursor-pointer align-middle transition-colors hover:bg-[#F8FAFC]"
                         onClick={(event) => {
-                          event.stopPropagation();
-                          toggleSelect(row.id);
+                          const target = event.target as HTMLElement | null;
+                          if (
+                            target?.closest(
+                              "a,button,input,select,textarea,label,[role='menu'],[role='menuitem'],[data-row-no-nav]"
+                            )
+                          ) {
+                            return;
+                          }
+                          router.push(profileHref);
                         }}
                       >
-                        <ListTableCheckbox
-                          checked={selectedIds.has(row.id)}
-                          onChange={() => toggleSelect(row.id)}
-                          aria-label={`Select ${applicantName(row)}`}
-                        />
-                      </td>
-                      {listColumns.map((colId) => (
                         <td
-                          key={colId}
-                          className={`px-3 py-3 align-middle ${applicationListColumnClassName(colId)}`}
+                          className="cursor-pointer px-4 py-3 text-center align-middle"
+                          data-row-no-nav
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleSelect(row.id);
+                          }}
                         >
-                          {renderCell(colId, row)}
+                          <ListTableCheckbox
+                            checked={selectedIds.has(row.id)}
+                            onChange={() => toggleSelect(row.id)}
+                            aria-label={`Select ${applicantName(row)}`}
+                          />
                         </td>
-                      ))}
-                    </tr>
+                        {listColumns.map((colId) => (
+                          <td
+                            key={colId}
+                            className={`px-3 py-3 align-middle ${applicationListColumnClassName(colId)}`}
+                          >
+                            {renderCell(colId, row)}
+                          </td>
+                        ))}
+                      </tr>
                     );
                   })
                 )}
@@ -3692,62 +3725,46 @@ export default function JobApplicationsPage() {
           </div>
         )}
 
-        {/* Footer pagination matching Figma */}
-        <div className="flex flex-col gap-3 rounded-b-2xl border-t border-[#E2E8F0] bg-white px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs font-medium text-[#64748B]">
-            Showing{" "}
-            <span className="font-semibold text-[#0F172A]">
-              {resultTotal === 0 ? "0" : `${pageStart}–${pageEnd}`}
-            </span>{" "}
-            of <span className="font-semibold text-[#0F172A]">{displayTotal}</span> results
-          </p>
+        {/* Footer pagination — ellipsis pattern for large page counts (1 … 3 4 5 … N) */}
+        <div className="flex flex-col gap-3 rounded-b-2xl border-t border-[#E2E8F0] bg-white px-3 py-3.5 pb-6 sm:px-5 sm:pb-3.5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+            <p className="min-w-0 text-xs font-medium text-[#64748B]">
+              Showing{" "}
+              <span className="font-semibold text-[#0F172A]">
+                {resultTotal === 0 ? "0" : `${pageStart}–${pageEnd}`}
+              </span>{" "}
+              of <span className="font-semibold text-[#0F172A]">{displayTotal}</span> results
+            </p>
+            <div className="shrink-0 lg:hidden">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            </div>
+          </div>
 
-          <div className="flex items-center gap-3">
-            <ListPaginationShowLabel
-              pageSize={pageSize}
-              options={PAGE_SIZE_OPTIONS}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
+          <div className="flex min-w-0 flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+            <div className="hidden shrink-0 lg:block">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            </div>
 
-            <div className="flex items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setPage(Math.max(1, currentPage - 1))}
-                className="rounded-lg px-2.5 py-1 font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-40"
-              >
-                Previous
-              </button>
-              {pageNumberWindow(currentPage, totalPages).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPage(p)}
-                  style={
-                    currentPage === p
-                      ? { backgroundColor: secondaryColor, color: textOnSecondary }
-                      : undefined
-                  }
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg font-bold text-xs ${
-                    currentPage === p
-                      ? "shadow-sm"
-                      : "text-[#64748B] hover:bg-[#F1F5F9]"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                className="rounded-lg px-2.5 py-1 font-medium text-[#64748B] hover:text-[#0F172A] disabled:opacity-40"
-              >
-                Next
-              </button>
+            <div className="flex w-full min-w-0 justify-center overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] sm:w-auto sm:justify-end sm:overflow-visible">
+              <ListPaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
             </div>
           </div>
         </div>
@@ -3826,9 +3843,6 @@ export default function JobApplicationsPage() {
           isAnalyzed={
             findApplicationRow(rowActionsMenu.rowId)?.ai_match_status === "ANALYZED"
           }
-          hired={normalizeApplicationStatus(
-            findApplicationRow(rowActionsMenu.rowId)?.status ?? ""
-          ) === "hired"}
           archived={(() => {
             const row = findApplicationRow(rowActionsMenu.rowId);
             return row ? isRowArchived(row, statusOptions) : false;
@@ -3886,13 +3900,6 @@ export default function JobApplicationsPage() {
             void openStatusHistory(row);
           }}
           onDeleteCandidate={() => beginDeleteCandidate(rowActionsMenu.rowId)}
-          onMarkAsHired={() =>
-            beginQuickStatusChange(
-              rowActionsMenu.rowId,
-              "hired",
-              "Marked as hired from candidates list"
-            )
-          }
         />
       ) : null}
 

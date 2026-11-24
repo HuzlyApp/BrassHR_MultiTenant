@@ -112,13 +112,33 @@ type AddCandidateModalProps = {
 const FIELD_LABEL_CLASS = "mb-1.5 block text-sm font-normal text-[#6B7280]";
 const FIELD_INPUT_CLASS =
   "w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2.5 text-sm text-[#334155] outline-none transition placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)]";
-const FIELD_SELECT_CLASS =
-  "h-10 w-full min-w-0 cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm font-normal leading-6 text-[#334155] outline-none transition hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)]";
-const SELECT_CHEVRON = {
-  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-  )}")`,
-} as const;
+
+/** Build searchable labels; disambiguate duplicate job titles with a short id. */
+function buildJobPickerLabels(options: AddCandidateJobOption[]): {
+  labels: string[];
+  labelById: Map<string, string>;
+  idByLabel: Map<string, string>;
+} {
+  const titleCounts = new Map<string, number>();
+  for (const option of options) {
+    const title = option.title.trim() || "Untitled job";
+    titleCounts.set(title, (titleCounts.get(title) ?? 0) + 1);
+  }
+  const labelById = new Map<string, string>();
+  const idByLabel = new Map<string, string>();
+  const labels: string[] = [];
+  for (const option of options) {
+    const title = option.title.trim() || "Untitled job";
+    const label =
+      (titleCounts.get(title) ?? 0) > 1
+        ? `${title} (${option.id.slice(0, 8)})`
+        : title;
+    labelById.set(option.id, label);
+    idByLabel.set(label, option.id);
+    labels.push(label);
+  }
+  return { labels, labelById, idByLabel };
+}
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -263,6 +283,13 @@ export default function AddCandidateModal({
 
   const showJobPicker = Boolean(jobOptions?.length) && !jobId.trim();
   const effectiveJobId = (jobId.trim() || selectedJobId).trim();
+  const jobPicker = useMemo(
+    () => buildJobPickerLabels(jobOptions ?? []),
+    [jobOptions]
+  );
+  const selectedJobLabel = selectedJobId
+    ? jobPicker.labelById.get(selectedJobId) ?? ""
+    : "";
   const effectiveJobTitle =
     jobTitle?.trim() ||
     jobOptions?.find((option) => option.id === effectiveJobId)?.title ||
@@ -889,28 +916,22 @@ export default function AddCandidateModal({
             >
               {showJobPicker ? (
                 <div className="mb-4">
-                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-job">
-                    Select a job
-                  </label>
-                  <select
-                    id="add-candidate-job"
-                    className={`${FIELD_SELECT_CLASS} ${selectedJobId ? "text-[#334155]" : "text-[#94A3B8]"}`}
-                    style={SELECT_CHEVRON}
-                    value={selectedJobId}
-                    onChange={(event) => {
-                      setSelectedJobId(event.target.value);
+                  <SearchableSelectField
+                    label="Select a job"
+                    required
+                    dense
+                    disabled={uploading}
+                    value={selectedJobLabel}
+                    onChange={(label) => {
+                      setSelectedJobId(jobPicker.idByLabel.get(label) ?? "");
                       setJobError(null);
                     }}
-                    disabled={uploading}
-                  >
-                    <option value="">Select a job</option>
-                    {(jobOptions ?? []).map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.title}
-                      </option>
-                    ))}
-                  </select>
-                  {jobError ? <p className="mt-2 text-xs text-[#B91C1C]">{jobError}</p> : null}
+                    placeholder="Select a job"
+                    searchPlaceholder="Search jobs by title"
+                    options={jobPicker.labels}
+                    emptyMessage="No jobs found. Try another search."
+                    error={jobError}
+                  />
                 </div>
               ) : effectiveJobTitle ? (
                 <p className="mb-2 text-sm text-[#64748B]">

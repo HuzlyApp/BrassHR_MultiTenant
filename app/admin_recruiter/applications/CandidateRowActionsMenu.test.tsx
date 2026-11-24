@@ -10,10 +10,11 @@ describe("candidate row more actions", () => {
     const anchor = document.createElement("button");
     document.body.appendChild(anchor);
     const remove = vi.fn();
-    render(<CandidateRowActionsMenu anchor={anchor} onClose={vi.fn()} onAnalyze={vi.fn()} onUpdateResume={vi.fn()} onArchive={vi.fn()} onUnarchive={vi.fn()} onMessage={vi.fn()} onCall={vi.fn()} onSetupInterview={vi.fn()} onViewStatusHistory={vi.fn()} onDeleteCandidate={remove} onMarkAsHired={vi.fn()} />);
+    render(<CandidateRowActionsMenu anchor={anchor} onClose={vi.fn()} onAnalyze={vi.fn()} onUpdateResume={vi.fn()} onArchive={vi.fn()} onUnarchive={vi.fn()} onMessage={vi.fn()} onCall={vi.fn()} onSetupInterview={vi.fn()} onViewStatusHistory={vi.fn()} onDeleteCandidate={remove} />);
     fireEvent.click(screen.getByRole("menuitem", { name: "More Action" }));
     expect(screen.getByRole("menuitem", { name: "Message", exact: true })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Status history" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /mark as hired/i })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     expect(remove).toHaveBeenCalledOnce();
     anchor.remove();
