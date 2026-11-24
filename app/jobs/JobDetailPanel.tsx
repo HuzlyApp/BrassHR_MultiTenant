@@ -416,12 +416,13 @@ export function JobDetailPanel({
             <p className={`mt-2 ${JOB_POSTING_BODY_CLASS}`}>{job.hours_per_week} hours per week</p>
           </section>
         ) : null}
-        {(job.schedule || job.employment_type || workplace) &&
-        !descriptionHasSection(descriptionHtml, "Employment details") ? (
+        {(job.schedule || job.shift_type || job.employment_type || workplace) ? (
           <section className="mt-6 w-full">
             <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Employment details</h3>
             <ul className={`mt-2 space-y-1 ${JOB_POSTING_BODY_CLASS}`}>
-              {job.employment_type ? <li>Employment type: {job.employment_type}</li> : null}
+              {job.shift_type ? <li>Job type: {job.shift_type}</li> : null}
+              {job.employment_type ? <li>Payroll type: {job.employment_type}</li> : null}
+              {job.source_type === "MSP" && job.placement_type === "Recruit_and_Release" ? <li>Employer of record: {job.msp_name?.trim() || "MSP"} (MSP)</li> : null}
               {workplace ? <li>Workplace: {workplace}</li> : null}
               {job.schedule ? <li>Schedule: {job.schedule}</li> : null}
               {job.application_deadline ? (

@@ -151,6 +151,20 @@ describe("AdminConsolePanel resend invitation", () => {
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
 
+  it("explains reserved email domains before submit and defaults to recruiter access", async () => {
+    render(<AdminConsolePanel />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Invite User" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Invite User" }));
+    expect(screen.getByLabelText("Role")).toHaveValue("recruiter");
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "QA" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Tester" } });
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "qa@example.com" } });
+    expect(screen.getByRole("status")).toHaveTextContent("reserved example domain");
+    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("real inbox you control");
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
   it("posts the invitation id when resend is clicked", async () => {
     const user = userEvent.setup();
     render(<AdminConsolePanel />);

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const clientId = req.nextUrl.searchParams.get("client")?.trim();
     if (clientId && !parseRequiredUuid(clientId, "client").ok) return NextResponse.json({ error: "Invalid client" }, { status: 400 });
-    const data = await loadFacilitiesForTenant(resolved.supabase, resolved.tenantId, clientId);
+    const data = await loadFacilitiesForTenant(resolved.supabase, resolved.tenantId, clientId, req.nextUrl.searchParams.get("archived") === "1");
     return NextResponse.json(data);
   } catch (err) {
     console.error("[admin/facilities GET]", err);

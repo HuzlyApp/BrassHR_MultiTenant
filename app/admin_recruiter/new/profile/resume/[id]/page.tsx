@@ -12,6 +12,7 @@ import {
   fetchStaffDetailJson,
   workerProfileApiUrl,
 } from "@/lib/admin/staff-detail-fetch-cache";
+import { resumeDisplayFileName } from "@/lib/resume/resume-display-file-name";
 import {
   Briefcase,
   Calendar,
@@ -37,7 +38,10 @@ type WorkerProfilePayload = {
     status?: string | null;
     status_label?: string;
     profile_photo_url?: string | null;
+    job_id?: string | null;
   };
+  job_id?: string | null;
+  job_requisition_id?: string | null;
   requirements: {
     resume_path: string | null;
     resume_url: string | null;
@@ -51,12 +55,6 @@ function initials(name: string) {
   const first = parts[0]?.[0] ?? "";
   const last = parts[parts.length - 1]?.[0] ?? "";
   return (first + last).toUpperCase();
-}
-
-function fileLabel(path: string | null | undefined) {
-  if (!path?.trim()) return "resume";
-  const seg = path.split("/").pop() || path;
-  return seg;
 }
 
 export default function NewApplicantProfileResumePage() {
@@ -80,7 +78,7 @@ export default function NewApplicantProfileResumePage() {
       setError(null);
       try {
         const result = await fetchStaffDetailJson<WorkerProfilePayload>(
-          workerProfileApiUrl(applicantId)
+          workerProfileApiUrl(applicantId, null, "resume")
         );
         if (!result.ok) throw new Error(result.payload.error || "Failed to load profile");
         setProfile(result.payload);
@@ -156,7 +154,7 @@ export default function NewApplicantProfileResumePage() {
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          chromeActive ? "hidden" : sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
@@ -210,7 +208,7 @@ export default function NewApplicantProfileResumePage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:pl-72">
+      <div className={`flex-1 flex flex-col ${chromeActive ? "" : "lg:pl-72"}`}>
         <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -254,6 +252,11 @@ export default function NewApplicantProfileResumePage() {
                   candidateEmail={w?.email ?? null}
                   location={candidateLocation}
                   statusLabel={candidateStatus}
+                  hasApplication={Boolean(
+                    profile?.job_requisition_id?.trim() ||
+                      profile?.job_id?.trim() ||
+                      w?.job_id?.trim()
+                  )}
                 />
                 <DetailedTabs
                   applicantId={applicantId}
@@ -316,7 +319,7 @@ export default function NewApplicantProfileResumePage() {
                 <div className="w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
                   <div className="flex h-14 items-center justify-between gap-3 border-b border-[#E5E7EB] px-4">
                     <span className="min-w-0 truncate text-sm font-medium text-[#374151]">
-                      {fileLabel(resumePath)}
+                      {resumeDisplayFileName(resumePath, w)}
                     </span>
                     <a
                       href={embedUrl ?? resumeUrl}
@@ -346,6 +349,9 @@ export default function NewApplicantProfileResumePage() {
                         </a>
                       </div>
                       <div className="hidden bg-zinc-100 md:block">
+                        <div className="border-b border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+                          If the embedded preview is blank, your browser may not support this document viewer. <a className="font-medium underline" href={embedUrl ?? resumeUrl} target="_blank" rel="noopener noreferrer">Open in new tab</a> or download the resume above.
+                        </div>
                         <iframe
                           title="Resume preview"
                           src={embedUrl ?? resumeUrl}
@@ -373,7 +379,7 @@ export default function NewApplicantProfileResumePage() {
                         className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white"
                         style={{ backgroundColor: "var(--brand-primary)" }}
                       >
-                        Download {fileLabel(resumePath)}
+                        Download {resumeDisplayFileName(resumePath, w)}
                       </a>
                     </div>
                   )}

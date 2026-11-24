@@ -103,16 +103,18 @@ async function loadAssignmentCountsByFacility(
 export async function loadFacilitiesForTenant(
   supabase: SupabaseClient,
   tenantId: string,
-  clientId?: string
+  clientId?: string,
+  archived = false
 ): Promise<FacilitiesListResponse> {
   let query = supabase.from("facility")
     .select("id, tenant_id, client_id, name, address, phone, about, created_at")
     .eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
   if (clientId) query = query.eq("client_id", clientId);
   const [{ data: facilityRows, error: facilityError }, assignmentCounts, clientResult] = await Promise.all([
     query,
     loadAssignmentCountsByFacility(supabase, tenantId),
-    supabase.from("clients").select("id, company_name").eq("tenant_id", tenantId).order("company_name"),
+    supabase.from("clients").select("id, company_name").eq("tenant_id", tenantId).is("archived_at", null).order("company_name"),
   ]);
   if (clientResult.error) throw clientResult.error;
 
@@ -266,6 +268,7 @@ export async function loadAssignableCandidatesForFacility(
     .select("id")
     .eq("id", facilityId)
     .eq("tenant_id", tenantId)
+    .is("archived_at", null)
     .maybeSingle();
   if (facilityError) throw facilityError;
   if (!facility?.id) {
@@ -303,6 +306,7 @@ export async function loadAssignableCandidatesForFacility(
     .select("id, candidate_id, first_name, last_name, email, job_role, status, location")
     .eq("tenant_id", tenantId)
     .eq("conversion_status", "converted")
+    .is("archived_at", null)
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true })
     .limit(500);

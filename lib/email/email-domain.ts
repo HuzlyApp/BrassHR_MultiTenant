@@ -14,6 +14,15 @@ export function parseEmailAddress(raw: string): { localPart: string; domain: str
   return { localPart: match[1], domain: match[2] };
 }
 
+/** Reserved documentation domains cannot receive invitations or candidate messages. */
+export function emailDeliveryValidationMessage(email: string): string | null {
+  const domain = parseEmailAddress(extractBareEmailAddress(email))?.domain;
+  if (domain && ["example.com", "example.net", "example.org"].some((reserved) => domain === reserved || domain.endsWith(`.${reserved}`))) {
+    return "This address uses a reserved example domain and cannot receive email. Use a real inbox you control for testing.";
+  }
+  return null;
+}
+
 /** Replace only @nexusmedpro.com; preserve local-part and other domains. */
 export function migrateEmailDomain(email: string): string {
   const parsed = parseEmailAddress(email);

@@ -60,7 +60,21 @@ export default function EmailTemplatesPanel() {
     [templates, selectedKey]
   );
 
-  const previewVariables = Object.fromEntries((selected?.variables ?? []).map(variable => [variable.key, variable.sample || `[${variable.key}]`]));
+  const previewVariables = Object.fromEntries(
+    (selected?.variables ?? []).map((variable) => {
+      const key = variable.key;
+      const sample = variable.sample?.trim() || "";
+      const tenantFallback =
+        key === "tenantName" || key === "companyName" || key === "organizationName"
+          ? tenantName?.trim() || ""
+          : "";
+      const resolved =
+        tenantFallback && (!sample || sample === `[${key}]`)
+          ? tenantFallback
+          : sample || (tenantFallback ? tenantFallback : `[${key}]`);
+      return [key, resolved];
+    })
+  );
   function insertVariable(key: string) {
     const field = activeField.current;
     const input = field === "subject" ? subjectRef.current : field === "text" ? textRef.current : htmlRef.current;

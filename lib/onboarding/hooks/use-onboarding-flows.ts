@@ -128,10 +128,29 @@ export function useOnboardingFlows(opts?: {
   });
 
   const actionMutation = useMutation({
-    mutationFn: async ({ flowId, action }: { flowId: string; action: "duplicate" | "unpublish" }) => {
+    mutationFn: async ({
+      flowId,
+      action,
+      libraryId,
+    }: {
+      flowId: string;
+      action: "duplicate" | "unpublish" | "move";
+      libraryId?: string;
+    }) => {
+      const body =
+        action === "duplicate"
+          ? { duplicate: true }
+          : action === "unpublish"
+            ? { status: "unpublished" }
+            : { libraryId: libraryId?.trim() || null };
+      if (action === "move" && !libraryId?.trim()) {
+        throw new Error("Select a library to move this workflow into");
+      }
       const response = await fetch(`/api/admin/onboarding-flows/${encodeURIComponent(flowId)}`, {
-        ...(await staffFetchInit({ "Content-Type": "application/json" })), method: "PATCH", cache: "no-store",
-        body: JSON.stringify(action === "duplicate" ? { duplicate: true } : { status: "unpublished" }),
+        ...(await staffFetchInit({ "Content-Type": "application/json" })),
+        method: "PATCH",
+        cache: "no-store",
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `Failed to ${action} workflow`);

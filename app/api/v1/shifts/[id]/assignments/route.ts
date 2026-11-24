@@ -11,7 +11,15 @@ export async function POST(request: Request, route: { params: Promise<{ id: stri
     if (context instanceof NextResponse) return context;
     const { id } = await route.params;
     const parsed = assignmentSchema.safeParse(await request.json().catch(() => null));
-    if (!z.uuid().safeParse(id).success || !parsed.success) return invalidSchedule();
+    if (!z.uuid().safeParse(id).success) {
+      return invalidSchedule(undefined, { required: ["id"], example: "/api/v1/shifts/{uuid}/assignments" });
+    }
+    if (!parsed.success) {
+      return invalidSchedule(parsed.error, {
+        required: ["worker_ids"],
+        optional: ["start_date", "end_date", "pay_rate", "bill_rate"],
+      });
+    }
     if (parsed.data.bill_rate !== undefined && !context.features.bill_rates) {
       throw new SchedulingError("Bill rates are disabled", "FEATURE_DISABLED", 403);
     }
@@ -22,7 +30,7 @@ export async function POST(request: Request, route: { params: Promise<{ id: stri
     const { id: _id, ...fields } = shift;
     void _id;
     const checked = shiftSchema.safeParse(fields);
-    if (!checked.success) return invalidSchedule();
+    if (!checked.success) return invalidSchedule(checked.error);
     validateShiftFeatures(checked.data, context.features, context.edition);
     const { data, error } = await context.supabase.rpc("assign_fsd_shift_workers", {
       p_tenant_id: context.tenantId, p_shift_id: id, p_worker_ids: parsed.data.worker_ids,

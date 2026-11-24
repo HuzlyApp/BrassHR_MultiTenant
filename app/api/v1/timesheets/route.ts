@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireTimeContext, timeApiError } from "@/lib/timesheets/api-context";
 import { timesheetListSchema } from "@/lib/timesheets/v1-contract";
 import { listPeriodTimesheets } from "@/lib/timesheets/v1-service";
-import { invalidSchedule } from "@/lib/scheduling/api-context";
+import { invalidTimeInput } from "@/lib/scheduling/api-context";
 export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
@@ -11,7 +11,13 @@ export async function GET(request: Request) {
     const parsed = timesheetListSchema.safeParse(
       Object.fromEntries(new URL(request.url).searchParams),
     );
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) {
+      return invalidTimeInput(parsed.error, {
+        required: ["period_start", "period_end"],
+        optional: ["facility_id", "department_id", "worker_id", "status", "page", "limit"],
+        example: "/api/v1/timesheets?period_start=2026-11-01&period_end=2026-11-30",
+      });
+    }
     return NextResponse.json(
       await listPeriodTimesheets(
         context.supabase,

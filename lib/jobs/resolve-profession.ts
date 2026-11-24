@@ -127,3 +127,56 @@ export async function resolveProfessionIdForSave(
   if (professionId) return existingProfessionId(supabase, tenantId, professionId);
   return null;
 }
+
+/**
+ * Map a stored professions.id (or name) back to the tenant_professions row the
+ * job form / workflow mappings use, so edit/duplicate keep Profession selected.
+ */
+export async function resolveTenantProfessionForForm(
+  supabase: DbClient,
+  tenantId: string,
+  input: { professionId?: string | null; professionName?: string | null }
+): Promise<{ id: string; name: string } | null> {
+  const professionId = clean(input.professionId);
+  const nameHint = clean(input.professionName);
+
+  if (professionId) {
+    const { data: tenantHit, error: tenantError } = await supabase
+      .from("tenant_professions")
+      .select("id, name")
+      .eq("id", professionId)
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (tenantError) throw tenantError;
+    if (tenantHit?.id) {
+      return { id: String(tenantHit.id), name: String(tenantHit.name ?? "").trim() || nameHint || "" };
+    }
+  }
+
+  let resolvedName = nameHint;
+  if (!resolvedName && professionId) {
+    const { data: catalog, error: catalogError } = await supabase
+      .from("professions")
+      .select("name")
+      .eq("id", professionId)
+      .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
+      .maybeSingle();
+    if (catalogError) throw catalogError;
+    resolvedName = catalog?.name ? String(catalog.name).trim() : null;
+  }
+  if (!resolvedName) return null;
+
+  const { data: rows, error } = await supabase
+    .from("tenant_professions")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+  if (error) throw error;
+  const list = (rows ?? []) as Array<{ id: string; name: string }>;
+  const matchId = matchProfessionIdByName(list, resolvedName);
+  if (!matchId) return null;
+  const row = list.find((item) => item.id === matchId);
+  if (!row) return null;
+  return { id: String(row.id), name: String(row.name).trim() || resolvedName };
+}

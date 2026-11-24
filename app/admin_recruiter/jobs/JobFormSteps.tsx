@@ -537,7 +537,7 @@ export function JobFormStepRequisition({
           />
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
-              Placement type
+              Work location type
             </label>
             <select
               id="job-location-type"
@@ -546,7 +546,7 @@ export function JobFormStepRequisition({
               value={ui.jobLocationType}
               onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
             >
-              <option value="">Select Placement type</option>
+              <option value="">Select work location type</option>
               {JOB_FORM_LOCATION_TYPES.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -2201,6 +2201,7 @@ export function JobFormStepReview({
   brandVars,
   fieldErrors = {},
   onServiceAreaBlockedChange,
+  screeningQuestions = [],
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -2209,6 +2210,7 @@ export function JobFormStepReview({
   brandVars?: CSSProperties;
   fieldErrors?: Record<string, string>;
   onServiceAreaBlockedChange?: (blocked: boolean, message: string | null) => void;
+  screeningQuestions?: JobScreeningQuestionInput[];
 }) {
   const [descriptionViewOpen, setDescriptionViewOpen] = useState(false);
   const descriptionHtml = job.publicDescription?.trim() || "";
@@ -2226,10 +2228,11 @@ export function JobFormStepReview({
   const compensationValue = (() => {
     const paySummary = formatPaySummary(job, ui);
     const payLine = [ui.showPayBy, paySummary !== "—" ? paySummary : ""].filter(Boolean).join(", ");
+    const hoursFallback = ui.hoursShowBy || (job.hoursPerWeek != null ? "Fixed Hours" : "");
     const hoursLine =
-      ui.hoursShowBy === "Fixed Hours" && job.hoursPerWeek != null
-        ? `${ui.hoursShowBy}: ${job.hoursPerWeek} hrs/week`
-        : ui.hoursShowBy || "";
+      hoursFallback === "Fixed Hours" && job.hoursPerWeek != null
+        ? `${hoursFallback}: ${job.hoursPerWeek} hrs/week`
+        : hoursFallback;
     const durationLine = [job.duration, job.targetStartDate ? formatReviewDate(job.targetStartDate) : ""]
       .filter(Boolean)
       .join(", ");
@@ -2242,6 +2245,14 @@ export function JobFormStepReview({
       .filter(Boolean)
       .join("\n");
   })();
+  const screeningQuestionsValue = screeningQuestions
+    .map((question, index) => {
+      const text = question.question?.trim() || "";
+      if (!text) return "";
+      return `${index + 1}. ${text}`;
+    })
+    .filter(Boolean)
+    .join("\n");
   const mspPayRateValue = formatPaySummary(job, ui);
   const isMspRnr = isMspRecruitAndRelease(job);
   const isMspEor = isMspRecruitAndEor(job);
@@ -2382,6 +2393,7 @@ export function JobFormStepReview({
       */}
       {job.sourceType === "MSP" ? (
         <>
+          <ReviewRow label="Employer of record" value={job.placementType === "Recruit_and_EOR" ? "Your company (Tenant)" : `${job.mspClient?.trim() || "MSP"} (MSP)`} readOnly />
           <ReviewRow
             label="MSP Placement"
             value={
@@ -2588,6 +2600,20 @@ export function JobFormStepReview({
           onEdit={() => onEditField("benefits")}
         />
       ) : null}
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow
+          label="Expected Hours"
+          value={expectedHoursValue}
+          addLabel="expected hours"
+          onEdit={() => onEditField("expectedHours")}
+        />
+      ) : null}
+      <ReviewRow
+        label="Screening Questions"
+        value={screeningQuestionsValue}
+        addLabel="screening questions"
+        onEdit={() => onEditField("jobDescription")}
+      />
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-3 min-[700px]:grid-cols-[220px_1fr_auto] min-[700px]:gap-x-2 min-[700px]:gap-y-0">
         <div className="col-span-2 text-sm font-medium text-[#64748B] min-[700px]:col-span-1">Job Description</div>
         <div className="min-w-0">

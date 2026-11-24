@@ -11,7 +11,10 @@ export async function PATCH(request: Request, route: { params: Promise<{ id: str
     if (context instanceof NextResponse) return context;
     const { id } = await route.params;
     const parsed = shiftPatchSchema.safeParse(await request.json().catch(() => null));
-    if (!z.uuid().safeParse(id).success || !parsed.success) return invalidSchedule();
+    if (!z.uuid().safeParse(id).success) {
+      return invalidSchedule(undefined, { required: ["id"], example: "/api/v1/shifts/{uuid}" });
+    }
+    if (!parsed.success) return invalidSchedule(parsed.error);
     return NextResponse.json(await patchScheduleShift(context.supabase, context.tenantId, id, parsed.data, context.features, context.edition));
   } catch (error) { return schedulingError(error); }
 }

@@ -14,10 +14,13 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   const userClient = await createClient();
+  const authorization = req.headers.get("authorization");
+  const bearer = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  if (authorization && !bearer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const {
     data: { user },
     error,
-  } = await userClient.auth.getUser();
+  } = await userClient.auth.getUser(bearer);
 
   if (error || !user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

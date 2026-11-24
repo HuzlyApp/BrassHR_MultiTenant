@@ -272,7 +272,16 @@ describe("importExistingCandidatesToWorkspace", () => {
     expect(result.skippedAlreadyAdded).toEqual([OTHER_ID]);
     expect(result.skippedNotFound).toEqual(["44444444-4444-4444-8444-444444444444"]);
     expect(result.message).toContain("1 candidate");
-    expect(result.autoQuickMatch).toEqual({ total: 1, analyzed: 1, failed: 0 });
+    expect(result.autoQuickMatch).toEqual({
+      total: 1,
+      analyzed: 0,
+      failed: 0,
+      pending: true,
+    });
+    const { scheduleAutoQuickMatchForApplications } = await import(
+      "@/lib/jobs/match-analysis/auto-quick-match"
+    );
+    expect(scheduleAutoQuickMatchForApplications).toHaveBeenCalled();
     expect(inserted[0]).toMatchObject({
       worker_id: WORKER_ID,
       status: "new",

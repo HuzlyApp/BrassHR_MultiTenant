@@ -12,6 +12,7 @@ import {
   updateOnboardingFlow,
   type OnboardingFlowStatus,
 } from "@/lib/onboarding/onboarding-flows";
+import { getOnboardingLibraryById } from "@/lib/onboarding/onboarding-libraries";
 import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
 import { syncActiveWorkflowInstancesSafely } from "@/lib/onboarding/sync-workflow-instances";
 import {
@@ -126,10 +127,27 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
     // Do not demote to draft when the client omits publish or sends publish:false on autosave.
 
+    const nextLibraryId =
+      body.libraryId === undefined
+        ? undefined
+        : typeof body.libraryId === "string"
+          ? body.libraryId.trim() || null
+          : body.libraryId;
+    if (typeof nextLibraryId === "string") {
+      const library = await getOnboardingLibraryById(
+        supabase as OnboardingDbClient,
+        tenantId,
+        nextLibraryId
+      );
+      if (!library) {
+        return NextResponse.json({ error: "Library not found for this tenant" }, { status: 404 });
+      }
+    }
+
     const flow = await updateOnboardingFlow(supabase as OnboardingDbClient, tenantId, id, {
       name: body.name,
       status,
-      libraryId: body.libraryId,
+      libraryId: nextLibraryId,
       builderDraft,
       updatedBy: auth.userId,
     });

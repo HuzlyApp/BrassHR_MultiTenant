@@ -113,11 +113,11 @@ export function jobDetailsApiUrl(jobId: string): string {
   return `/api/admin/jobs/${encodeURIComponent(jobId)}?view=details`;
 }
 
-export function workerProfileApiUrl(workerId: string, applicationId?: string | null): string {
+export function workerProfileApiUrl(workerId: string, applicationId?: string | null, view?: "resume"): string {
   const applicationQuery = applicationId
     ? `&applicationId=${encodeURIComponent(applicationId)}`
     : "";
-  return `/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}${applicationQuery}`;
+  return `/api/admin/worker-profile?workerId=${encodeURIComponent(workerId)}${applicationQuery}${view ? `&view=${view}` : ""}`;
 }
 
 export function prefetchCandidateProfile(workerId: string): void {

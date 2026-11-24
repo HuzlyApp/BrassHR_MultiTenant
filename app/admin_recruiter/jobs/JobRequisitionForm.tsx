@@ -128,6 +128,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [serviceAreaBlocked, setServiceAreaBlocked] = useState(false);
   const [serviceAreaBlockMessage, setServiceAreaBlockMessage] = useState<string | null>(null);
   const skipJobLoadRef = useRef(false);
+  /** After a successful save we clear the draft; do not rewrite it when saving flips false. */
+  const draftClearedRef = useRef(false);
 
   const onServiceAreaBlockedChange = useCallback((blocked: boolean, message: string | null) => {
     setServiceAreaBlocked(blocked);
@@ -141,6 +143,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const privacyPolicyHref = legalReturnHref(LEGAL_ROUTES.privacyPolicy, returnTo);
 
   useLayoutEffect(() => {
+    draftClearedRef.current = false;
     const draft = readJobRequisitionFormDraft(jobId ?? null);
     if (draft) {
       skipJobLoadRef.current = Boolean(jobId);
@@ -160,7 +163,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [jobId, restoreStep]);
 
   useLayoutEffect(() => {
-    if (!draftHydrated || saving) return;
+    if (!draftHydrated || saving || draftClearedRef.current) return;
     writeJobRequisitionFormDraft({
       jobId: jobId ?? null,
       step,
@@ -250,16 +253,28 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         }
         const mode = row.workflow_assignment_mode === "manual" ? "manual" : "automatic";
         setAssignmentMode(mode);
-        if (mode === "manual" && row.workflow_id) {
-          setOverrideWorkflowId(String(row.workflow_id));
+        if (row.workflow_id) {
           const flow = row.onboarding_flows as { name?: string } | { name?: string }[] | null;
           const flowName = Array.isArray(flow) ? flow[0]?.name : flow?.name;
-          setWorkflow({
-            workflowId: String(row.workflow_id),
-            workflowName: flowName ? String(flowName) : "Manually assigned workflow",
-            mappingCriteria: "Manual override",
-            source: "manual",
-          });
+          if (mode === "manual") {
+            setOverrideWorkflowId(String(row.workflow_id));
+            setWorkflow({
+              workflowId: String(row.workflow_id),
+              workflowName: flowName ? String(flowName) : "Manually assigned workflow",
+              mappingCriteria: "Manual override",
+              source: "manual",
+            });
+          } else {
+            setOverrideWorkflowId(null);
+            setWorkflow({
+              workflowId: String(row.workflow_id),
+              workflowName: flowName ? String(flowName) : "Assigned workflow",
+              source: "mapping",
+            });
+          }
+        } else {
+          setOverrideWorkflowId(null);
+          setWorkflow(null);
         }
         setStep(loadedJob.sourceType === "MSP" ? "msp-details" : "requisition");
         setScreeningQuestions(
@@ -337,19 +352,23 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
 
-    if (!job.employmentType) {
+    // Preview must use UI fields (work location type / years) — they live on `ui`
+    // until save via applyUiToJob; reading only `job.*` left the banner on ACTION NEEDED
+    // until those fields were somehow copied onto `job` (BUG-153).
+    const preview = applyUiToJob(job, ui);
+    if (!preview.employmentType) {
       setWorkflow(null);
       setWorkflowWarning("");
       return;
     }
     const params = new URLSearchParams({
-      employmentType: job.employmentType,
+      employmentType: preview.employmentType,
     });
-    if (job.professionId) params.set("professionId", job.professionId);
-    if (job.specialtyId) params.set("specialtyId", job.specialtyId);
-    if (job.location) params.set("location", job.location);
-    if (job.jobLocationType) params.set("locationType", job.jobLocationType);
-    if (job.yearsOfExperience) params.set("yearsOfExperience", job.yearsOfExperience);
+    if (preview.professionId) params.set("professionId", preview.professionId);
+    if (preview.specialtyId) params.set("specialtyId", preview.specialtyId);
+    if (preview.location) params.set("location", preview.location);
+    if (preview.jobLocationType) params.set("locationType", preview.jobLocationType);
+    if (preview.yearsOfExperience) params.set("yearsOfExperience", preview.yearsOfExperience);
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
@@ -400,6 +419,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     job.location,
     job.jobLocationType,
     job.yearsOfExperience,
+    ui.jobLocationType,
+    ui.yearsOfExperience,
     options?.workflows,
     options?.professions,
   ]);
@@ -420,8 +441,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const rows = options?.professions ?? [];
     const currentId = job.professionId?.trim();
     if (!currentId || rows.some((item) => item.id === currentId)) return rows;
-    const name = job.profession?.trim();
-    if (!name) return rows;
+    const name = job.profession?.trim() || "Selected profession";
     return [...rows, { id: currentId, name }];
   }, [job.profession, job.professionId, options?.professions]);
 
@@ -554,6 +574,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       updateExistingApplicantsWorkflow: boolean;
     }
   ) {
+    if (saving) return;
     setSaving(true);
     setMessage("");
     setFieldErrors({});
@@ -681,6 +702,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         // Draft was saved with a hold warning — treat as successful save and leave the form.
         setOriginalStatus("draft");
       }
+      draftClearedRef.current = true;
       clearJobRequisitionFormDraft();
       invalidateJobsListCache();
       setWorkflowChangeModal(null);
@@ -1119,6 +1141,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 brandVars={brandVars}
                 fieldErrors={fieldErrors}
                 onServiceAreaBlockedChange={onServiceAreaBlockedChange}
+                screeningQuestions={screeningQuestions}
               />
             ) : null}
           </div>

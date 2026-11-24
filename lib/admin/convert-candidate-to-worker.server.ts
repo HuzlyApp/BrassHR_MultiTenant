@@ -2,14 +2,10 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  buildEmploymentWorkerRow,
-  isCandidateAlreadyConverted,
-  isCandidateEligibleForConversion,
   normalizeCandidateStatus,
   type CandidateConversionSnapshot,
   type ConvertWorkerType,
 } from "@/lib/admin/convert-candidate-to-worker";
-import { collectEmploymentWorkerTransferSnapshot } from "@/lib/admin/employment-worker-transfer";
 import { changeApplicationStatusBySystemKey } from "@/lib/jobs/application-statuses/service";
 import { syncPortalRole } from "@/lib/auth/assign-portal-role";
 import { activatePostHire } from "@/lib/onboarding/activate-post-hire";
@@ -177,148 +173,6 @@ async function activatePostHireForConversion(
   }
 }
 
-async function convertViaFallback(
-  supabase: SupabaseClient,
-  candidate: CandidateConversionSnapshot,
-  workerType: ConvertWorkerType,
-  sourceJobApplicationId: string | null
-): Promise<ConvertCandidateResult> {
-  const { data: existing, error: existingErr } = await supabase
-    .from("workers")
-    .select("id, worker_type, source_job_application_id")
-    .eq("candidate_id", candidate.id)
-    .maybeSingle();
-  if (existingErr) throw existingErr;
-
-  if (existing?.id) {
-    const convertedAt = new Date().toISOString();
-    const linkedAppId =
-      (existing.source_job_application_id as string | null) ?? sourceJobApplicationId;
-    const transfer = await collectEmploymentWorkerTransferSnapshot(supabase, {
-      tenantId: candidate.tenant_id,
-      candidateId: candidate.id,
-      sourceJobApplicationId: linkedAppId,
-      profilePhoto: candidate.profile_photo,
-    });
-    await supabase
-      .from("worker")
-      .update({
-        status: "converted",
-        converted_worker_type: existing.worker_type ?? workerType,
-        converted_at: candidate.converted_at ?? convertedAt,
-        updated_at: convertedAt,
-      })
-      .eq("id", candidate.id)
-      .eq("tenant_id", candidate.tenant_id);
-
-    await supabase
-      .from("workers")
-      .update({
-        profile_photo: transfer.profilePhoto,
-        source_job_application_id: linkedAppId,
-        application_snapshot: transfer.applicationSnapshot,
-        documents_manifest: transfer.documentsManifest,
-        updated_at: convertedAt,
-      })
-      .eq("id", existing.id);
-
-    return {
-      ok: true,
-      workerRecordId: String(existing.id),
-      candidateId: candidate.id,
-      workerType: (existing.worker_type as ConvertWorkerType) || workerType,
-      created: false,
-      profilePath: `/admin_recruiter/workers/${candidate.id}/profile`,
-      sourceJobApplicationId: linkedAppId,
-      postHire: {
-        attempted: false,
-        activated: false,
-        warning: null,
-        applicationId: null,
-      },
-    };
-  }
-
-  if (isCandidateAlreadyConverted(candidate)) {
-    return {
-      ok: false,
-      error: "This candidate has already been converted.",
-      status: 409,
-      code: "ALREADY_CONVERTED",
-    };
-  }
-
-  if (!isCandidateEligibleForConversion(candidate)) {
-    return {
-      ok: false,
-      error: "Only for-approval or approved candidates can be converted to workers.",
-      status: 400,
-      code: "INELIGIBLE_STATUS",
-    };
-  }
-
-  const convertedAt = new Date().toISOString();
-  const transfer = await collectEmploymentWorkerTransferSnapshot(supabase, {
-    tenantId: candidate.tenant_id,
-    candidateId: candidate.id,
-    sourceJobApplicationId,
-    profilePhoto: candidate.profile_photo,
-  });
-  const employmentRow = buildEmploymentWorkerRow(candidate, workerType, convertedAt, {
-    sourceJobApplicationId,
-    applicationSnapshot: transfer.applicationSnapshot as Record<string, unknown>,
-    documentsManifest: transfer.documentsManifest,
-  });
-
-  const { data: inserted, error: insertErr } = await supabase
-    .from("workers")
-    .insert(employmentRow)
-    .select("id")
-    .maybeSingle();
-
-  if (insertErr) throw insertErr;
-  if (!inserted?.id) {
-    return { ok: false, error: "Failed to create worker record", status: 500 };
-  }
-
-  const { error: candidateUpdateErr } = await supabase
-    .from("worker")
-    .update({
-      status: "converted",
-      converted_worker_type: workerType,
-      converted_at: convertedAt,
-      updated_at: convertedAt,
-    })
-    .eq("id", candidate.id)
-    .eq("tenant_id", candidate.tenant_id);
-
-  if (candidateUpdateErr) {
-    // Best-effort rollback so we do not leave Approved without a linked convertible path.
-    await supabase.from("workers").delete().eq("id", inserted.id);
-    throw candidateUpdateErr;
-  }
-
-  return {
-    ok: true,
-    workerRecordId: String(inserted.id),
-    candidateId: candidate.id,
-    workerType,
-    created: true,
-    profilePath: `/admin_recruiter/workers/${candidate.id}/profile`,
-    sourceJobApplicationId,
-    postHire: {
-      attempted: false,
-      activated: false,
-      warning: null,
-      applicationId: null,
-    },
-  };
-}
-
-/**
- * Authoritative candidate → employment worker conversion.
- * Prefer DB RPC for atomicity; falls back to conditional insert/update.
- */
 export async function convertCandidateToWorker(
   supabase: SupabaseClient,
   input: {
@@ -352,13 +206,13 @@ export async function convertCandidateToWorker(
   let base: ConvertCandidateResult;
 
   if (error) {
-    console.warn("[convert-candidate] RPC unavailable, using fallback:", error.message);
-    base = await convertViaFallback(
-      supabase,
-      candidate,
-      input.workerType,
-      sourceJobApplicationId
-    );
+    console.error("[convert-candidate] guarded conversion failed", { code: error.code });
+    return {
+      ok: false,
+      error: "Worker conversion is temporarily unavailable. Please try again or contact support.",
+      status: 503,
+      code: "CONVERSION_UNAVAILABLE",
+    };
   } else {
     const payload = (data ?? {}) as RpcPayload;
     if (!payload.ok) {

@@ -35,6 +35,11 @@ type DetailedCandidateHeaderProps = {
   progressDate?: string | null;
   onMessageClick?: () => void;
   messageDisabled?: boolean;
+  /**
+   * When false, hire/workflow actions stay hidden and Message is disabled.
+   * Candidates with no job application should not get Offer / Update workflow.
+   */
+  hasApplication?: boolean;
   onResendStatusClick?: () => void;
   resendStatusDisabled?: boolean;
   resendingStatus?: boolean;
@@ -68,6 +73,7 @@ export default function DetailedCandidateHeader({
   progressDate,
   onMessageClick,
   messageDisabled = false,
+  hasApplication = true,
   persistent = false,
   // onResendStatusClick,
   // resendStatusDisabled,
@@ -125,36 +131,46 @@ export default function DetailedCandidateHeader({
           Back
         </Link>
         <div className="flex flex-wrap items-center justify-end gap-2">
-        {workerId?.trim() && !loading ? (
+        {workerId?.trim() && !loading && hasApplication ? (
           <UpdateAssignedWorkflowControl
             workerId={workerId.trim()}
             buttonClassName={outlineBtn}
           />
         ) : null}
-        {/* Offer / Send Offer — no dedicated handlers in codebase yet; keep UI shell only. */}
-        <button type="button" disabled className={outlineBtn} title="Offer actions coming soon">
-          Offer
-          <ChevronDown className="size-3.5 opacity-60" aria-hidden />
-        </button>
+        {/* Offer / Send Offer — shell only; require an application before showing. */}
+        {hasApplication && !loading ? (
+          <button type="button" disabled className={outlineBtn} title="Offer actions coming soon">
+            Offer
+            <ChevronDown className="size-3.5 opacity-60" aria-hidden />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onMessageClick}
-          disabled={!onMessageClick || messageDisabled || loading}
+          disabled={!onMessageClick || messageDisabled || loading || !hasApplication}
           className={outlineBtn}
-          title={onMessageClick ? undefined : "Open profile to message"}
+          title={
+            !hasApplication
+              ? "Available after the candidate has a job application"
+              : onMessageClick
+                ? undefined
+                : "Open profile to message"
+          }
         >
           <Mail className="size-3.5" aria-hidden />
           Message
         </button>
-        <button
-          type="button"
-          disabled
-          title="Send Offer coming soon"
-          className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-          style={{ backgroundColor: "var(--brand-primary)" }}
-        >
-          Send Offer
-        </button>
+        {hasApplication && !loading ? (
+          <button
+            type="button"
+            disabled
+            title="Send Offer coming soon"
+            className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+            style={{ backgroundColor: "var(--brand-primary)" }}
+          >
+            Send Offer
+          </button>
+        ) : null}
         {/* {showResendStatus ? (
           <button type="button" onClick={() => void resendHandler()} disabled={resendDisabled} className={outlineBtn}>
             {resending ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}

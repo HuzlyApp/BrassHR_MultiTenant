@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
 import { Loader2, Send } from "lucide-react";
 import { communicationDirectionFromRow } from "@/lib/communication/direction";
 
@@ -130,7 +131,8 @@ export function EmailComposeForm({
   hideToRow?: boolean;
   emptyHint?: string;
 }) {
-  const canSend = Boolean(toEmail?.trim()) && subject.trim().length > 0 && body.trim().length > 0 && !sending;
+  const recipientError = emailDeliveryValidationMessage(toEmail ?? "");
+  const canSend = Boolean(toEmail?.trim()) && !recipientError && subject.trim().length > 0 && body.trim().length > 0 && !sending;
   const fieldLabelWidth = leadingRow || templateRow ? "w-20" : "w-12";
 
   return (
@@ -188,6 +190,7 @@ export function EmailComposeForm({
       </div>
 
       <div className="border-t border-[#E5E7EB] bg-white px-5 py-3">
+        {recipientError ? <p role="alert" className="mb-3 text-sm text-red-700">{recipientError}</p> : null}
         <div className="flex flex-wrap items-center justify-end gap-3">
           {sendError ? (
             <p className="mr-auto rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">

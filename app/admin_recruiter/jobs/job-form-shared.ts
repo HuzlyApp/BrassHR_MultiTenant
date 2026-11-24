@@ -379,6 +379,18 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
   return ui;
 }
 
+/** Normalize API date/timestamp values for `<input type="date">` (YYYY-MM-DD). */
+export function toDateInputValue(value: unknown): string | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 /** Map a job_requisitions API row into form state (create-from-reference or edit). */
 export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): JobRequisitionInput {
   const additionalRaw = row.additional_locations;
@@ -421,7 +433,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
       row.commission_fixed_amount == null ? null : Number(row.commission_fixed_amount),
     payRateMin: payRateMin ?? suggestedPayRate,
     payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
-    targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
+    targetStartDate: toDateInputValue(row.target_start_date),
     duration: String(row.duration ?? ""),
     shiftType: String(row.shift_type ?? ""),
     shiftDetails: String(row.shift_details ?? ""),
@@ -441,7 +453,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
     qualifications: String(row.qualifications ?? ""),
     responsibilities: String(row.responsibilities ?? ""),
     benefits: String(row.benefits ?? ""),
-    applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
+    applicationDeadline: toDateInputValue(row.application_deadline),
     numberOfPositions:
       row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
     yearsOfExperience: row.years_of_experience
@@ -536,7 +548,21 @@ export function jobRequisitionInputForNewFromReference(
 export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobRequisitionInput {
   const isYes = ui.employerOnRecord === "yes";
   const isNo = ui.employerOnRecord === "no";
-  const showPayBy = ui.showPayBy.trim() || "Exact amount";
+  const showPayBy = (() => {
+    const raw = ui.showPayBy.trim();
+    if (raw) return raw;
+    // Infer Range when both ends are set and differ so min/max is not collapsed to Exact.
+    if (
+      job.payRateMin != null &&
+      job.payRateMax != null &&
+      Number.isFinite(job.payRateMin) &&
+      Number.isFinite(job.payRateMax) &&
+      job.payRateMin !== job.payRateMax
+    ) {
+      return "Range";
+    }
+    return "Exact amount";
+  })();
   const isRange = showPayBy === "Range";
   const compensationType =
     ui.compensationType === "Annually" ? "Yearly" : ui.compensationType;

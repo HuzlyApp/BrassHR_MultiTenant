@@ -106,7 +106,7 @@ export function HireStageAccordion({
   onScheduleInterview?: (step: CandidateWorkflowStepView) => void;
   /** Reloads the journey; the pending-step icon becomes a refresh button when set. */
   onRefresh?: () => void | Promise<void>;
-  onStatusChanged?: () => void;
+  onStatusChanged?: (next?: { statusName: string; statusId: string }) => void;
 }) {
   const seed = useMemo(() => defaultOpenIds(stages), [stages]);
   const [openIds, setOpenIds] = useState<Set<string>>(seed);
@@ -303,7 +303,7 @@ export function HireStageAccordion({
                       stageName={stage.name}
                       showCurrentStatus
                       knownApplication={knownApplication}
-                      onStatusChanged={() => onStatusChanged?.()}
+                      onStatusChanged={(next) => onStatusChanged?.(next)}
                     />
                   </div>
                 ) : null}

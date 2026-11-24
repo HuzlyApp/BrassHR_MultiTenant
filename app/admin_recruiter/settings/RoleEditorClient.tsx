@@ -46,7 +46,7 @@ const ACTIONS: { key: Action; label: string }[] = [
   { key: "canDelete", label: "Delete" },
 ];
 
-const ROLES_LIST_HREF = "/admin_recruiter/settings/user-management";
+const ROLES_LIST_HREF = "/admin_recruiter/settings/roles";
 
 function emptyGrants(resources: ResourceRow[]): Grant[] {
   return resources.map((resource) => ({
@@ -190,8 +190,8 @@ export default function RoleEditorClient({
               ...grant,
               ...withRequiredView({
                 canView: enabled,
-                canEdit: enabled,
-                canDelete: enabled,
+                canEdit: false,
+                canDelete: false,
               }),
             }
           : grant

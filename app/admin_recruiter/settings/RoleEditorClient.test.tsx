@@ -16,6 +16,22 @@ beforeEach(() => {
 });
 function mount() { return render(<QueryClientProvider client={new QueryClient()}><RoleEditorClient mode="create" /></QueryClientProvider>); }
 describe("role name validation", () => {
+  it("enables a module with view-only access and requires explicit edit/delete grants", async () => {
+    mocks.fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ roles: [], resources: [{ key: "hiring", label: "Hiring", description: "Hiring access", kind: "module" }] }) });
+    mount();
+    const toggle = await screen.findByRole("switch", { name: "Enable Hiring" });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("checkbox", { name: "View" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Edit" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Delete" })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Edit" }));
+    expect(screen.getByRole("checkbox", { name: "Edit" })).toBeChecked();
+    fireEvent.click(toggle);
+    for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("checkbox", { name: "Edit" })).not.toBeChecked();
+  });
+
   it("shows an inline error for an empty or whitespace-only name", async () => {
     mount();
     await waitFor(() => expect(screen.getByRole("button", { name: "Save Changes" })).toBeEnabled());

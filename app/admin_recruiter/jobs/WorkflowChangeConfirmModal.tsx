@@ -44,8 +44,8 @@ export function WorkflowChangeConfirmModal({
   const nextName = details.nextWorkflowName?.trim() || "new workflow";
   const countLabel =
     details.applicantCount === 1
-      ? "1 existing applicant"
-      : `${details.applicantCount} existing applicants`;
+      ? "1 existing applicant still uses"
+      : `${details.applicantCount} existing applicants still use`;
 
   return (
     <div
@@ -71,7 +71,7 @@ export function WorkflowChangeConfirmModal({
           <span className="font-semibold text-[#101828]">{nextName}</span>.
         </p>
         <p className="mt-2 text-sm leading-6 text-[#475569]">
-          {countLabel} still use the previous workflow. If you choose{" "}
+          {countLabel} the previous workflow. If you choose{" "}
           <span className="font-medium text-[#101828]">Yes</span>, their Pre-Hire and Post-Hire
           steps will be updated to the new workflow. Matching completed and in-progress steps keep
           their status; new steps show as not started.

@@ -889,7 +889,7 @@ function WorkflowBuilderInner({
         open={successOpen}
         onClose={() => setSuccessOpen(false)}
         title="Success!"
-        message="New workflow has been created"
+        message="Step saved successfully"
       />
     </div>
   );

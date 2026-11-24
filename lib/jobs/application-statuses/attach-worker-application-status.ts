@@ -24,6 +24,8 @@ export type WorkerApplicationStatusSummary = {
    * resume upload), api (inbound Integration API), or match (Candidate Match).
    */
   referenceSource: ApplicationReferenceSource | null;
+  /** When the application was submitted/created (not worker.created_at). */
+  appliedAt: string | null;
   /** Department label copied from the job. A direct candidate department overrides this. */
   departmentName?: string | null;
   ambiguous: boolean;
@@ -36,6 +38,7 @@ type AppRow = {
   status_id: string | null;
   source?: string | null;
   job_requisition_id?: string | null;
+  submitted_at?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
   application_statuses:
@@ -90,6 +93,7 @@ function mapAppRow(row: AppRow, ambiguous: boolean): WorkerApplicationStatusSumm
     sourceJobId: sourceJobId || null,
     sourceType: job?.source_type?.trim() || null,
     referenceSource: normalizeApplicationReferenceSource(row.source),
+    appliedAt: row.submitted_at?.trim() || row.created_at?.trim() || null,
     ambiguous,
   };
 }
@@ -110,7 +114,7 @@ export async function getApplicationStatusSummariesForWorkers(
     let query = supabase
       .from("job_applications")
       .select(
-        "id, worker_id, status, status_id, source, job_requisition_id, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
+        "id, worker_id, status, status_id, source, job_requisition_id, submitted_at, updated_at, created_at, application_statuses(id, name, system_key), job_requisitions(public_title, source_type, msp_name, external_requisition_id)"
       )
       .in("worker_id", chunk)
       .not("status", "in", '("rejected","withdrawn")')

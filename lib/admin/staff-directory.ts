@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { NEXUS_PLATFORM } from "@/lib/auth/platform-shared";
@@ -187,20 +188,22 @@ async function findMembership(
   tenantId: string,
   userId: string
 ): Promise<RoleRow | UserRow | null> {
-  const { data: role } = await supabase
+  const { data: role, error: roleError } = await supabase
     .from("user_roles")
     .select("user_id, tenant_id, role, is_active, created_at, created_by")
     .eq("tenant_id", tenantId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (roleError) throw roleError;
   if (role) return role as RoleRow;
 
-  const { data: user } = await supabase
+  const { data: user, error: userError } = await supabase
     .from("users")
     .select("id, email, first_name, last_name, role, is_active, last_login, must_change_password, tenant_id, god_admin")
     .eq("id", userId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  if (userError) throw userError;
   return (user as UserRow | null) ?? null;
 }
 
@@ -453,11 +456,12 @@ async function assertInviteEligibility(
   const existingUserId = await findAuthUserIdByEmail(supabase, email);
   let existingProfile: UserRow | null = null;
   if (existingUserId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("id, email, first_name, last_name, role, is_active, last_login, must_change_password, tenant_id, god_admin")
       .eq("id", existingUserId)
       .maybeSingle();
+    if (error) throw error;
     existingProfile = (data as UserRow | null) ?? null;
     if (existingProfile?.god_admin) {
       throw new StaffDirectoryError("This email belongs to a platform administrator.", "FORBIDDEN", 409);
@@ -472,7 +476,7 @@ async function assertInviteEligibility(
     }
   }
 
-  const { data: pending } = await supabase
+  const { data: pending, error: pendingError } = await supabase
     .from("staff_invitations")
     .select("id")
     .eq("tenant_id", tenantId)
@@ -480,6 +484,7 @@ async function assertInviteEligibility(
     .ilike("email", email)
     .limit(1)
     .maybeSingle();
+  if (pendingError) throw pendingError;
   if (pending?.id) {
     throw new StaffDirectoryError(
       "An invitation is already pending for this email. Resend it instead.",
@@ -620,6 +625,9 @@ export async function inviteStaff(
   if ("error" in parsed) {
     throw new StaffDirectoryError(parsed.error, "VALIDATION", 400);
   }
+
+  const recipientError = emailDeliveryValidationMessage(parsed.email);
+  if (recipientError) throw new StaffDirectoryError(recipientError, "VALIDATION", 400);
 
   const tenant = await loadTenant(supabase, params.tenantId);
   const invitedRole = matchStaffRole(parsed.role, catalog);

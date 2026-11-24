@@ -11,6 +11,8 @@ export type WorkerActionsMenuPortalProps = {
   worker: WorkerListRow;
   anchor: HTMLElement;
   onClose: () => void;
+  onArchive?: () => void;
+  archived?: boolean;
   onAction: (action: "facilities" | "manager" | "history" | "message" | "email", worker: WorkerListRow) => void;
 };
 
@@ -19,6 +21,8 @@ export function WorkerActionsMenuPortal({
   anchor,
   onClose,
   onAction,
+  onArchive,
+  archived = false,
 }: WorkerActionsMenuPortalProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -155,6 +159,7 @@ export function WorkerActionsMenuPortal({
       >
         Email
       </button>
+      {onArchive ? <button type="button" role="menuitem" className="flex w-full items-center px-4 py-2 text-left text-xs font-medium text-[#B91C1C] hover:bg-red-50" onClick={() => { onClose(); onArchive(); }}>{archived ? "Restore worker" : "Archive worker"}</button> : null}
     </div>,
     document.body
   );

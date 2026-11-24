@@ -89,15 +89,10 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
       lastRedirectRef.current = null;
       return;
     }
-    // While waiting on a recruiter step, keep the applicant on the current URL and
-    // show the in-place submitted panel instead of bouncing + modal.
-    if (waitingOnInternal && !inPostHire && !isApplicantDashboard) {
-      return;
-    }
     if (lastRedirectRef.current === decision.href) return;
     lastRedirectRef.current = decision.href;
     replace(decision.href);
-  }, [decision, replace, waitingOnInternal, inPostHire, isApplicantDashboard]);
+  }, [decision, replace]);
 
   const showLoading =
     decision.status === "loading" &&

@@ -93,6 +93,7 @@ type ProfileWorker = {
 
 type ProfilePayload = {
   worker?: ProfileWorker;
+  application_applied_at?: string | null;
   skillAssessments?: { completed?: number; total?: number; rows?: SkillAssessmentRow[] };
   onboardingCompletion?: { percent?: number };
   onboardingSteps?: Array<{ id: string; label: string; state: string }>;
@@ -412,7 +413,7 @@ export function buildFinalApprovalViewModel(
     phone: worker.phone ?? null,
     address: formatAddress(worker),
     appliedFor: candidateRole,
-    applicationDate: formatDate(worker.created_at),
+    applicationDate: formatDate(profile.application_applied_at ?? worker.created_at),
     jobId: worker.id ? worker.id.slice(0, 8).toUpperCase() : "—",
     source: "Application Portal",
     currentStatus,

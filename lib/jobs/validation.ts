@@ -294,6 +294,13 @@ export function validateJobCompensationFields(input: JobRequisitionInput): Field
       errors[key] = message;
     }
   }
+  if (
+    typeof input.commissionPercent === "number" &&
+    Number.isFinite(input.commissionPercent) &&
+    input.commissionPercent > 100
+  ) {
+    errors.commissionPercent = "Commission percentage must be between 0 and 100.";
+  }
   return errors;
 }
 

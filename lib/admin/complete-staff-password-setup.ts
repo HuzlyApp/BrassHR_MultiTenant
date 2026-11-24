@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { sanitizeStaffAuditMetadata } from "@/lib/admin/staff-directory-status";
 import { invalidateUserCache } from "@/lib/cache";
-import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 
 /**
  * After a successful password update, clear first-login gates and accept pending invites.
@@ -13,13 +12,13 @@ export async function completeStaffPasswordSetup(
   params: { userId: string; email?: string | null; request?: Request }
 ): Promise<void> {
   const now = new Date().toISOString();
-  const email = params.email ? normalizeTenantEmail(params.email) : null;
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("users")
     .select("id, tenant_id, must_change_password, email")
     .eq("id", params.userId)
     .maybeSingle();
+  if (profileError) throw profileError;
 
   const row = profile as {
     id?: string;
@@ -29,39 +28,31 @@ export async function completeStaffPasswordSetup(
   } | null;
 
   if (row?.must_change_password === true) {
-    await supabase.from("users").update({ must_change_password: false }).eq("id", params.userId);
+    const { error } = await supabase.from("users").update({ must_change_password: false }).eq("id", params.userId);
+    if (error) throw error;
   }
 
-  let pendingQuery = supabase
+  const pendingQuery = supabase
     .from("staff_invitations")
     .select("id, tenant_id, email, invited_user_id")
     .eq("status", "pending")
     .eq("invited_user_id", params.userId);
 
-  const { data: pendingByUser } = await pendingQuery;
-  let invitations = (pendingByUser ?? []) as Array<{
+  const { data: pendingByUser, error: pendingError } = await pendingQuery;
+  if (pendingError) throw pendingError;
+  const invitations = (pendingByUser ?? []) as Array<{
     id: string;
     tenant_id: string;
     email?: string | null;
     invited_user_id?: string | null;
   }>;
 
-  if (email) {
-    const { data: pendingByEmail } = await supabase
-      .from("staff_invitations")
-      .select("id, tenant_id, email, invited_user_id")
-      .eq("status", "pending")
-      .ilike("email", email);
-    const extra = (pendingByEmail ?? []) as typeof invitations;
-    const seen = new Set(invitations.map((item) => item.id));
-    for (const item of extra) {
-      if (!seen.has(item.id)) invitations.push(item);
-    }
-  }
+  // Invitations are bound to Auth IDs when issued. An email match must never
+  // rebind an invitation that belongs to a different account.
 
   if (invitations.length > 0) {
     const ids = invitations.map((item) => item.id);
-    await supabase
+    const { error } = await supabase
       .from("staff_invitations")
       .update({
         status: "accepted",
@@ -70,7 +61,9 @@ export async function completeStaffPasswordSetup(
         updated_at: now,
         invited_user_id: params.userId,
       })
-      .in("id", ids);
+      .in("id", ids)
+      .eq("invited_user_id", params.userId);
+    if (error) throw error;
   }
 
   await invalidateUserCache("users", params.userId);

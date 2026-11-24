@@ -9,6 +9,7 @@ import {
   ListChecks,
   Plug,
   Scale,
+  ShieldCheck,
   Users,
   Wand2,
   Workflow,
@@ -97,10 +98,15 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         matchPrefixes: [
           "/admin_recruiter/settings/user-management",
           "/admin_recruiter/settings/admin-console",
-          "/admin_recruiter/settings/roles",
-          "/admin_recruiter/settings/roles/new",
-          "/admin_recruiter/settings/roles/success",
         ],
+      },
+      {
+        id: "roles",
+        label: "Roles & Permissions",
+        href: "/admin_recruiter/settings/roles",
+        icon: ShieldCheck,
+        resourceKey: "settings_company",
+        matchPrefixes: ["/admin_recruiter/settings/roles"],
       },
       {
         id: "departments",
@@ -232,7 +238,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       },
     ],
   },
-  // Roles & Permissions → User Management tab.
   // Call → top-right account menu; Integrations → Company Settings (below Branding).
   // Reports → main sidebar (below Pay).
   // {
@@ -272,8 +277,8 @@ export const SETTINGS_SECTION_META: Record<
     description: "View trial status, billing details, and subscription information.",
   },
   roles: {
-    title: "User Management",
-    description: "Manage users, invitations, roles, and administrative access for your organization.",
+    title: "Roles & Permissions",
+    description: "Manage roles and module permissions for your organization.",
   },
   departments: {
     title: "Departments",

@@ -29,6 +29,7 @@ type FacilityRow = {
   phone: string | null;
   about: string | null;
   created_at: string;
+  archived_at?: string | null;
 };
 
 type ShiftRow = {
@@ -75,7 +76,7 @@ export async function assertApprovedFacilityWorker(supabase: SupabaseClient, ten
   if (error) throw error;
   if (!candidate?.id) throw new FacilityValidationError("Worker not found.", 404);
   const { data: worker, error: workerError } = await supabase.from("workers").select("id")
-    .eq("tenant_id", tenantId).eq("candidate_id", candidate.id).eq("conversion_status", "converted").maybeSingle();
+    .eq("tenant_id", tenantId).eq("candidate_id", candidate.id).eq("conversion_status", "converted").is("archived_at", null).maybeSingle();
   if (workerError) throw workerError;
   if (!worker?.id) throw new FacilityValidationError("Approve as Worker before assigning this person to a facility.", 409);
 }
@@ -92,7 +93,7 @@ export async function findDuplicateFacility(
   const { data, error } = await supabase
     .from("facility")
     .select("id, tenant_id, client_id, name, address, phone, about, created_at")
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId).is("archived_at", null);
 
   if (error) throw error;
 
@@ -168,7 +169,7 @@ export async function loadFacilityAssignmentsForWorker(
   const [{ data: facilityRows, error: facilityError }, activeByFacilityId] = await Promise.all([
     supabase
       .from("facility")
-      .select("id, tenant_id, client_id, name, address, phone, about, created_at")
+      .select("id, tenant_id, client_id, name, address, phone, about, created_at, archived_at")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
     resolveAssignedFacilityIdsForWorker(supabase, tenantId, workerAuthId, workerTableId),
@@ -194,7 +195,7 @@ export async function loadFacilityAssignmentsForWorker(
     const activeMeta = activeByFacilityId.get(facility.id);
     if (activeMeta) {
       active.push(toListItem(facility, activeMeta));
-    } else {
+    } else if (!facility.archived_at) {
       potential.push(toListItem(facility));
     }
   }
@@ -274,6 +275,7 @@ export async function assignFacilityToWorker(
     .select("id, tenant_id, client_id, name, address")
     .eq("id", facilityId)
     .eq("tenant_id", tenantId)
+    .is("archived_at", null)
     .maybeSingle();
 
   if (facilityError) throw facilityError;
@@ -400,7 +402,7 @@ export async function createFacility(
 
   const clientId = input.clientId!.trim();
   const { data: client, error: clientError } = await supabase.from("clients").select("id")
-    .eq("tenant_id", tenantId).eq("id", clientId).maybeSingle();
+    .eq("tenant_id", tenantId).eq("id", clientId).is("archived_at", null).maybeSingle();
   if (clientError) throw clientError;
   if (!client?.id) throw new FacilityValidationError("Choose a client organization from this tenant.");
 

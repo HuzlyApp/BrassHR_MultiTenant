@@ -14,4 +14,12 @@ describe("job summary", () => {
     expect(formatJobDetailsPostedDate(job({ status: "open", created_at: "2026-11-01" }))).toBe("Not posted");
     expect(formatJobDetailsPostedDate(job({ status: "open", published_at: "2026-11-02T12:00:00Z" }))).toContain("November 2, 2026");
   });
+
+  it("keeps the posted date after archive", () => {
+    expect(
+      formatJobDetailsPostedDate(
+        job({ status: "archived", published_at: "2026-11-23T12:00:00Z" })
+      )
+    ).toMatch(/November 23, 2026.*archived/i);
+  });
 });

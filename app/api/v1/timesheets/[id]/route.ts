@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTimeContext, timeApiError } from "@/lib/timesheets/api-context";
 import { getPeriodTimesheet } from "@/lib/timesheets/v1-service";
-import { invalidSchedule } from "@/lib/scheduling/api-context";
+import { invalidTimeInput } from "@/lib/scheduling/api-context";
 export const runtime = "nodejs";
 export async function GET(
   request: Request,
@@ -12,7 +12,12 @@ export async function GET(
     const context = await requireTimeContext(request);
     if (context instanceof NextResponse) return context;
     const { id } = await route.params;
-    if (!z.uuid().safeParse(id).success) return invalidSchedule();
+    if (!z.uuid().safeParse(id).success) {
+      return invalidTimeInput(undefined, {
+        required: ["id"],
+        example: "/api/v1/timesheets/{uuid}",
+      });
+    }
     return NextResponse.json(
       await getPeriodTimesheet(
         context.supabase,
