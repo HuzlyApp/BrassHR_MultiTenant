@@ -2888,21 +2888,34 @@ export default function JobApplicationsPage() {
     const name = applicantName(row);
     const local = row.groupedApplications?.length ? row.groupedApplications : [row];
     const expected = Math.max(Number(row.appliedJobCount ?? 1) || 1, local.length);
+    const needsFullFetch = local.length < expected || expected > 1;
     setJobsPopover({
       key,
       anchor,
       name,
       applications: local,
-      loading: local.length < expected,
+      loading: needsFullFetch,
     });
-    if (local.length >= expected) return;
+    if (!needsFullFetch) return;
 
     try {
-      const params = new URLSearchParams({ page: "1", pageSize: "50" });
       const email = applicantEmail(row).trim().toLowerCase();
       const workerId = resolveApplicationWorkerId(row) || row.worker_id?.trim() || "";
-      if (workerId) params.set("workerId", workerId);
-      else if (email) params.set("q", email);
+      // Avoid `page` — that hits the unique-applicant list RPC (one row per person).
+      // Worker fetch without page returns every application for that worker.
+      const params = new URLSearchParams();
+      if (workerId) {
+        params.set("workerId", workerId);
+      } else if (email) {
+        params.set("page", "1");
+        params.set("pageSize", "50");
+        params.set("q", email);
+      } else {
+        setJobsPopover((current) =>
+          current?.key === key ? { ...current, loading: false } : current
+        );
+        return;
+      }
       const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Failed to load applications");
@@ -2913,6 +2926,19 @@ export default function JobApplicationsPage() {
         );
       }
       if (!applications.length) applications = local;
+      // Prefer full worker list; keep any local rows the API omitted (e.g. filters).
+      if (workerId && local.length) {
+        const byId = new Map(applications.map((item) => [item.id, item]));
+        for (const item of local) {
+          if (!byId.has(item.id)) byId.set(item.id, item);
+        }
+        applications = Array.from(byId.values());
+      }
+      applications = [...applications].sort((a, b) => {
+        const aTime = new Date(a.submitted_at || a.created_at).getTime();
+        const bTime = new Date(b.submitted_at || b.created_at).getTime();
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      });
       setJobsPopover((current) =>
         current?.key === key ? { ...current, applications, loading: false } : current
       );
