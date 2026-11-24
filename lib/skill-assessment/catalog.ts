@@ -1,4 +1,5 @@
 import type {
+  ProfessionAssessmentProfile,
   SkillAssessmentCatalog,
   SkillAssessmentScoring,
   SkillCategoryDraft,
@@ -12,6 +13,14 @@ import {
   SKILL_QUESTION_TYPES,
 } from "@/lib/skill-assessment/types";
 import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults";
+
+export const EMPTY_PROFESSION_ASSESSMENT_PROFILE: ProfessionAssessmentProfile = {
+  description: null,
+  department: null,
+  level: null,
+  employmentType: null,
+  workLocation: null,
+};
 
 const QUESTION_TYPE_SET = new Set<string>(SKILL_QUESTION_TYPES);
 
@@ -167,6 +176,38 @@ function normalizeScoring(raw: unknown): SkillAssessmentScoring {
   };
 }
 
+function normalizeProfessionProfile(raw: unknown): ProfessionAssessmentProfile {
+  const row = asRecord(raw) ?? {};
+  return {
+    description: asNullableString(row.description),
+    department: asNullableString(row.department),
+    level: asNullableString(row.level),
+    employmentType: asNullableString(row.employmentType ?? row.employment_type),
+    workLocation: asNullableString(row.workLocation ?? row.work_location),
+  };
+}
+
+function normalizeProfessionProfiles(raw: unknown): Record<string, ProfessionAssessmentProfile> {
+  const row = asRecord(raw);
+  if (!row) return {};
+  const out: Record<string, ProfessionAssessmentProfile> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const id = key.trim();
+    if (!id) continue;
+    out[id] = normalizeProfessionProfile(value);
+  }
+  return out;
+}
+
+export function getProfessionAssessmentProfile(
+  catalog: SkillAssessmentCatalog,
+  professionId: string | null | undefined
+): ProfessionAssessmentProfile {
+  const id = professionId?.trim();
+  if (!id) return { ...EMPTY_PROFESSION_ASSESSMENT_PROFILE };
+  return catalog.professionProfiles[id] ?? { ...EMPTY_PROFESSION_ASSESSMENT_PROFILE };
+}
+
 export function normalizeSkillAssessmentCatalog(raw: unknown): SkillAssessmentCatalog {
   const row = asRecord(raw);
   const fallback = createDefaultSkillAssessmentCatalog();
@@ -177,6 +218,7 @@ export function normalizeSkillAssessmentCatalog(raw: unknown): SkillAssessmentCa
     enabled: asBoolean(row.enabled, DEFAULT_SKILL_ASSESSMENT_CATALOG_FLAGS.enabled),
     allowSkip: asBoolean(row.allowSkip, DEFAULT_SKILL_ASSESSMENT_CATALOG_FLAGS.allowSkip),
     scoring: normalizeScoring(row.scoring),
+    professionProfiles: normalizeProfessionProfiles(row.professionProfiles ?? row.profession_profiles),
     categories: categoriesRaw
       .map((category, index) => normalizeCategory(category, index, usedSlugs))
       .sort((a, b) => a.sortOrder - b.sortOrder)

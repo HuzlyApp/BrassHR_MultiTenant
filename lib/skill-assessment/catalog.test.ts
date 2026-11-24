@@ -5,6 +5,7 @@ import {
   createEmptySkillQuestion,
   duplicateSkillQuestion,
   findSkillCategoryBySlug,
+  getProfessionAssessmentProfile,
   normalizeSkillAssessmentCatalog,
   reorderItems,
   skillCategoriesForProfession,
@@ -101,6 +102,35 @@ describe("skill assessment catalog", () => {
     expect(catalogsAreEqual(a, b)).toBe(true);
     b.enabled = false;
     expect(catalogsAreEqual(a, b)).toBe(false);
+  });
+});
+
+describe("profession assessment profiles", () => {
+  it("normalizes and round-trips professionProfiles on the catalog", () => {
+    const catalog = normalizeSkillAssessmentCatalog({
+      enabled: true,
+      allowSkip: true,
+      scoring: { pointsPerQuestion: 1, passingScore: 70 },
+      professionProfiles: {
+        "prof-1": {
+          description: " Cloud role ",
+          department: "IT",
+          level: "L4",
+          employment_type: "1099",
+          work_location: "Onsite",
+        },
+      },
+      categories: [],
+    });
+    expect(catalog.professionProfiles["prof-1"]).toEqual({
+      description: "Cloud role",
+      department: "IT",
+      level: "L4",
+      employmentType: "1099",
+      workLocation: "Onsite",
+    });
+    expect(getProfessionAssessmentProfile(catalog, "prof-1").department).toBe("IT");
+    expect(getProfessionAssessmentProfile(catalog, "missing").department).toBeNull();
   });
 });
 

@@ -49,11 +49,21 @@ export type SkillAssessmentScoring = {
   showResultsToApplicant: boolean;
 };
 
+/** Optional per-profession metadata shown on Assessment Details (Additional Information). */
+export type ProfessionAssessmentProfile = {
+  description: string | null;
+  department: string | null;
+  level: string | null;
+  employmentType: string | null;
+  workLocation: string | null;
+};
+
 export type SkillAssessmentCatalog = {
   enabled: boolean;
   allowSkip: boolean;
   scoring: SkillAssessmentScoring;
   categories: SkillCategoryDraft[];
+  professionProfiles: Record<string, ProfessionAssessmentProfile>;
 };
 
 export type SkillAssessmentApplicantSettings = {

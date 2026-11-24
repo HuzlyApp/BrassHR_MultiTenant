@@ -87,7 +87,7 @@ export async function listTenantProfessions(supabase: Db, tenantId: string) {
     listTenantIndustryKeys(supabase, tenantId),
     supabase
       .from("tenant_professions")
-      .select("id, name, catalog_key, industry_key, is_active")
+      .select("id, name, catalog_key, industry_key, is_active, created_at, updated_at")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name", { ascending: true }),
