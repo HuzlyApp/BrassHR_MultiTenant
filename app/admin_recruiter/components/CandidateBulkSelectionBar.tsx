@@ -48,6 +48,8 @@ type CandidateBulkSelectionBarProps = {
   analyzeDisabled?: boolean;
   reanalyzeDisabled?: boolean;
   hideClaim?: boolean;
+  /** When true, flush into a rounded parent card (no corner white gaps). */
+  flushTop?: boolean;
   onClaim?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
@@ -73,6 +75,7 @@ export function CandidateBulkSelectionBar({
   analyzeDisabled = false,
   reanalyzeDisabled = false,
   hideClaim = false,
+  flushTop = false,
   onClaim,
   onArchive,
   onDelete,
@@ -96,7 +99,9 @@ export function CandidateBulkSelectionBar({
 
   return (
     <div
-      className={`sticky top-0 z-20 ${BULK_SELECTION_SNACKBAR_CLASS}`}
+      className={`sticky top-0 z-20 ${BULK_SELECTION_SNACKBAR_CLASS} ${
+        flushTop ? "rounded-t-xl border-x-0 border-t-0" : ""
+      }`}
       style={{
         backgroundColor: BULK_SELECTION_SNACKBAR_BG,
         borderColor: "var(--brand-primary)",

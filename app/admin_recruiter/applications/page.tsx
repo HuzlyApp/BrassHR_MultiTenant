@@ -3527,6 +3527,7 @@ export default function JobApplicationsPage() {
       {/* Main Table Container */}
       <div className="w-full overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
         <CandidateBulkSelectionBar
+          flushTop
           selectedCount={selectedIds.size}
           eligibleCount={selectedEligibleCount}
           scopeLabel={
@@ -3604,7 +3605,7 @@ export default function JobApplicationsPage() {
                     return (
                       <th
                         key={colId}
-                        className={`px-3 py-3.5 text-xs font-semibold uppercase tracking-wider text-[#475569] ${applicationListColumnClassName(colId)}`}
+                        className={`px-3 py-3.5 text-sm font-semibold uppercase tracking-wider text-[#475569] ${applicationListColumnClassName(colId)}`}
                         aria-sort={
                           sortActive
                             ? listSort.direction === "asc"
@@ -3620,7 +3621,7 @@ export default function JobApplicationsPage() {
                             active={Boolean(sortActive)}
                             direction={listSort.direction}
                             onSort={() => handleListColumnSort(colId)}
-                            className="text-[10px] font-semibold uppercase tracking-normal text-[#374151]"
+                            className="text-sm font-semibold uppercase tracking-wider text-[#475569]"
                             iconClassName="size-3.5"
                           />
                         ) : (
