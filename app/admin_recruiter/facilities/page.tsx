@@ -336,6 +336,12 @@ export default function FacilitiesPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingFacility, setEditingFacility] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [showAssignCandidateModal, setShowAssignCandidateModal] = useState(false);
   const [assignedCandidatesView, setAssignedCandidatesView] = useState<"card" | "list">("card");
 
@@ -343,7 +349,10 @@ export default function FacilitiesPage() {
     setLoadingFacilities(true);
     setFacilitiesError(null);
     try {
-      const res = await fetch(clientId ? `/api/admin/facilities?client=${encodeURIComponent(clientId)}` : "/api/admin/facilities", { cache: "no-store" });
+      const query = new URLSearchParams();
+      if (clientId) query.set("client", clientId);
+      if (showArchived) query.set("archived", "1");
+      const res = await fetch(`/api/admin/facilities?${query}`, { cache: "no-store" });
       const json = (await res.json()) as {
         facilities?: FacilityManagementItem[];
         error?: string;
@@ -358,7 +367,7 @@ export default function FacilitiesPage() {
     } finally {
       setLoadingFacilities(false);
     }
-  }, [clientId]);
+  }, [clientId, showArchived]);
 
   const loadAssignments = useCallback(async (facilityId: string) => {
     setLoadingAssignments(true);
@@ -422,6 +431,22 @@ export default function FacilitiesPage() {
     [facilities, selectedFacilityId]
   );
 
+  async function updateFacility(action: "edit" | "archive" | "restore") {
+    if (!selectedFacility || mutationBusy) return;
+    if (action !== "edit" && !window.confirm(`${action === "archive" ? "Archive" : "Restore"} ${selectedFacility.name}? Existing assignments and history will be preserved.`)) return;
+    setMutationBusy(true);
+    setMutationError(null);
+    try {
+      const response = await fetch(`/api/admin/facilities/${encodeURIComponent(selectedFacility.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, name: editName, phone: editPhone }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not update facility.");
+      setEditingFacility(false);
+      await loadFacilities();
+      toast.success(action === "edit" ? "Facility updated." : action === "archive" ? "Facility archived." : "Facility restored.");
+    } catch (error) { setMutationError(error instanceof Error ? error.message : "Could not update facility."); }
+    finally { setMutationBusy(false); }
+  }
+
   useEffect(() => {
     if (selectedFacilityId && !facilities.some((facility) => facility.id === selectedFacilityId)) {
       setSelectedFacilityId(null);
@@ -458,6 +483,7 @@ export default function FacilitiesPage() {
       </div>
 
       <div className="mb-4 flex flex-col gap-2 min-[500px]:flex-row min-[500px]:items-center sm:mb-5 sm:justify-between sm:gap-3">
+        <button type="button" aria-pressed={showArchived} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" onClick={() => { setShowArchived((value) => !value); setEditingFacility(false); setMutationError(null); }}>{showArchived ? "Show active facilities" : "Show archived facilities"}</button>
         <div className="relative min-w-0 w-full min-[500px]:flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
           <input
@@ -516,7 +542,8 @@ export default function FacilitiesPage() {
                   <button
                     key={facility.id}
                     type="button"
-                    onClick={() => setSelectedFacilityId(facility.id)}
+                    disabled={mutationBusy}
+                    onClick={() => { setSelectedFacilityId(facility.id); setEditingFacility(false); setMutationError(null); }}
                     className={`h-auto w-full rounded-xl border p-3.5 text-left transition sm:p-4 ${
                       selected
                         ? "border-(--brand-primary) bg-[#F0FDFA] shadow-[0_0_0_1px_var(--brand-primary)]"
@@ -573,8 +600,12 @@ export default function FacilitiesPage() {
                       </p>
                     ) : null}
                   </div>
+                  {canEditOrganization ? <div className="flex flex-wrap gap-2">
+                    {!showArchived ? <button type="button" disabled={mutationBusy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => { setEditName(selectedFacility.name); setEditPhone(selectedFacility.phone || ""); setEditingFacility(true); setMutationError(null); }}>Edit facility</button> : null}
+                    <button type="button" disabled={mutationBusy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void updateFacility(showArchived ? "restore" : "archive")}>{showArchived ? "Restore facility" : "Archive facility"}</button>
+                  </div> : null}
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    {canEditOrganization ? (
+                    {canEditOrganization && !showArchived ? (
                       <button
                         type="button"
                         onClick={() => setShowAssignCandidateModal(true)}
@@ -591,6 +622,14 @@ export default function FacilitiesPage() {
                   </div>
                 </div>
               </div>
+
+              {mutationError ? <p role="alert" className="mb-4 text-sm text-red-700">{mutationError}</p> : null}
+              {editingFacility && canEditOrganization ? <form className="mb-4 space-y-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void updateFacility("edit"); }}>
+                <label className="block text-sm">Facility name<input required maxLength={200} className="mt-1 block w-full rounded border px-3 py-2" value={editName} onChange={(event) => setEditName(event.target.value)} /></label>
+                <label className="block text-sm">Phone<input type="tel" className="mt-1 block w-full rounded border px-3 py-2" value={editPhone} onChange={(event) => setEditPhone(event.target.value)} /></label>
+                <button type="submit" disabled={mutationBusy} className="rounded border px-3 py-2 text-sm">{mutationBusy ? "Saving…" : "Save facility"}</button>
+                <button type="button" disabled={mutationBusy} className="ml-3 text-sm underline" onClick={() => setEditingFacility(false)}>Cancel</button>
+              </form> : null}
 
               {canEditOrganization && assignedWorkers.length > 0 ? (
                 <div className="mb-4 flex flex-wrap items-center gap-2">

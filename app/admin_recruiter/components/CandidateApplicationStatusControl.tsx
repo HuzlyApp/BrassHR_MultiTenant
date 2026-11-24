@@ -57,6 +57,7 @@ type CandidateApplicationStatusControlProps = {
   applicationId?: string | null;
   /** Fallback label when no application status exists (e.g. worker pipeline label). */
   fallbackStatus?: string | null;
+  actionLabel?: string;
   compact?: boolean;
   /** Override chip classes (e.g. AI Analysis Overview header). */
   buttonClassName?: string;
@@ -244,6 +245,7 @@ export function CandidateApplicationStatusControl({
   workerId,
   applicationId: applicationIdProp,
   fallbackStatus,
+  actionLabel,
   compact = true,
   buttonClassName,
   stageName,
@@ -259,7 +261,7 @@ export function CandidateApplicationStatusControl({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLButtonElement | null>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const load = useCallback(async () => {
@@ -456,12 +458,14 @@ export function CandidateApplicationStatusControl({
         }
       >
         <button
-          ref={buttonRef}
           type="button"
-          disabled={loading || busy || !ctx?.applicationId}
+          disabled={!canChangeStatus}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={(event) => {
+            setMenuAnchor(event.currentTarget);
+            setMenuOpen((open) => !open);
+          }}
           className={chipClass}
           title={
             ctx?.ambiguous
@@ -471,14 +475,14 @@ export function CandidateApplicationStatusControl({
                 : "Change application status"
           }
         >
-          <span className="min-w-0 truncate">{label}</span>
+          <span className="min-w-0 truncate">{actionLabel || label}</span>
           {canChangeStatus ? (
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
           ) : null}
         </button>
-        {menuOpen && buttonRef.current ? (
+        {menuOpen && menuAnchor ? (
           <StatusOptionsMenu
-            anchor={buttonRef.current}
+            anchor={menuAnchor}
             options={visibleOptions}
             currentStatusId={ctx?.statusId ?? null}
             emptyLabel={
@@ -493,6 +497,8 @@ export function CandidateApplicationStatusControl({
           />
         ) : null}
       </div>
+
+      {actionLabel && !loading && (!ctx?.applicationId || ctx.ambiguous) ? <p className="mt-2 text-xs text-[#64748B]">Open Applications and select an application before changing its status.</p> : null}
 
       {pending ? (
         <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/40 p-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -19,7 +20,7 @@ import {
 } from "./worker-columns";
 import { renderWorkerListCell } from "./render-worker-list-cell";
 import { compareWorkerRates, parseWorkerRate } from "./worker-rates";
-import { employmentWorkerClientName, employmentWorkerStatusLabel } from "@/lib/admin/employment-workers";
+import { employmentWorkerClientName, employmentWorkerStatusLabel, type EmploymentWorkerRecord } from "@/lib/admin/employment-workers";
 import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
 import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
@@ -62,7 +63,7 @@ function formatDateShort(iso: string | null) {
   });
 }
 
-function mapApiWorkerToRow(w: any): WorkerListRow {
+function mapApiWorkerToRow(w: Partial<EmploymentWorkerRecord> & { department_id?: string | null }): WorkerListRow {
   const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed Worker";
   const snapshot = (w.application_snapshot as Record<string, unknown> | null) ?? {};
 
@@ -121,7 +122,7 @@ function mapApiWorkerToRow(w: any): WorkerListRow {
     employmentType: w.employment_classification?.trim() || "Full-time",
     reference: (w.candidate_id || w.id || "").slice(0, 7).toUpperCase(),
     assignment: `${dynamicStartDate} - ${dynamicEndDate}`,
-    hiredDate: w.hired_date || formatDateShort(w.converted_at || w.created_at),
+    hiredDate: w.hired_date || formatDateShort(w.converted_at || w.created_at || null),
     billRate: w.bill_rate || (snapshot.bill_rate as string | null) || "—",
     department: w.department || (snapshot.department as string | null) || "—",
     departmentId: w.department_id ? String(w.department_id) : null,
@@ -147,6 +148,10 @@ export default function WorkersPage() {
   const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
 
   const [workers, setWorkers] = useState<WorkerListRow[]>([]);
+  const { canEdit } = useModulePermission("people");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -199,7 +204,7 @@ export default function WorkersPage() {
     const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
     setLoading(true);
     try {
-      if (activeSearch) {
+      if (activeSearch && !showArchived) {
         const res = await fetch("/api/search-workers", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -222,7 +227,7 @@ export default function WorkersPage() {
         }
       }
 
-      const res = await fetch("/api/admin/employment-workers?tab=all", {
+      const res = await fetch(`/api/admin/employment-workers?tab=all${showArchived ? "&archived=1" : ""}`, {
         cache: "no-store",
       });
       const data = await res.json();
@@ -237,7 +242,7 @@ export default function WorkersPage() {
     } finally {
       setLoading(false);
     }
-  }, [advancedSearchParams]);
+  }, [advancedSearchParams, showArchived]);
 
   useEffect(() => {
     void loadWorkers();
@@ -622,6 +627,20 @@ export default function WorkersPage() {
   };
 
   // Row Action handler
+  async function archiveWorker(worker: WorkerListRow) {
+    if (!canEdit || archiveBusy || !window.confirm(`${showArchived ? "Restore" : "Archive"} ${worker.name}? Employment records and history will be preserved.`)) return;
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      const response = await fetch(`/api/admin/employment-workers/${encodeURIComponent(worker.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: showArchived ? "restore" : "archive" }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not update worker archive.");
+      setSelectedIds(new Set());
+      await loadWorkers();
+    } catch (error) { setArchiveError(error instanceof Error ? error.message : "Could not update worker archive."); }
+    finally { setArchiveBusy(false); }
+  }
+
   const handleRowAction = (
     action: "facilities" | "manager" | "history" | "message" | "email",
     worker: WorkerListRow
@@ -654,6 +673,10 @@ export default function WorkersPage() {
       </div>
 
       {/* 4 Metric Stat Cards */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" disabled={archiveBusy} aria-pressed={showArchived} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" onClick={() => { setShowArchived((value) => !value); setSelectedIds(new Set()); setCurrentPage(1); }}>{showArchived ? "Show current workers" : "Show archived workers"}</button>
+        {archiveError ? <p role="alert" className="text-sm text-red-700">{archiveError}</p> : null}
+      </div>
       <WorkersMetricsCards counts={dynamicMetricsCounts} loading={loading} />
 
       {/* Search & Filter Bar */}
@@ -869,6 +892,8 @@ export default function WorkersPage() {
           anchor={actionsMenuState.anchor}
           onClose={() => setActionsMenuState(null)}
           onAction={handleRowAction}
+          archived={showArchived}
+          onArchive={canEdit && !archiveBusy ? () => void archiveWorker(actionsMenuState.worker) : undefined}
         />
       ) : null}
 

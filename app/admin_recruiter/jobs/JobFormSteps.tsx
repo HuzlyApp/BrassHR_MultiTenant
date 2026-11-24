@@ -2393,6 +2393,7 @@ export function JobFormStepReview({
       */}
       {job.sourceType === "MSP" ? (
         <>
+          <ReviewRow label="Employer of record" value={job.placementType === "Recruit_and_EOR" ? "Your company (Tenant)" : `${job.mspClient?.trim() || "MSP"} (MSP)`} readOnly />
           <ReviewRow
             label="MSP Placement"
             value={

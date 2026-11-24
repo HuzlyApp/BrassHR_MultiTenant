@@ -77,8 +77,8 @@ export function useOnboardingStepNav() {
     goNext: (savedStatus: "completed" | "skipped" = "completed") => {
       const inPostHire = onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed";
       if (savedStatus !== "skipped" && onboarding?.waitingOnInternal && !inPostHire) {
-        // Stay on the current applicant screen; the route guard swaps the left
-        // panel for the in-place "application submitted" message (no modal).
+        // The route guard moves submitted applications to the canonical status
+        // URL while retaining the recruiter-review confirmation screen.
         return;
       }
       const href = resolvePostStepContinueRoute(onboarding?.config, currentStep, slug, {

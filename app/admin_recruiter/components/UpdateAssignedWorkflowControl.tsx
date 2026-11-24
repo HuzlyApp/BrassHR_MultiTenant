@@ -170,7 +170,7 @@ export default function UpdateAssignedWorkflowControl({
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
-          title="Update assigned workflow for this candidate"
+          title="Choose the W2 or 1099 onboarding workflow for this hire"
           className={
             buttonClassName?.trim() ||
             `${actionBtnBase} border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]`
@@ -223,6 +223,7 @@ export default function UpdateAssignedWorkflowControl({
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold text-[#111827]">{workflow.name}</span>
+                      {workflow.employmentType ? <span className="mt-0.5 block text-[10px] text-[#667085]">Payroll type: {workflow.employmentType}</span> : null}
                       {selected ? (
                         <span className="mt-0.5 block text-[10px] text-[#667085]">
                           Currently assigned

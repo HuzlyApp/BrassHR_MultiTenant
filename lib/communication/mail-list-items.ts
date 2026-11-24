@@ -63,7 +63,7 @@ export function buildMailSentListItems(items: TenantMailInboxItem[]): MailSentLi
 
   for (const item of items) {
     for (const message of item.thread.messages) {
-      if (communicationDirectionFromRow(message) !== "outbound") continue;
+      if (communicationDirectionFromRow(message) !== "outbound" || message.status !== "sent") continue;
       rows.push({
         id: message.id,
         workerId: item.workerId,
@@ -94,7 +94,7 @@ export function countOutboundMessages(items: TenantMailInboxItem[]): number {
   return items.reduce(
     (sum, item) =>
       sum +
-      item.thread.messages.filter((message) => communicationDirectionFromRow(message) === "outbound")
+      item.thread.messages.filter((message) => communicationDirectionFromRow(message) === "outbound" && message.status === "sent")
         .length,
     0
   );

@@ -142,6 +142,7 @@ export async function GET(req: NextRequest) {
           "id, company_name, verification_status, onboarding_status, onboarding_completed_at, w2_capable, created_at"
         )
         .eq("tenant_id", tenantId)
+        .filter("archived_at", searchParams.get("archived") === "1" ? "not.is" : "is", null)
         .order("created_at", { ascending: false }),
       supabase
         .from("facility")

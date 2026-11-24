@@ -19,6 +19,16 @@ import { activatePostHire } from "@/lib/onboarding/activate-post-hire";
 import { changeApplicationStatusBySystemKey } from "@/lib/jobs/application-statuses/service";
 
 describe("convertCandidateToWorker server", () => {
+  it.each(["PGRST202", "42501", "23514"])("fails closed on RPC error %s without directly creating a worker", async (code) => {
+    const from = vi.fn(() => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "candidate", tenant_id: "tenant", status: "approved" }, error: null }) }) }) }));
+    const rpc = vi.fn(async () => ({ data: null, error: { code, message: "Guarded conversion failed" } }));
+    const result = await convertCandidateToWorker({ from, rpc } as never, { candidateId: "candidate", workerType: "w2", sourceJobApplicationId: "application", actorUserId: "staff" });
+    expect(result).toMatchObject({ ok: false, status: 503, code: "CONVERSION_UNAVAILABLE" });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(from).toHaveBeenCalledWith("worker");
+    expect(activatePostHire).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

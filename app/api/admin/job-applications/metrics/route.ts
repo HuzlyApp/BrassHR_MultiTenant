@@ -42,8 +42,17 @@ export async function GET(req: NextRequest) {
       query = query.eq("job_requisition_id", jobId);
     }
 
-    const { data, error } = await query;
+    const [{ data, error }, listResult] = await Promise.all([
+      query,
+      supabase.rpc("staff_application_list_page", {
+        p_tenant_id: tenantId,
+        p_job_id: jobId && isUuid(jobId) ? jobId : null,
+        p_limit: 1,
+        p_offset: 0,
+      }),
+    ]);
     if (error) throw error;
+    if (listResult.error) throw listResult.error;
 
     const now = Date.now();
     const cutoffs: Record<MetricsTimeframeKey, number | null> = {
@@ -104,6 +113,13 @@ export async function GET(req: NextRequest) {
         }
       }
     }
+
+    // The list groups applicants across applications and includes closed records.
+    // Reuse its total instead of comparing raw application rows to unique people.
+    const list = typeof listResult.data === "string" ? JSON.parse(listResult.data) : listResult.data;
+    const total = Number(list?.total);
+    if (!Number.isFinite(total) || total < 0) throw new Error("Applicant totals are unavailable");
+    timeframes.all_time.total = total;
 
     return NextResponse.json({ timeframes });
   } catch (err) {

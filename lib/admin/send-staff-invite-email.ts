@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { emailDeliveryValidationMessage } from "@/lib/email/email-domain";
 import { requireResendConfig } from "@/lib/communication/env";
 
 export type SendStaffInviteEmailResult =
@@ -56,6 +57,8 @@ export async function sendStaffInviteEmail(params: {
   actionUrl: string;
   existingAccount: boolean;
 }): Promise<SendStaffInviteEmailResult> {
+  const recipientError = emailDeliveryValidationMessage(params.email);
+  if (recipientError) return { ok: false, message: recipientError, reason: "send_failed" };
   let resendConfig: ReturnType<typeof requireResendConfig>;
   try {
     resendConfig = requireResendConfig();
@@ -89,7 +92,7 @@ export async function sendStaffInviteEmail(params: {
     }
     return {
       ok: false,
-      message: sendError.message || "Could not send invitation email. Try again.",
+      message: "Invitation email could not be sent. Check the recipient address and your email integration, then try again.",
       reason: "send_failed",
     };
   }

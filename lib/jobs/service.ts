@@ -1551,7 +1551,7 @@ export async function listPublicJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)",
+      "id, public_job_token, public_title, source_job_title, source_type, placement_type, eor_type, msp_name, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)",
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
@@ -1589,20 +1589,25 @@ export async function listPublicJobs(
 export async function getPublishedJobByToken(
   supabase: DbClient,
   tenantId: string,
-  token: string
+  token: string,
+  options?: { includeUnavailable?: boolean }
 ) {
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
+      "id, tenant_id, status, public_job_token, public_title, source_job_title, source_type, placement_type, eor_type, msp_name, public_description, location, location_type, schedule, shift_type, hours_per_week, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, currency, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
-    .in("status", [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
+    .in("status", options?.includeUnavailable
+      ? [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY, "paused", "closed", "filled"]
+      : [...PUBLIC_ACCEPTING_JOB_STATUS_QUERY])
     // MSP jobs are intentionally published without workflow_id; public detail still shows.
     .maybeSingle();
   if (error) throw error;
-  if (!data || !isJobRequisitionOpen(data)) return null;
+  if (!data) return null;
+  const accepting = PUBLIC_ACCEPTING_JOB_STATUS_QUERY.includes(data.status as "open" | "published") && isJobRequisitionOpen(data);
+  if (!accepting && (!options?.includeUnavailable || !data.published_at)) return null;
   return data;
 }
 

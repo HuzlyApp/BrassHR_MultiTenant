@@ -266,9 +266,11 @@ function IntegrationCard({
           <button
             type="button"
             onClick={onConnect}
+            disabled={item.id !== "custom-api"}
+            title={item.id !== "custom-api" ? "Provider connection setup is not available yet." : undefined}
             className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#012352] px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
           >
-            Connect
+            {item.id === "custom-api" ? "Manage API access" : "Not available yet"}
           </button>
         )}
       </div>
@@ -487,10 +489,7 @@ function ApiDocumentationTab() {
 export default function IntegrationsSettingsPanel() {
   const [activeTab, setActiveTab] = useState<IntegrationTab>("all");
   const [connectedIds, setConnectedIds] = useState<Set<string>>(
-    () =>
-      new Set(
-        INTEGRATIONS.filter((item) => item.initialConnected).map((item) => item.id)
-      )
+    () => new Set()
   );
   const [webhookEnabled, setWebhookEnabled] = useState(true);
   const [webhookUrl, setWebhookUrl] = useState("https://yourdomain.com/webhook/brasshr");
@@ -515,8 +514,8 @@ export default function IntegrationsSettingsPanel() {
   }, [activeTab]);
 
   function connectIntegration(id: string) {
-    setConnectedIds((current) => new Set(current).add(id));
-    toast.success("Integration connected");
+    const name = INTEGRATIONS.find((item) => item.id === id)?.name || "This provider";
+    toast.error(`${name} connection setup is not available yet.`);
   }
 
   function disconnectIntegration(id: string) {
@@ -538,7 +537,7 @@ export default function IntegrationsSettingsPanel() {
   }
 
   function saveWebhook() {
-    toast.success("Webhook settings saved");
+    toast.error("Webhook delivery is not configured. These settings have not been saved.");
   }
 
   return (

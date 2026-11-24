@@ -20,6 +20,18 @@ vi.mock("@/lib/communication/env", () => ({
 import { sendCandidateEmail } from "@/lib/communication/send-candidate-email";
 
 describe("sendCandidateEmail", () => {
+  it("rejects a reserved test recipient before calling the provider", async () => {
+    const result = await sendCandidateEmail({ to: "qa@example.com", subject: "QA", body: "QA message" });
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("real inbox you control") });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("returns actionable feedback without exposing raw provider errors", async () => {
+    sendMock.mockResolvedValue({ data: null, error: { name: "validation_error", message: "Provider internals" } });
+    const result = await sendCandidateEmail({ to: "qa@brasshr.com", subject: "QA", body: "QA message" });
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Check the recipient address") });
+    expect(JSON.stringify(result)).not.toContain("Provider internals");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     sendMock.mockResolvedValue({ data: { id: "msg-1" }, error: null });

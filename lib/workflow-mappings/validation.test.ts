@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mappingSpecificity,
+  formatRoutingCriteriaLabel,
   pickBestMappingMatch,
   validateWorkflowCompatibility,
   type MappingCandidate,
@@ -19,6 +20,12 @@ const base = (overrides: Partial<MappingCandidate>): MappingCandidate => ({
   locationType: null,
   yearsOfExperience: null,
   ...overrides,
+});
+
+describe("routing experience labels", () => {
+  it.each(["2", "2 yrs", "2 years", "2 yr"])("prints the experience unit once for %s", (value) => {
+    expect(formatRoutingCriteriaLabel({ employmentType: "W2", yearsOfExperience: value })).toBe("W2 + 2 yrs");
+  });
 });
 
 describe("validateWorkflowCompatibility", () => {

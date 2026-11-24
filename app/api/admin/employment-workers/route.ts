@@ -43,6 +43,26 @@ type WorkerListRow = {
   documents_manifest?: unknown[] | null;
 };
 
+type CandidateDirectoryProfile = {
+  id: string; hourly_rate?: number | string | null; experience_years?: number | null;
+  department_id?: string | null; specialty?: string | null; profession?: string | null;
+};
+type DirectoryJob = {
+  id?: string; public_title?: string | null; facility?: string | null; facility_name?: string | null;
+  msp_client?: string | null; msp_name?: string | null; target_start_date?: string | null;
+  duration?: string | null; pay_rate_min?: number | null; pay_rate_max?: number | null;
+  bill_rate?: number | null; department?: string | null; shift_type?: string | null;
+  shift_details?: string | null; hours_per_week?: number | null; location?: string | null;
+};
+type DirectoryApplication = {
+  id: string; worker_id: string | null; job_requisition_id?: string | null;
+  hired_at?: string | null; submitted_at?: string | null;
+  job_requisitions?: DirectoryJob | DirectoryJob[] | null;
+};
+type DirectoryFacility = { name?: string | null; clients?: { company_name?: string | null; tenant_id?: string } | { company_name?: string | null; tenant_id?: string }[] | null };
+type DirectoryShift = { facility?: DirectoryFacility | DirectoryFacility[] | null; start_time?: string | null; end_time?: string | null; shift_type?: string | null };
+type DirectoryAssignment = { worker_id: string; assigned_at?: string | null; shifts?: DirectoryShift | DirectoryShift[] | null };
+
 function isMissingColumnError(err: unknown, columns: string[]): boolean {
   if (!err || typeof err !== "object") return false;
   const code = "code" in err ? String((err as { code?: string }).code) : "";
@@ -99,10 +119,13 @@ export async function GET(req: NextRequest) {
     if (candidateId && !candidateId.ok) return NextResponse.json({ error: candidateId.error }, { status: 400 });
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
     const tenantId = tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
+    if (!tenantId) return NextResponse.json({ error: "Select a company first." }, { status: 400 });
+    const archived = req.nextUrl.searchParams.get("archived") === "1";
 
     const buildQuery = (select: string) => {
       let query = supabase.from("workers").select(select).order("created_at", { ascending: false });
-      if (tenantId) query = query.eq("tenant_id", tenantId);
+      query = query.eq("tenant_id", tenantId);
+      query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
       if (candidateId?.ok) query = query.eq("candidate_id", candidateId.value);
       switch (tab) {
         case "new":
@@ -147,7 +170,7 @@ export async function GET(req: NextRequest) {
     const sourceAppIds = Array.from(new Set(rows.map((r) => r.source_job_application_id).filter(Boolean))) as string[];
 
     // 1. Fetch candidate profiles from `worker`
-    const candidatesMap = new Map<string, any>();
+    const candidatesMap = new Map<string, CandidateDirectoryProfile>();
     const orgDepartmentIds = new Set<string>();
     if (candidateIds.length > 0) {
       const { data: candidateRows } = await supabase
@@ -155,6 +178,7 @@ export async function GET(req: NextRequest) {
         .select(
           "id, hourly_rate, experience_years, created_at, status, job_role, city, state, department_id"
         )
+        .eq("tenant_id", tenantId)
         .in("id", candidateIds);
       if (candidateRows) {
         for (const c of candidateRows) {
@@ -180,8 +204,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Fetch linked job applications and job requisitions
-    const jobAppsByWorkerId = new Map<string, any>();
-    const jobAppsById = new Map<string, any>();
+    const jobAppsByWorkerId = new Map<string, DirectoryApplication>();
+    const jobAppsById = new Map<string, DirectoryApplication>();
     if (candidateIds.length > 0 || sourceAppIds.length > 0) {
       let appQuery = supabase
         .from("job_applications")
@@ -236,7 +260,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Fetch facility / shift assignments
-    const assignmentsByWorkerId = new Map<string, any>();
+    const assignmentsByWorkerId = new Map<string, DirectoryAssignment>();
     if (candidateIds.length > 0) {
       try {
         let assignmentQuery = supabase

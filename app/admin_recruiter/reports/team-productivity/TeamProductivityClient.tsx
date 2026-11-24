@@ -808,6 +808,7 @@ function EmployeeTable({
                     >
                       {row.name}
                     </Link>
+                    <p className="mt-1 text-xs text-[#64748B]">{row.email}</p>
                   </td>
                   <td className="py-3 pr-4">{row.departmentName ?? "Unassigned"}</td>
                   <td className="py-3 pr-4">{row.roleLabel}</td>

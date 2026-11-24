@@ -78,7 +78,7 @@ export default function NewApplicantProfileResumePage() {
       setError(null);
       try {
         const result = await fetchStaffDetailJson<WorkerProfilePayload>(
-          workerProfileApiUrl(applicantId)
+          workerProfileApiUrl(applicantId, null, "resume")
         );
         if (!result.ok) throw new Error(result.payload.error || "Failed to load profile");
         setProfile(result.payload);
@@ -349,6 +349,9 @@ export default function NewApplicantProfileResumePage() {
                         </a>
                       </div>
                       <div className="hidden bg-zinc-100 md:block">
+                        <div className="border-b border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+                          If the embedded preview is blank, your browser may not support this document viewer. <a className="font-medium underline" href={embedUrl ?? resumeUrl} target="_blank" rel="noopener noreferrer">Open in new tab</a> or download the resume above.
+                        </div>
                         <iframe
                           title="Resume preview"
                           src={embedUrl ?? resumeUrl}

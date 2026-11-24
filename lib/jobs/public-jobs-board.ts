@@ -25,6 +25,10 @@ export type PublicBoardJob = {
   public_title: string;
   source_job_title?: string | null;
   source_type?: string | null;
+  placement_type?: string | null;
+  eor_type?: string | null;
+  msp_name?: string | null;
+  shift_type?: string | null;
   public_description: string;
   location: string | null;
   location_type?: string | null;

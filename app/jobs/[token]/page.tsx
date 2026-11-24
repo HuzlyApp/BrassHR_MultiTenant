@@ -7,7 +7,7 @@ import { PublicJobShareControls } from "@/app/jobs/PublicJobShareControls";
 import { formatEastern } from "@/lib/datetime/eastern";
 import { formatStoredJobDescriptionHtml, JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
-import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { isJobRequisitionOpen, publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import {
   absolutePublicJobShareUrl,
   buildPublicJobPostingJsonLd,
@@ -15,6 +15,7 @@ import {
   publicJobShareDescription,
 } from "@/lib/jobs/public-job-share";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
+import { isOpenJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -64,7 +65,7 @@ const loadPublishedPublicJob = cache(async (token: string, tenantQuery?: string)
   const hostTenant = resolveRequestTenantHost(requestHeaders).subdomainLabel;
   const tenant = await resolvePublicTenant(supabase, tenantQuery ?? hostTenant);
   if (!tenant) return null;
-  const job = await getPublishedJobByToken(supabase, tenant.id, token);
+  const job = await getPublishedJobByToken(supabase, tenant.id, token, { includeUnavailable: true });
   if (!job) return null;
   const branding = await loadTenantBrandingBySlug(tenant.slug);
   const origin = resolveAppOrigin({ headers: requestHeaders });
@@ -125,7 +126,8 @@ export default async function PublicJobDetailPage({
   const title = publicJobDisplayTitle(job);
 
   const applyUrl = `/apply?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(String(job.public_job_token))}`;
-  const canApply = Boolean(job.workflow_id);
+  const acceptingApplications = isOpenJobRequisitionStatus(job.status) && isJobRequisitionOpen(job);
+  const canApply = acceptingApplications && Boolean(job.workflow_id);
   const employmentType = job.employment_type?.trim() || "";
   const jobType = String((job as { shift_type?: string | null }).shift_type ?? "").trim();
   const workplaceType = String(job.location_type ?? "").trim() || String(job.schedule ?? "").trim();
@@ -163,7 +165,10 @@ export default async function PublicJobDetailPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900" style={brandVars}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
+      {acceptingApplications ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} /> : null}
+      {!acceptingApplications ? <div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-4 text-center text-sm font-medium text-amber-900">
+        {job.status === "paused" ? "This job is paused." : job.status === "filled" ? "This position has been filled." : "This job is closed."} Applications are no longer being accepted. <Link className="underline" href={`/jobs?tenant=${encodeURIComponent(tenant.slug)}`}>Browse available jobs</Link>
+      </div> : null}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
           <Link
@@ -203,8 +208,10 @@ export default async function PublicJobDetailPage({
             <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
           ) : null}
           {employmentType ? (
-            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{employmentType}</p>
+            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>Payroll type: {employmentType}</p>
           ) : null}
+          {jobType ? <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>Job type: {jobType}</p> : null}
+          {job.source_type === "MSP" && job.placement_type === "Recruit_and_Release" ? <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>Employer of record: {job.msp_name?.trim() || "MSP"} (MSP)</p> : null}
           {payRate ? (
             <p className="mt-3 text-sm text-slate-700">
               <span className="font-medium text-slate-500">Pay Rate :</span>{" "}
@@ -249,11 +256,11 @@ export default async function PublicJobDetailPage({
           ) : null}
         </article>
         <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
-          <h2 className="font-semibold text-slate-900">Ready to apply?</h2>
+          <h2 className="font-semibold text-slate-900">{acceptingApplications ? "Ready to apply?" : "Applications closed"}</h2>
           <p className={`mt-2 ${JOB_POSTING_HELPER_CLASS}`}>
             {canApply
               ? "Start by uploading your resume. An account is not required."
-              : "This job is posted for visibility. Online applications are not open yet."}
+              : !acceptingApplications ? "This posting is no longer accepting applications. Browse available jobs for other opportunities." : "This job is posted for visibility. Online applications are not open yet."}
           </p>
           {canApply ? (
             <Link
@@ -265,7 +272,7 @@ export default async function PublicJobDetailPage({
           ) : (
             <span
               className="mt-5 flex w-full cursor-not-allowed items-center justify-center rounded-lg bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-500"
-              title="Online applications are not available for this job yet"
+              title={acceptingApplications ? "Online applications are not available for this job yet" : "This job is no longer accepting applications"}
             >
               Apply
             </span>
