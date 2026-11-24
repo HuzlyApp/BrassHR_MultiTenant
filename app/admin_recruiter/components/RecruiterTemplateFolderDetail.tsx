@@ -6,15 +6,18 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { ArrowLeft, FileSignature, Plus } from "lucide-react";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
+import MoveTemplateToFolderModal from "@/app/admin_recruiter/components/MoveTemplateToFolderModal";
 import {
   NAVY,
   SectionHeading,
   TemplateCard,
   statusBadgeClass,
+  type TemplateCardAction,
 } from "@/app/admin_recruiter/components/RecruiterTemplateCards";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import type { RecruiterTemplateListItem } from "@/lib/recruiter-templates/types";
 import {
+  assignTemplateToFolder,
   countFolderStatuses,
   formatFolderStatusLine,
   readTemplateFolders,
@@ -40,12 +43,16 @@ export default function RecruiterTemplateFolderDetail({ folderId }: { folderId: 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<RecruiterTemplateListItem[]>([]);
   const [folder, setFolder] = useState<RecruiterTemplateFolder | null>(null);
+  const [folders, setFolders] = useState<RecruiterTemplateFolder[]>([]);
   const [tab, setTab] = useState<FolderTab>("active");
   const [actionId, setActionId] = useState<string | null>(null);
+  const [movingTemplate, setMovingTemplate] = useState<RecruiterTemplateListItem | null>(null);
+  const [movingTemplateBusy, setMovingTemplateBusy] = useState(false);
 
   const loadFolder = useCallback(() => {
-    const found = readTemplateFolders(folderScope).find((f) => f.id === folderId) ?? null;
-    setFolder(found);
+    const all = readTemplateFolders(folderScope);
+    setFolders(all);
+    setFolder(all.find((f) => f.id === folderId) ?? null);
   }, [folderId, folderScope]);
 
   const loadTemplates = useCallback(async () => {
@@ -100,10 +107,13 @@ export default function RecruiterTemplateFolderDetail({ folderId }: { folderId: 
 
   const firstActiveId = activeOnly[0]?.id ?? null;
 
-  const runAction = async (
-    templateId: string,
-    action: "duplicate" | "archive" | "delete" | "signing-request"
-  ) => {
+  const runAction = async (templateId: string, action: TemplateCardAction) => {
+    if (action === "move") {
+      const template = templates.find((row) => row.id === templateId) ?? null;
+      if (template) setMovingTemplate(template);
+      return;
+    }
+
     setActionId(templateId);
     try {
       if (action === "duplicate") {
@@ -152,6 +162,23 @@ export default function RecruiterTemplateFolderDetail({ folderId }: { folderId: 
       toast.error(e instanceof Error ? e.message : "Action failed");
     } finally {
       setActionId(null);
+    }
+  };
+
+  const handleMoveTemplate = async (targetFolderId: string | null) => {
+    if (!movingTemplate) return;
+    setMovingTemplateBusy(true);
+    try {
+      assignTemplateToFolder(folderScope, movingTemplate.id, targetFolderId);
+      loadFolder();
+      const targetName =
+        targetFolderId == null
+          ? "Uncategorized"
+          : folders.find((row) => row.id === targetFolderId)?.name ?? "folder";
+      toast.success(`Moved ${movingTemplate.name} to ${targetName}`);
+      setMovingTemplate(null);
+    } finally {
+      setMovingTemplateBusy(false);
     }
   };
 
@@ -307,6 +334,19 @@ export default function RecruiterTemplateFolderDetail({ folderId }: { folderId: 
           ) : null}
         </div>
       )}
+
+      <MoveTemplateToFolderModal
+        open={movingTemplate !== null}
+        templateName={movingTemplate?.name ?? ""}
+        folders={folders}
+        currentFolderId={folderId}
+        saving={movingTemplateBusy}
+        onClose={() => {
+          if (movingTemplateBusy) return;
+          setMovingTemplate(null);
+        }}
+        onMove={handleMoveTemplate}
+      />
     </div>
   );
 }
