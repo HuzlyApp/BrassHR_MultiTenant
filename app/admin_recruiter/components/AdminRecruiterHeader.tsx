@@ -11,7 +11,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
-import { accountRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
+import { getAccountDisplayName } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -64,6 +64,8 @@ export function AdminRecruiterHeader({
     notifications,
     unreadNotifications,
     displayName: headerDisplayName,
+    roleLabel: headerRoleLabel,
+    userId: headerUserId,
     isLoading: headerDataLoading,
     isError: headerDataError,
     error: headerDataErrorObj,
@@ -240,10 +242,13 @@ export function AdminRecruiterHeader({
   }, [branding.faviconUrl, branding.logoUrl]);
 
   const accountName = getAccountDisplayName(profile, user);
+  const trustedHeader = Boolean(user?.id && headerUserId === user.id);
   const displayName = accountLoading
-    ? headerDisplayName?.trim() || null
+    ? trustedHeader ? headerDisplayName?.trim() || null : null
     : accountName;
-  const displayRole = accountRoleLabel(profile);
+  const displayRole = trustedHeader
+    ? headerRoleLabel || "Staff"
+    : "Staff";
   const profilePhoto = profile?.avatar_url ?? null;
   /** Profile label should not stay on Loading… when only notifications fail. */
   const profileNameLoading = accountLoading && !displayName;

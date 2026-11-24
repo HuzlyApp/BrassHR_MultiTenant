@@ -259,7 +259,7 @@ function ResetPasswordContent() {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
       const verified = recoverySessionRef.current;
-      if (!recoveryReady || !passwordRecoverySessionMatches(session, verified)) {
+      if (!session || !recoveryReady || !passwordRecoverySessionMatches(session, verified)) {
         setFormError(RESET_LINK_INVALID_MESSAGE);
         return;
       }
@@ -269,8 +269,8 @@ function ResetPasswordContent() {
       const recoveryClient = createEphemeralAuthClient();
       if (!recoveryClient || !verified) throw new Error(RESET_LINK_INVALID_MESSAGE);
       const { data: bound, error: bindError } = await recoveryClient.auth.setSession({
-        access_token: verified.access_token,
-        refresh_token: verified.refresh_token,
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
       });
       if (bindError || !passwordRecoverySessionMatches(bound.session, verified)) {
         throw new Error(RESET_LINK_INVALID_MESSAGE);

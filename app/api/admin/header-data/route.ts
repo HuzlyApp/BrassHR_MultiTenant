@@ -129,7 +129,8 @@ async function loadHeaderProfile(
   supabase: SupabaseClient,
   userId: string,
   tenantId: string | null,
-  correlationId: string
+  correlationId: string,
+  effectiveRole: string | null
 ): Promise<{
   displayName: string;
   role: string | null;
@@ -188,10 +189,10 @@ async function loadHeaderProfile(
     (typeof userRow?.email === "string" && userRow.email.trim()) ||
     "Account";
 
-  const role =
+  const role = effectiveRole ?? (
     (typeof userRow?.role === "string" && userRow.role) ||
     profile?.role ||
-    null;
+    null);
 
   let roleLabel = formatRoleLabel(role);
   try {
@@ -242,7 +243,8 @@ export async function GET() {
     }
 
     const cacheKey = buildCacheKey("admin_header_data", ["user", userId, "tenant", scopeKey], {
-      v: 4,
+      v: 5,
+      role: auth.role,
     });
 
     const data = await getOrSetCache(
@@ -250,7 +252,7 @@ export async function GET() {
       async (): Promise<Omit<AdminHeaderDataResponse, "correlationId">> => {
         const [{ notifications, unreadNotifications }, profile] = await Promise.all([
           loadNotifications(supabase, userId, correlationId),
-          loadHeaderProfile(supabase, userId, tenantId, correlationId),
+          loadHeaderProfile(supabase, userId, tenantId, correlationId, auth.role ?? null),
         ]);
 
         return {
