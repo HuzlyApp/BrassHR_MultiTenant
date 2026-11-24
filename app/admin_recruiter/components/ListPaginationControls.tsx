@@ -36,29 +36,44 @@ type Props = {
 
 const MAX_VISIBLE_PAGES = 7;
 
-/** Build a compact page list: all pages when few, else window + ellipsis. */
+/**
+ * Compact page list for large totals.
+ * Always keeps the first two and last two page numbers, plus a window around the current page.
+ * Examples:
+ *   page 1 → 1 2 … 898 899
+ *   page 4 → 1 2 3 4 5 … 898 899
+ *   page 450 → 1 2 … 449 450 451 … 898 899
+ */
 function getVisiblePageItems(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
   if (totalPages <= MAX_VISIBLE_PAGES) {
     return Array.from({ length: totalPages }, (_, i) => i + 1);
   }
 
-  const items: Array<number | "ellipsis"> = [1];
-  const windowStart = Math.max(2, currentPage - 1);
-  const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+  const pages = new Set<number>();
 
-  if (windowStart > 2) {
-    items.push("ellipsis");
-  }
+  // First two + last two (required for large lists)
+  pages.add(1);
+  pages.add(2);
+  pages.add(totalPages - 1);
+  pages.add(totalPages);
 
-  for (let page = windowStart; page <= windowEnd; page += 1) {
+  // Current page ± 1 so users can step nearby
+  pages.add(currentPage);
+  if (currentPage - 1 >= 1) pages.add(currentPage - 1);
+  if (currentPage + 1 <= totalPages) pages.add(currentPage + 1);
+
+  const sorted = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const items: Array<number | "ellipsis"> = [];
+  for (let i = 0; i < sorted.length; i += 1) {
+    const page = sorted[i]!;
+    if (i > 0 && page - sorted[i - 1]! > 1) {
+      items.push("ellipsis");
+    }
     items.push(page);
   }
-
-  if (windowEnd < totalPages - 1) {
-    items.push("ellipsis");
-  }
-
-  items.push(totalPages);
   return items;
 }
 
@@ -113,7 +128,7 @@ export function ListPaginationControls({
             key={item}
             type="button"
             onClick={() => onPageChange(item)}
-            className={`${SURFACE} min-w-8 px-0 ${
+            className={`${SURFACE} min-w-8 px-1.5 ${
               active ? "border-transparent text-white hover:opacity-95" : ""
             }`}
             style={active ? resolvedActiveStyle : undefined}

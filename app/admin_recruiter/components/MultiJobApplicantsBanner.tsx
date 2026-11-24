@@ -37,7 +37,7 @@ export function MultiJobApplicantsBanner({ count, onViewAll }: MultiJobApplicant
         <button
           type="button"
           onClick={onViewAll}
-          className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+          className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] sm:w-auto"
         >
           View All Multi-Job Applicants
         </button>

@@ -2085,11 +2085,6 @@ export default function CandidatesPage() {
           isAnalyzed={
             candidates.find((item) => item.id === rowActionsMenu.rowId)?.aiMatchStatus === "ANALYZED"
           }
-          hired={(() => {
-            const status = candidates.find((item) => item.id === rowActionsMenu.rowId)?.status ?? "";
-            const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
-            return normalized === "hired" || normalized === "converted";
-          })()}
           resumeUploading={Boolean(updateResumeApplicationId)}
           onClose={() => setRowActionsMenu(null)}
           onAnalyze={(mode) => {
@@ -2124,7 +2119,6 @@ export default function CandidatesPage() {
           }}
           onViewStatusHistory={() => toast("Status history is available from the candidate application.")}
           onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
-          onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
         />
       ) : null}
 

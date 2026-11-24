@@ -23,7 +23,6 @@ export type CandidateRowActionsHandlers = {
   onSetupInterview: () => void;
   onViewStatusHistory: () => void;
   onDeleteCandidate: () => void;
-  onMarkAsHired: () => void;
 };
 
 type CandidateRowActionsMenuProps = {
@@ -31,17 +30,13 @@ type CandidateRowActionsMenuProps = {
   onClose: () => void;
   analyzing?: boolean;
   isAnalyzed?: boolean;
-  hired?: boolean;
   archived?: boolean;
   resumeUploading?: boolean;
 } & CandidateRowActionsHandlers;
 
-function menuItemClassName(opts?: { highlight?: boolean; active?: boolean }) {
+function menuItemClassName(opts?: { active?: boolean }) {
   const base =
     "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition";
-  if (opts?.highlight) {
-    return `${base} font-medium text-[#2563EB] hover:bg-[#EFF6FF]`;
-  }
   if (opts?.active) {
     return `${base} bg-[#F1F5F9] text-[#0F172A]`;
   }
@@ -53,7 +48,6 @@ export function CandidateRowActionsMenu({
   onClose,
   analyzing = false,
   isAnalyzed = false,
-  hired = false,
   archived = false,
   resumeUploading = false,
   onAnalyze,
@@ -66,7 +60,6 @@ export function CandidateRowActionsMenu({
   onSetupInterview,
   onViewStatusHistory,
   onDeleteCandidate,
-  onMarkAsHired,
 }: CandidateRowActionsMenuProps) {
   const { canEdit, canDelete } = useModulePermission("hiring");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -290,17 +283,6 @@ export function CandidateRowActionsMenu({
               className={menuItemClassName()}
             >
               Delete candidate
-            </button>
-          ) : null}
-          {canEdit ? (
-            <button
-              type="button"
-              role="menuitem"
-              disabled={hired}
-              onClick={() => runAndClose(onMarkAsHired)}
-              className={`${menuItemClassName({ highlight: true })} disabled:opacity-50`}
-            >
-              Mark as hired
             </button>
           ) : null}
         </div>
