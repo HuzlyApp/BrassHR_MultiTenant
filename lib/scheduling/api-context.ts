@@ -1,9 +1,58 @@
 import { NextResponse } from "next/server";
+import type { ZodError } from "zod";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { loadTenantFeatures, EditionFeatureError } from "@/lib/tenant/edition-features";
 import { SchedulingError } from "./v1-contract";
+
+export type ScheduleValidationHint = {
+  /** Required query/body fields for this endpoint. */
+  required?: string[];
+  /** Optional filters callers may pass. */
+  optional?: string[];
+  /** Concrete URL or JSON example that satisfies the contract. */
+  example?: string;
+};
+
+type ZodLikeError = Pick<ZodError, "issues"> | null | undefined;
+
+function issueEntries(error: ZodLikeError) {
+  return (error?.issues ?? []).map((issue) => ({
+    field: issue.path.map(String).join(".") || undefined,
+    message: issue.message,
+  }));
+}
+
+/** Shared 422 body so browser/API clients know which params are required. */
+export function validationErrorResponse(
+  defaultMessage: string,
+  error?: ZodLikeError,
+  hint?: ScheduleValidationHint,
+) {
+  const issues = issueEntries(error);
+  const detail =
+    issues.length === 0
+      ? null
+      : issues
+          .map((issue) => (issue.field ? `${issue.field}: ${issue.message}` : issue.message))
+          .join("; ");
+  const requiredLine =
+    hint?.required?.length ? `Required: ${hint.required.join(", ")}` : null;
+  const message = [defaultMessage, requiredLine, detail].filter(Boolean).join(". ");
+
+  return NextResponse.json(
+    {
+      error: message,
+      code: "VALIDATION_ERROR" as const,
+      ...(hint?.required?.length ? { required: hint.required } : {}),
+      ...(hint?.optional?.length ? { optional: hint.optional } : {}),
+      ...(hint?.example ? { example: hint.example } : {}),
+      ...(issues.length ? { issues } : {}),
+    },
+    { status: 422 },
+  );
+}
 
 export function schedulingError(error: unknown) {
   if (error instanceof SchedulingError || error instanceof EditionFeatureError) {
@@ -19,8 +68,13 @@ export function schedulingError(error: unknown) {
   return NextResponse.json({ error: "Schedule data unavailable", code: "DATA_UNAVAILABLE" }, { status: 503 });
 }
 
-export function invalidSchedule() {
-  return NextResponse.json({ error: "Invalid scheduling input", code: "VALIDATION_ERROR" }, { status: 422 });
+export function invalidSchedule(error?: ZodLikeError, hint?: ScheduleValidationHint) {
+  return validationErrorResponse("Invalid scheduling input", error, hint);
+}
+
+/** Timesheet/clock routes — same guidance shape, domain-specific default message. */
+export function invalidTimeInput(error?: ZodLikeError, hint?: ScheduleValidationHint) {
+  return validationErrorResponse("Invalid timesheet input", error, hint);
 }
 
 export async function requireSchedulingContext(request: Request, checkSchedulingFeature = true) {

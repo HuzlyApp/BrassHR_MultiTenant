@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const context = await requireWorkerRequestContext(request);
     if (context instanceof NextResponse) return context;
     const parsed = requestListSchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) return invalidSchedule(parsed.error);
     return NextResponse.json(await listWorkerRequests(context.supabase, context.tenantId, context.ownWorkerIds, parsed.data),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return workerRequestError(error); }
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const context = await requireWorkerRequestContext(request);
     if (context instanceof NextResponse) return context;
     const parsed = requestCreateSchema.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) return invalidSchedule(parsed.error);
     return NextResponse.json(await createWorkerRequest(context.supabase, context.tenantId, context.auth.userId, context.ownWorkerIds, parsed.data), { status: 201 });
   } catch (error) { return workerRequestError(error); }
 }

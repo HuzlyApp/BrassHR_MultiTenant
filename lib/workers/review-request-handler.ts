@@ -10,12 +10,14 @@ export async function handleWorkerRequestReview(request: Request, route: { param
     const context = await requireWorkerRequestContext(request, true);
     if (context instanceof NextResponse) return context;
     const { id } = await route.params;
-    if (!z.uuid().safeParse(id).success) return invalidSchedule();
+    if (!z.uuid().safeParse(id).success) {
+      return invalidSchedule(undefined, { required: ["id"] });
+    }
     const text = await request.text();
     let body: unknown;
     try { body = text.trim() ? JSON.parse(text) : {}; } catch { return invalidSchedule(); }
     const parsed = requestReviewSchema.safeParse(body);
-    if (!parsed.success) return invalidSchedule();
+    if (!parsed.success) return invalidSchedule(parsed.error);
     return NextResponse.json(await reviewWorkerRequest(context.supabase, context.tenantId, context.auth.userId, id, decision, parsed.data.notes));
   } catch (error) { return workerRequestError(error); }
 }

@@ -16,6 +16,7 @@ vi.mock("./v1-service", () => ({
   recordEmployeeClockEvent: mocks.clock,
 }));
 import { POST as clock } from "@/app/api/v1/clock-events/route";
+import { GET as listTimesheets } from "@/app/api/v1/timesheets/route";
 import { POST as submit } from "@/app/api/v1/timesheets/[id]/submit/route";
 import { POST as approve } from "@/app/api/v1/timesheets/[id]/approve/route";
 import { POST as reject } from "@/app/api/v1/timesheets/[id]/reject/route";
@@ -35,6 +36,17 @@ describe("time route authorization", () => {
       auth: { userId: "actor" },
       ownEmployeeIds: [id],
     });
+  });
+  it("returns required period guidance when timesheet list query is empty (BUG-203)", async () => {
+    const res = await listTimesheets(
+      new Request("https://example.test/api/v1/timesheets"),
+    );
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("VALIDATION_ERROR");
+    expect(body.required).toEqual(["period_start", "period_end"]);
+    expect(String(body.error)).toMatch(/Invalid timesheet input/i);
+    expect(body.example).toContain("period_start=");
   });
   it("preserves authentication denial before a clock mutation", async () => {
     mocks.context.mockResolvedValue(
