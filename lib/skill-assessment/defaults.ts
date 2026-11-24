@@ -49,6 +49,7 @@ export function createDefaultSkillAssessmentCatalog(): SkillAssessmentCatalog {
     enabled: DEFAULT_SKILL_ASSESSMENT_CATALOG_FLAGS.enabled,
     allowSkip: DEFAULT_SKILL_ASSESSMENT_CATALOG_FLAGS.allowSkip,
     scoring: { ...DEFAULT_SKILL_ASSESSMENT_SCORING },
+    professionProfiles: {},
     categories: [
       category(
         "880c1f95-f033-4ab7-9b5f-1721564901b0",

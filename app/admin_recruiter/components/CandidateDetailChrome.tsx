@@ -176,16 +176,14 @@ function CandidateDetailChromeInner({
   const location = [worker?.city ?? "", worker?.state ?? ""].filter(Boolean).join(", ") || null;
   const workerStatus = worker?.status ?? null;
 
-  // Match hire-journey sidebar: Pre-Hire / Post-Hire tabs scope progress to that phase.
+  // Match hire-journey / legacy profile: Overall Hiring Progress on Profile (and other
+  // non-phase tabs) counts pre-hire only — not pre+post (BUG-169).
   const progressSteps = useMemo(() => {
     const steps = profile?.onboardingSteps ?? [];
-    if (activeTab === "Pre-Hire") {
-      return steps.filter((step) => (step.phase ?? "pre_hire") !== "post_hire");
-    }
     if (activeTab === "Post-Hire") {
       return steps.filter((step) => step.phase === "post_hire");
     }
-    return steps;
+    return steps.filter((step) => (step.phase ?? "pre_hire") !== "post_hire");
   }, [profile?.onboardingSteps, activeTab]);
 
   const progressPercent = useMemo(() => {

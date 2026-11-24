@@ -352,19 +352,23 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
 
-    if (!job.employmentType) {
+    // Preview must use UI fields (work location type / years) — they live on `ui`
+    // until save via applyUiToJob; reading only `job.*` left the banner on ACTION NEEDED
+    // until those fields were somehow copied onto `job` (BUG-153).
+    const preview = applyUiToJob(job, ui);
+    if (!preview.employmentType) {
       setWorkflow(null);
       setWorkflowWarning("");
       return;
     }
     const params = new URLSearchParams({
-      employmentType: job.employmentType,
+      employmentType: preview.employmentType,
     });
-    if (job.professionId) params.set("professionId", job.professionId);
-    if (job.specialtyId) params.set("specialtyId", job.specialtyId);
-    if (job.location) params.set("location", job.location);
-    if (job.jobLocationType) params.set("locationType", job.jobLocationType);
-    if (job.yearsOfExperience) params.set("yearsOfExperience", job.yearsOfExperience);
+    if (preview.professionId) params.set("professionId", preview.professionId);
+    if (preview.specialtyId) params.set("specialtyId", preview.specialtyId);
+    if (preview.location) params.set("location", preview.location);
+    if (preview.jobLocationType) params.set("locationType", preview.jobLocationType);
+    if (preview.yearsOfExperience) params.set("yearsOfExperience", preview.yearsOfExperience);
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
@@ -415,6 +419,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     job.location,
     job.jobLocationType,
     job.yearsOfExperience,
+    ui.jobLocationType,
+    ui.yearsOfExperience,
     options?.workflows,
     options?.professions,
   ]);

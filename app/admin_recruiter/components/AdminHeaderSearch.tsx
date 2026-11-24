@@ -147,7 +147,7 @@ export default function AdminHeaderSearch() {
   }
 
   return (
-    <div ref={rootRef} className="relative hidden min-w-0 flex-1 md:block">
+    <div ref={rootRef} className="relative min-w-0 flex-1 max-w-[min(100%,420px)]">
       <label className="flex h-9 min-w-0 w-full cursor-text items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-2.5 transition focus-within:border-[color:var(--brand-primary)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

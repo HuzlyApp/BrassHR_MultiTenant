@@ -71,6 +71,9 @@ export async function GET(req: NextRequest) {
         name: profession.name,
         catalogKey: profession.catalog_key ? String(profession.catalog_key) : null,
         industryKey: profession.industry_key ? String(profession.industry_key) : catalog.industryKey,
+        isActive: profession.is_active !== false,
+        createdAt: (profession as { created_at?: string | null }).created_at ?? null,
+        updatedAt: (profession as { updated_at?: string | null }).updated_at ?? null,
         documents: documents.get(profession.id) ?? [],
       })),
     });

@@ -1381,7 +1381,8 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, locationFilter, pageSize, jobId, candidateSearchQuery, keywordQuery, roleFilter, clientFilter, matchFilter, ownerFilter, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, skillsFilter]);
+    // pageSize is reset together with setPage in onPageSizeChange (BUG-168).
+  }, [activeTab, locationFilter, jobId, candidateSearchQuery, keywordQuery, roleFilter, clientFilter, matchFilter, ownerFilter, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter, skillsFilter]);
 
   useEffect(() => {
     setJobsPopover(null);
@@ -2499,7 +2500,7 @@ export default function JobApplicationsPage() {
       toast.success("Candidate is already archived");
       return;
     }
-    const label = row.candidateName?.trim() || "this candidate";
+    const label = applicantName(row).trim() || "this candidate";
     if (!window.confirm(`Archive ${label}? They will move to the Archived list.`)) return;
     void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list", {
       switchToArchivedTab: true,
@@ -3702,20 +3703,14 @@ export default function JobApplicationsPage() {
           </p>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[#64748B]">Show</span>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-medium text-[#334155] focus:outline-none"
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <ListPaginationShowLabel
+              pageSize={pageSize}
+              options={PAGE_SIZE_OPTIONS}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
 
             <div className="flex items-center gap-1.5 text-xs">
               <button

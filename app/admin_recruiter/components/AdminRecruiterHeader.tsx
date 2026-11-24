@@ -316,8 +316,10 @@ export function AdminRecruiterHeader({
           ) : null}
         </div>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center gap-3 sm:flex">
-          <GodAdminTenantSwitcher />
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:gap-3">
+          <div className="hidden min-[900px]:block">
+            <GodAdminTenantSwitcher />
+          </div>
           <AdminHeaderSearch />
         </div>
 

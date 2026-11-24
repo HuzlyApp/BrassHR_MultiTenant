@@ -43,6 +43,7 @@ describe("assessmentOptionsFromCatalog", () => {
       enabled: true,
       allowSkip: true,
       scoring: { ...DEFAULT_SKILL_ASSESSMENT_SCORING },
+      professionProfiles: {},
       categories: [
         {
           id: "bound-1",
