@@ -82,6 +82,7 @@ type ProfilePayload = {
   job_source_type?: string | null;
   job_industry_key?: string | null;
   profession_industry_key?: string | null;
+  application_applied_at?: string | null;
   worker: {
     id: string;
     first_name: string | null;
@@ -893,7 +894,7 @@ export default function NewApplicantProfilePage() {
               phone={w?.phone ? formatPhoneForDisplay(w.phone) : null}
               location={candidateLocation}
               statusLabel={w?.status_label ?? null}
-              applicationDate={formatDate(w?.created_at)}
+              applicationDate={formatDate(data?.application_applied_at ?? w?.created_at)}
               jobId={
                 (data?.job_source_type ?? "").toLowerCase() === "msp"
                   ? w?.job_id?.trim() || data?.job_id?.trim() || null
@@ -919,7 +920,9 @@ export default function NewApplicantProfilePage() {
                   ? preHireOnboardingSteps.filter((step) => step.state === "pending").length
                   : null
               }
-              progressDate={formatDate(w?.updated_at ?? w?.created_at)}
+              progressDate={formatDate(
+                data?.application_applied_at ?? w?.updated_at ?? w?.created_at
+              )}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
               hasApplication={Boolean(

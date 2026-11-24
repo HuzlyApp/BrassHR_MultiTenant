@@ -131,8 +131,27 @@ type JobPickerOption = {
   clientName: string | null;
 };
 
+/**
+ * Prefer the progress/status application (aligned with applicationJobTitle)
+ * over an AI-match application that may belong to a different job (BUG-189).
+ */
 function resolveCandidateApplicationId(row: CandidateRow): string {
-  return (row.matchApplicationId ?? row.progressStatusApplicationId ?? "").trim();
+  return (row.progressStatusApplicationId ?? row.matchApplicationId ?? "").trim();
+}
+
+function resolveInterviewJobBinding(row: CandidateRow): {
+  applicationId?: string;
+  jobTitle?: string;
+} {
+  const applicationId = resolveCandidateApplicationId(row);
+  if (!applicationId) return {};
+  const fromAssignee = row.jobAssignees?.find(
+    (entry) => entry.applicationId === applicationId
+  )?.jobTitle?.trim();
+  return {
+    applicationId,
+    jobTitle: fromAssignee || row.applicationJobTitle?.trim() || undefined,
+  };
 }
 
 type WorkerProfile = {
@@ -2153,8 +2172,10 @@ export default function CandidatesPage() {
           onSubmit={(payload) => void handleScheduleInterview(payload)}
           fixedWorkerId={interviewTarget.id}
           fixedApplicantName={interviewTarget.name || "Candidate"}
-          fixedApplicationId={resolveCandidateApplicationId(interviewTarget) || undefined}
-          fixedJobTitle={interviewTarget.applicationJobTitle || undefined}
+          fixedApplicationId={
+            resolveInterviewJobBinding(interviewTarget).applicationId
+          }
+          fixedJobTitle={resolveInterviewJobBinding(interviewTarget).jobTitle}
           defaultTitle={
             interviewTarget.name
               ? `Interview with ${interviewTarget.name}`

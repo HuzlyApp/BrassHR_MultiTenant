@@ -229,7 +229,8 @@ export default function HireJourneyClient({
   }, [profile, view, statusOverride]);
   const phaseApplication = view?.primaryApplication ?? null;
   const primaryApplication = profile?.applications?.[0] ?? null;
-  const applicationId = primaryApplication?.id ?? phaseApplication?.id ?? null;
+  // Prefer hire-journey phase application (in-context job) over newest list row (BUG-189).
+  const applicationId = phaseApplication?.id ?? primaryApplication?.id ?? null;
   const knownApplication: KnownStageApplication | null = phaseApplication
     ? {
         status_id: statusOverride?.statusId ?? phaseApplication.statusId,

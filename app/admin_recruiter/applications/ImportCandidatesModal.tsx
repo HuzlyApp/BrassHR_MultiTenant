@@ -50,7 +50,7 @@ type ImportCandidatesModalProps = {
   open: boolean;
   jobId: string;
   onClose: () => void;
-  onImported?: () => void;
+  onImported?: (result?: { importedCount: number }) => void;
 };
 
 type FiltersState = {
@@ -353,35 +353,48 @@ export default function ImportCandidatesModal({
         | {
             message?: string;
             error?: string;
-            autoQuickMatch?: { total?: number; analyzed?: number; failed?: number } | null;
+            importedCount?: number;
+            autoQuickMatch?: {
+              total?: number;
+              analyzed?: number;
+              failed?: number;
+              pending?: boolean;
+            } | null;
           }
         | null;
       if (!response.ok) {
         throw new Error(readServiceAreaApiMessage(json, "Failed to import candidates"));
       }
+      const importedCount = Number(json?.importedCount ?? 0);
       toast.success(json?.message || "Candidates successfully added.");
       const match = json?.autoQuickMatch;
       if (match && (match.total ?? 0) > 0) {
-        const analyzed = match.analyzed ?? 0;
-        const failed = match.failed ?? 0;
-        if (failed === 0) {
+        if (match.pending) {
           toast.success(
-            `Quick Match complete for ${analyzed} candidate${analyzed === 1 ? "" : "s"}.`
-          );
-        } else if (analyzed > 0) {
-          toast.error(
-            `Quick Match finished for ${analyzed}, failed for ${failed}. Open a candidate and use Re-run Quick Match if needed.`
+            `Quick Match started for ${match.total} candidate${match.total === 1 ? "" : "s"} in the background.`
           );
         } else {
-          toast.error(
-            "Quick Match did not finish — open a candidate and use Re-run Quick Match to try again."
-          );
+          const analyzed = match.analyzed ?? 0;
+          const failed = match.failed ?? 0;
+          if (failed === 0) {
+            toast.success(
+              `Quick Match complete for ${analyzed} candidate${analyzed === 1 ? "" : "s"}.`
+            );
+          } else if (analyzed > 0) {
+            toast.error(
+              `Quick Match finished for ${analyzed}, failed for ${failed}. Open a candidate and use Re-run Quick Match if needed.`
+            );
+          } else {
+            toast.error(
+              "Quick Match did not finish — open a candidate and use Re-run Quick Match to try again."
+            );
+          }
         }
       }
       setSelectedIds([]);
       setPreview(null);
       setConfirmOpen(false);
-      onImported?.();
+      onImported?.({ importedCount });
       onClose();
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Failed to import candidates");
@@ -977,7 +990,7 @@ export default function ImportCandidatesModal({
                 style={{ backgroundColor: primaryColor }}
                 onClick={() => void confirmImport(selectedIds)}
               >
-                {importing ? "Importing & Quick Match…" : "Import"}
+                {importing ? "Importing…" : "Import"}
               </button>
             </div>
           </div>
