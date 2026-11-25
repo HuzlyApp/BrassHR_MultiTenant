@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
-import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge"
 import type { ManagerColumnId } from "./manager-columns"
 
 export type ManagerListRow = {
@@ -47,14 +46,22 @@ export function renderManagerListCell(
       return <span className="text-sm text-[#374151]">{m.department || "—"}</span>
     case "location":
       return <span className="text-sm text-[#374151]">{m.location || "—"}</span>
-    case "status":
+    case "status": {
+      const statusLower = (m.status || "").toLowerCase()
+      const isInactive =
+        statusLower === "inactive" ||
+        statusLower === "terminated" ||
+        statusLower === "archived"
       return (
         <span
-          className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(m.status)}`}
+          className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium whitespace-nowrap ${
+            isInactive ? "bg-[#94A3B8] text-white" : "bg-[#14B8A6] text-white"
+          }`}
         >
-          {m.status}
+          {m.status || "—"}
         </span>
       )
+    }
     case "email":
       return <span className="text-sm text-[#4B5563]">{m.email || "—"}</span>
     case "phone":
@@ -67,9 +74,9 @@ export function renderManagerListCell(
       return (
         <Link
           href="#"
-          className="inline-flex h-8 shrink-0 items-center justify-center rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+          className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[#D1D5DB] bg-white px-3.5 py-1 text-xs font-medium text-[#374151] shadow-2xs transition hover:bg-gray-50"
         >
-          Details
+          Profile
         </Link>
       )
     default:
