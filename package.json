@@ -20,7 +20,9 @@
     "test:rls": "vitest run --config vitest.config.mts lib/security",
     "test:watch": "vitest --config vitest.config.mts",
     "redis:cli": "node scripts/redis-cli.mjs",
-    "setup:supabase-otp-template": "node scripts/apply-supabase-otp-template.mjs"
+    "setup:supabase-otp-template": "node scripts/apply-supabase-otp-template.mjs",
+    "db:migrate:summary": "node scripts/summarize-migrations.mjs",
+    "db:migrate:notify": "node scripts/migration-notify.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.130.0",

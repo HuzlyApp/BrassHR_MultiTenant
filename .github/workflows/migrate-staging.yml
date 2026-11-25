@@ -1,0 +1,91 @@
+# Apply pending Supabase migrations to STAGING only.
+# Manual run: Actions → Migrate Staging Supabase → Run workflow
+#
+# Required secrets:
+#   SUPABASE_DB_URL_STAGING
+# Optional notify secrets:
+#   RESEND_API_KEY
+#   MIGRATION_NOTIFY_TO
+#   MIGRATION_NOTIFY_FROM
+
+name: Migrate Staging Supabase
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-staging-supabase
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply staging migrations
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.67.1
+
+      - name: Summarize local migrations
+        run: node scripts/summarize-migrations.mjs | tee migration-summary.txt
+
+      - name: Apply migrations to staging
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL_STAGING }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing secret SUPABASE_DB_URL_STAGING"
+            exit 1
+          fi
+          supabase db push --db-url "$SUPABASE_DB_URL" --yes
+
+      - name: Email success notification
+        if: success()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MIGRATION_NOTIFY_TO: ${{ secrets.MIGRATION_NOTIFY_TO }}
+          MIGRATION_NOTIFY_FROM: ${{ secrets.MIGRATION_NOTIFY_FROM }}
+          MIGRATION_ENV: staging
+          MIGRATION_STATUS: success
+          MIGRATION_ACTOR: ${{ github.actor }}
+          MIGRATION_SHA: ${{ github.sha }}
+          MIGRATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$RESEND_API_KEY" ] || [ -z "$MIGRATION_NOTIFY_TO" ]; then
+            echo "Notify skipped (RESEND_API_KEY / MIGRATION_NOTIFY_TO not set)"
+            exit 0
+          fi
+          export MIGRATION_SUMMARY="$(cat migration-summary.txt)"
+          node scripts/migration-notify.mjs
+
+      - name: Email failure notification
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MIGRATION_NOTIFY_TO: ${{ secrets.MIGRATION_NOTIFY_TO }}
+          MIGRATION_NOTIFY_FROM: ${{ secrets.MIGRATION_NOTIFY_FROM }}
+          MIGRATION_ENV: staging
+          MIGRATION_STATUS: failed
+          MIGRATION_ACTOR: ${{ github.actor }}
+          MIGRATION_SHA: ${{ github.sha }}
+          MIGRATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$RESEND_API_KEY" ] || [ -z "$MIGRATION_NOTIFY_TO" ]; then
+            echo "Notify skipped (RESEND_API_KEY / MIGRATION_NOTIFY_TO not set)"
+            exit 0
+          fi
+          export MIGRATION_SUMMARY="$(cat migration-summary.txt 2>/dev/null || echo 'Migration apply failed before summary was available.')"
+          node scripts/migration-notify.mjs
