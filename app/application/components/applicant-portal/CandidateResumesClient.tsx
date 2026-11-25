@@ -121,6 +121,10 @@ export function CandidateResumesClient() {
       setError("Choose a resume file to upload.");
       return;
     }
+    if (resumes.some((resume) => resume.originalFileName.trim().toLowerCase() === file.name.trim().toLowerCase())) {
+      setError("A resume with this filename already exists. If this is a different resume, rename the file and upload it again.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -206,7 +210,7 @@ export function CandidateResumesClient() {
         }
       />
 
-      {error ? <p className="mb-4 text-sm text-[#B91C1C]">{error}</p> : null}
+      {error ? <p role="alert" className="mb-4 text-sm text-[#B91C1C]">{error}</p> : null}
       {loading ? <p className="text-sm text-[#6B7280]">Loading resumes…</p> : null}
 
       {!loading ? (
