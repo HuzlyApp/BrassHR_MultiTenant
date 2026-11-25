@@ -121,10 +121,6 @@ export function CandidateResumesClient() {
       setError("Choose a resume file to upload.");
       return;
     }
-    if (!jobApplicationId) {
-      setError("Apply to a job before uploading a resume. Resumes are stored with an application.");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
@@ -132,7 +128,7 @@ export function CandidateResumesClient() {
       if (!headers) throw new Error("You need to sign in again.");
       const body = new FormData();
       body.set("file", file);
-      body.set("jobApplicationId", jobApplicationId);
+      if (jobApplicationId) body.set("jobApplicationId", jobApplicationId);
       const res = await fetch("/api/applicant-portal/resumes", { method: "POST", headers, body });
       const payload = (await res.json().catch(() => ({}))) as { resumes?: ResumeItem[]; error?: string };
       if (!res.ok) throw new Error(payload.error || "Could not upload resume.");
@@ -301,6 +297,7 @@ export function CandidateResumesClient() {
               </button>
             </div>
             <div className="space-y-4 px-5 pb-2">
+              {error ? <p role="alert" className="text-sm text-[#B91C1C]">{error}</p> : null}
               <label className="block text-xs text-[#6B7280]">
                 Resume Title
                 <input
@@ -312,12 +309,13 @@ export function CandidateResumesClient() {
               </label>
               {appliedJobs.length > 0 ? (
                 <label className="block text-xs text-[#6B7280]">
-                  Attach to application
+                  Attach to application (optional)
                   <select
                     value={jobApplicationId}
                     onChange={(event) => setJobApplicationId(event.target.value)}
                     className="mt-2 h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-xs text-black"
                   >
+                    <option value="">Save to my profile</option>
                     {appliedJobs.map((job) => (
                       <option key={job.applicationId} value={job.applicationId}>
                         {job.jobTitle}
@@ -326,7 +324,7 @@ export function CandidateResumesClient() {
                   </select>
                 </label>
               ) : (
-                <p className="text-xs text-[#6B7280]">Apply to a job first. Resumes are saved on an application.</p>
+                <p className="text-xs text-[#6B7280]">Save a resume to your profile before applying to a job.</p>
               )}
               <div className="rounded-lg border border-dashed border-[#012352] px-5 py-5 text-center">
                 <Upload className="mx-auto h-9 w-9 text-[#60A5FA]" aria-hidden />
