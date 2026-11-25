@@ -220,6 +220,8 @@ export default function WorkersPage() {
   // Modals & Menu Portal
   const [activeWorkerForModal, setActiveWorkerForModal] = useState<WorkerListRow | null>(null);
   const [activeModalType, setActiveModalType] = useState<"facilities" | "manager" | "history" | "message" | null>(null);
+  const [roleChangeBusy, setRoleChangeBusy] = useState(false);
+  const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
   const [actionsMenuState, setActionsMenuState] = useState<{
     worker: WorkerListRow;
     anchor: HTMLElement;
@@ -260,7 +262,7 @@ export default function WorkersPage() {
         }
       }
 
-      const res = await fetch(`/api/admin/employment-workers?tab=all${showArchived ? "&archived=1" : ""}`, {
+      const res = await fetch(`/api/admin/employment-workers?directoryRole=worker&tab=all${showArchived ? "&archived=1" : ""}`, {
         cache: "no-store",
       });
       const data = await res.json();
@@ -734,11 +736,43 @@ export default function WorkersPage() {
     setActiveModalType(action);
   };
 
-  // Manager update handler
-  const handleSaveManager = (workerId: string, newManager: string) => {
-    setWorkers((prev) =>
-      prev.map((w) => (w.id === workerId ? { ...w, manager: newManager } : w))
-    );
+  const handleSaveDirectoryRole = async (
+    workerId: string,
+    role: "worker" | "manager"
+  ) => {
+    setRoleChangeBusy(true);
+    setRoleChangeError(null);
+    try {
+      const response = await fetch(`/api/admin/employment-workers/${encodeURIComponent(workerId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change_directory_role", directoryRole: role }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          (payload as { error?: string }).error || "Could not update the worker role."
+        );
+      }
+      if (role === "manager") {
+        setWorkers((prev) => prev.filter((w) => w.id !== workerId));
+        setSelectedIds((prev) => {
+          if (!prev.has(workerId)) return prev;
+          const next = new Set(prev);
+          next.delete(workerId);
+          return next;
+        });
+      }
+      setActiveModalType(null);
+      setActiveWorkerForModal(null);
+      await loadWorkers();
+    } catch (error) {
+      setRoleChangeError(
+        error instanceof Error ? error.message : "Could not update the worker role."
+      );
+    } finally {
+      setRoleChangeBusy(false);
+    }
   };
 
   return (
@@ -747,7 +781,7 @@ export default function WorkersPage() {
       <div className="min-w-0">
         <h1 className="text-[20px] font-semibold leading-7 text-black">Workers</h1>
         <p className="text-xs leading-4 text-[#374151]">
-          One directory. Filter by role instead of a separate Managers module
+          Employment workers directory. Promote someone to Manager to move them to the Managers list.
         </p>
       </div>
 
@@ -1015,8 +1049,14 @@ export default function WorkersPage() {
 
       <ChangeManagerModal
         worker={activeModalType === "manager" ? activeWorkerForModal : null}
-        onClose={() => setActiveModalType(null)}
-        onSaveManager={handleSaveManager}
+        onClose={() => {
+          if (roleChangeBusy) return;
+          setActiveModalType(null);
+          setRoleChangeError(null);
+        }}
+        onSaveDirectoryRole={handleSaveDirectoryRole}
+        saving={roleChangeBusy}
+        error={roleChangeError}
       />
 
       <StatusHistoryModal

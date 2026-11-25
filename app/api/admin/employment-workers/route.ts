@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 import {
   employmentWorkerTabLabel,
+  parseEmploymentDirectoryRole,
   parseEmploymentWorkerTab,
   employmentWorkerClientName,
   type EmploymentWorkerRecord,
@@ -14,13 +15,16 @@ import { parseRequiredUuid } from "@/lib/validation/uuid";
 export const runtime = "nodejs";
 
 const SELECT_COLUMNS =
-  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, job_role, location, status, profile_photo, source_job_application_id, application_snapshot, documents_manifest";
+  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, job_role, location, status, profile_photo, source_job_application_id, application_snapshot, documents_manifest, directory_role";
 
 const SELECT_COLUMNS_LEGACY =
-  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, job_role, location, status, profile_photo";
+  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, job_role, location, status, profile_photo, directory_role";
 
 const SELECT_COLUMNS_MIN =
-  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at";
+  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, directory_role";
+
+const SELECT_COLUMNS_NO_DIRECTORY_ROLE =
+  "id, candidate_id, tenant_id, first_name, last_name, email, phone, worker_type, employment_classification, created_at, converted_at, job_role, location, status, profile_photo, source_job_application_id, application_snapshot, documents_manifest";
 
 type WorkerListRow = {
   id: string;
@@ -41,6 +45,7 @@ type WorkerListRow = {
   source_job_application_id?: string | null;
   application_snapshot?: Record<string, unknown> | null;
   documents_manifest?: unknown[] | null;
+  directory_role?: string | null;
 };
 
 type CandidateDirectoryProfile = {
@@ -90,6 +95,7 @@ function normalizeWorkerRow(row: WorkerListRow): EmploymentWorkerRecord {
     source_job_application_id: row.source_job_application_id ?? null,
     documents_count: manifest.length,
     application_snapshot: row.application_snapshot ?? null,
+    directory_role: parseEmploymentDirectoryRole(row.directory_role),
   };
 }
 
@@ -114,6 +120,9 @@ export async function GET(req: NextRequest) {
     }
 
     const tab = parseEmploymentWorkerTab(req.nextUrl.searchParams.get("tab"));
+    const directoryRole = parseEmploymentDirectoryRole(
+      req.nextUrl.searchParams.get("directoryRole")
+    );
     const candidateIdRaw = req.nextUrl.searchParams.get("candidateId");
     const candidateId = candidateIdRaw ? parseRequiredUuid(candidateIdRaw, "candidateId") : null;
     if (candidateId && !candidateId.ok) return NextResponse.json({ error: candidateId.error }, { status: 400 });
@@ -122,28 +131,45 @@ export async function GET(req: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "Select a company first." }, { status: 400 });
     const archived = req.nextUrl.searchParams.get("archived") === "1";
 
-    const buildQuery = (select: string) => {
+    const buildQuery = (select: string, withDirectoryRoleFilter: boolean) => {
       let query = supabase.from("workers").select(select).order("created_at", { ascending: false });
       query = query.eq("tenant_id", tenantId);
       query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+      if (withDirectoryRoleFilter) query = query.eq("directory_role", directoryRole);
       if (candidateId?.ok) query = query.eq("candidate_id", candidateId.value);
-      switch (tab) {
-        case "new":
-          query = query.eq("status", "new");
-          break;
-        case "w2":
-          query = query.eq("worker_type", "w2");
-          break;
-        case "1099":
-          query = query.eq("worker_type", "1099");
-          break;
-        default:
-          break;
+      // Tab filters only apply to the Workers directory.
+      if (directoryRole === "worker") {
+        switch (tab) {
+          case "new":
+            query = query.eq("status", "new");
+            break;
+          case "w2":
+            query = query.eq("worker_type", "w2");
+            break;
+          case "1099":
+            query = query.eq("worker_type", "1099");
+            break;
+          default:
+            break;
+        }
       }
       return query;
     };
 
-    let raw = await buildQuery(SELECT_COLUMNS);
+    let raw = await buildQuery(SELECT_COLUMNS, true);
+    if (raw.error && isMissingColumnError(raw.error, ["directory_role"])) {
+      raw = await buildQuery(SELECT_COLUMNS_NO_DIRECTORY_ROLE, false);
+      if (!raw.error && directoryRole === "manager") {
+        // Column not migrated yet — Managers list stays empty rather than dumping all workers.
+        return NextResponse.json({
+          tab,
+          tabLabel: employmentWorkerTabLabel(tab),
+          directoryRole,
+          total: 0,
+          workers: [],
+        });
+      }
+    }
     if (
       raw.error &&
       isMissingColumnError(raw.error, [
@@ -153,13 +179,13 @@ export async function GET(req: NextRequest) {
         "source_job_application_id",
       ])
     ) {
-      raw = await buildQuery(SELECT_COLUMNS_LEGACY);
+      raw = await buildQuery(SELECT_COLUMNS_LEGACY, true);
     }
     if (
       raw.error &&
       isMissingColumnError(raw.error, ["job_role", "location", "status", "profile_photo"])
     ) {
-      raw = await buildQuery(SELECT_COLUMNS_MIN);
+      raw = await buildQuery(SELECT_COLUMNS_MIN, true);
     }
     if (raw.error) throw raw.error;
 
@@ -458,6 +484,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       tab,
       tabLabel: employmentWorkerTabLabel(tab),
+      directoryRole,
       total: workers.length,
       workers,
     });

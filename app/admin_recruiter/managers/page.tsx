@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import {
   ListPaginationControls,
@@ -8,11 +8,15 @@ import {
 } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
+  employmentWorkerStatusLabel,
+  type EmploymentWorkerRecord,
+} from "@/lib/admin/employment-workers";
+import {
   BRAAS_PRIMARY,
   BRAAS_SECONDARY,
   readableTextOnBrand,
 } from "@/lib/tenant/tenant-branding";
-import { Calendar, Check, ChevronDown, LayoutList, Plus, RefreshCw, Search } from "lucide-react";
+import { Calendar, Check, ChevronDown, LayoutList, RefreshCw, Search } from "lucide-react";
 import { ManagersMetricsCards } from "./ManagersMetricsCards";
 import {
   DEFAULT_MANAGER_COLUMNS,
@@ -23,6 +27,26 @@ import {
   type ManagerColumnId,
 } from "./manager-columns";
 import { renderManagerListCell, type ManagerListRow } from "./render-manager-list-cell";
+
+function mapApiWorkerToManagerRow(
+  w: Partial<EmploymentWorkerRecord> & { department_id?: string | null }
+): ManagerListRow {
+  const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed Manager";
+  const jobRole = (w.job_role || "").trim();
+  return {
+    id: String(w.id),
+    name,
+    email: w.email?.trim() || "",
+    role: jobRole && jobRole.toLowerCase() !== "manager" ? jobRole : "Manager",
+    department: (w.department || "").trim() || "—",
+    location: (w.location || "").trim() || "—",
+    status: employmentWorkerStatusLabel(w.status),
+    createdAt: w.created_at ?? w.converted_at ?? null,
+    profilePhotoUrl: w.profile_photo_url ?? null,
+    phone: w.phone?.trim() || "—",
+    reference: String(w.candidate_id || w.id || "—"),
+  };
+}
 
 type ManagerTab = "all" | "active" | "inactive";
 
@@ -60,8 +84,9 @@ export default function ManagersPage() {
   const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
   const textOnPrimary = readableTextOnBrand(primaryColor);
 
-  const [managers] = useState<ManagerListRow[]>([]);
+  const [managers, setManagers] = useState<ManagerListRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [managerTab, setManagerTab] = useState<ManagerTab>("all");
@@ -75,9 +100,39 @@ export default function ManagersPage() {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const loadManagers = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const response = await fetch(
+        "/api/admin/employment-workers?directoryRole=manager&tab=all",
+        { cache: "no-store" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          (payload as { error?: string }).error || "Could not load managers."
+        );
+      }
+      const rows = Array.isArray((payload as { workers?: unknown }).workers)
+        ? ((payload as { workers: Partial<EmploymentWorkerRecord>[] }).workers)
+        : [];
+      setManagers(rows.map(mapApiWorkerToManagerRow));
+    } catch (error) {
+      setManagers([]);
+      setLoadError(error instanceof Error ? error.message : "Could not load managers.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setListColumnOrder(loadManagerColumnOrder());
   }, []);
+
+  useEffect(() => {
+    void loadManagers();
+  }, [loadManagers]);
 
   useEffect(() => {
     function handleGlobalClick(e: MouseEvent) {
@@ -92,8 +147,7 @@ export default function ManagersPage() {
   }, []);
 
   const handleRefresh = () => {
-    setLoading(true);
-    window.setTimeout(() => setLoading(false), 400);
+    void loadManagers();
   };
 
   const handleSearch = () => {
@@ -175,8 +229,16 @@ export default function ManagersPage() {
     <div className="box-border flex w-full min-w-0 max-w-full flex-col gap-5 overflow-x-hidden px-4 pb-8 pt-[30px] sm:px-5 lg:px-8">
       <div className="min-w-0">
         <h1 className="text-[20px] font-semibold leading-7 text-black">Managers</h1>
-        <p className="text-xs leading-4 text-[#374151]">Manage managers in one place</p>
+        <p className="text-xs leading-4 text-[#374151]">
+          People promoted from Workers appear here
+        </p>
       </div>
+
+      {loadError ? (
+        <p role="alert" className="text-sm text-red-700">
+          {loadError}
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-6 overflow-x-auto border-b border-[#E5E7EB] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {MANAGER_TABS.map((tab) => {
@@ -324,32 +386,22 @@ export default function ManagersPage() {
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEditColumnsOpen(true)}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
-              title="Edit Columns"
-            >
-              <LayoutList className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
-              title="Refresh"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             type="button"
-            style={{ backgroundColor: primaryColor, color: textOnPrimary }}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-xs font-semibold leading-4 shadow-xs transition hover:brightness-95"
+            onClick={() => setEditColumnsOpen(true)}
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
+            title="Edit Columns"
           >
-            <Plus className="h-4 w-4 shrink-0" />
-            Create Manager
+            <LayoutList className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>

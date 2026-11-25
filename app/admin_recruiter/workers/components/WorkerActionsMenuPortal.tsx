@@ -124,7 +124,7 @@ export function WorkerActionsMenuPortal({
         }}
         className="flex w-full items-center px-4 py-2 text-left text-xs font-medium text-[#334155] hover:bg-[#F8FAFC] transition cursor-pointer"
       >
-        Change Manager
+        Change Role
       </button>
       <button
         type="button"

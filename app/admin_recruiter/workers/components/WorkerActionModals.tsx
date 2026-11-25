@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Building2, User, Clock, Send, CheckCircle2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, Building2, User, Clock, Send, CheckCircle2, ChevronDown } from "lucide-react";
 import type { WorkerListRow } from "../figma-demo-data";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { BRAAS_PRIMARY, readableTextOnBrand } from "@/lib/tenant/tenant-branding";
@@ -83,19 +83,32 @@ export function FacilitiesModal({ worker, onClose }: FacilitiesModalProps) {
   );
 }
 
+export type DirectoryRoleOption = "worker" | "manager";
+
 export type ChangeManagerModalProps = {
   worker: WorkerListRow | null;
   onClose: () => void;
-  onSaveManager: (workerId: string, newManager: string) => void;
+  onSaveDirectoryRole: (workerId: string, role: DirectoryRoleOption) => void | Promise<void>;
+  saving?: boolean;
+  error?: string | null;
 };
 
-export function ChangeManagerModal({ worker, onClose, onSaveManager }: ChangeManagerModalProps) {
+export function ChangeManagerModal({
+  worker,
+  onClose,
+  onSaveDirectoryRole,
+  saving = false,
+  error = null,
+}: ChangeManagerModalProps) {
   const branding = useTenantBranding();
   const primaryColor = branding.primaryHex || BRAAS_PRIMARY;
   const textOnPrimary = readableTextOnBrand(primaryColor);
 
-  const managerOptions = ["Sean J.", "Amanda Miller", "Marcus Vance", "Elena Rostova"];
-  const [selectedManager, setSelectedManager] = useState(worker?.manager || managerOptions[0]);
+  const [selectedRole, setSelectedRole] = useState<DirectoryRoleOption>("manager");
+
+  useEffect(() => {
+    if (worker) setSelectedRole("manager");
+  }, [worker]);
 
   if (!worker) return null;
 
@@ -108,14 +121,15 @@ export function ChangeManagerModal({ worker, onClose, onSaveManager }: ChangeMan
               <User className="size-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-[#0F172A]">Change Manager</h3>
+              <h3 className="text-base font-semibold text-[#0F172A]">Change Role</h3>
               <p className="text-xs text-[#64748B]">{worker.name}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+            disabled={saving}
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition disabled:opacity-60"
           >
             <X className="size-5" />
           </button>
@@ -124,43 +138,55 @@ export function ChangeManagerModal({ worker, onClose, onSaveManager }: ChangeMan
         <div className="mt-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-[#475569] mb-1.5">
-              Select Responsible Manager
+              Select Role
             </label>
-            <select
-              value={selectedManager}
-              onChange={(e) => setSelectedManager(e.target.value)}
-              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] shadow-2xs focus:border-[#BC8B41] focus:outline-none"
-            >
-              {managerOptions.map((mgr) => (
-                <option key={mgr} value={mgr}>
-                  {mgr}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as DirectoryRoleOption)}
+                disabled={saving}
+                className="w-full cursor-pointer appearance-none rounded-xl border border-[#CBD5E1] bg-white py-2.5 pl-3.5 pr-10 text-sm text-[#1E293B] shadow-2xs focus:border-[#BC8B41] focus:outline-none disabled:opacity-60"
+              >
+                <option value="manager">Manager</option>
+                <option value="worker">Worker</option>
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                aria-hidden
+              />
+            </div>
           </div>
           <p className="text-xs text-[#64748B]">
-            Assigning a manager gives them direct oversight of shift scheduling, approvals, and reviews for this worker.
+            {selectedRole === "manager"
+              ? "Moving this person to Manager removes them from the Workers list and shows them on the Managers list."
+              : "Keeping Worker leaves this person on the Workers list."}
           </p>
+          {error ? (
+            <p role="alert" className="text-xs text-red-700">
+              {error}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 flex justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#D1D5DB] bg-white px-4 py-2 text-xs font-semibold text-[#374151] hover:bg-gray-50 transition cursor-pointer"
+            disabled={saving}
+            className="rounded-lg border border-[#D1D5DB] bg-white px-4 py-2 text-xs font-semibold text-[#374151] hover:bg-gray-50 transition cursor-pointer disabled:opacity-60"
           >
             Cancel
           </button>
           <button
             type="button"
+            disabled={saving}
             onClick={() => {
-              onSaveManager(worker.id, selectedManager);
-              onClose();
+              void onSaveDirectoryRole(worker.id, selectedRole);
             }}
             style={{ backgroundColor: primaryColor, color: textOnPrimary }}
-            className="rounded-lg px-4 py-2 text-xs font-semibold shadow-xs hover:brightness-95 transition cursor-pointer"
+            className="rounded-lg px-4 py-2 text-xs font-semibold shadow-xs hover:brightness-95 transition cursor-pointer disabled:opacity-60"
           >
-            Update Manager
+            {saving ? "Updating…" : "Update Role"}
           </button>
         </div>
       </div>
