@@ -14,7 +14,9 @@ export default function SettingsSectionHeader({
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold leading-7 tracking-tight text-[#101828]">{title}</h1>
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#101828]">
+          {title}
+        </h1>
         {description ? (
           <p className="mt-1 text-sm leading-5 text-[#6B7280]">{description}</p>
         ) : null}

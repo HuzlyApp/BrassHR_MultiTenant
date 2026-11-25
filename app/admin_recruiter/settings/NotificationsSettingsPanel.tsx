@@ -236,7 +236,7 @@ export default function NotificationsSettingsPanel() {
   return (
     <div className="w-full min-w-0 space-y-5">
       <div>
-        <h1 className="text-xl font-semibold leading-7 tracking-tight text-[#101828]">
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#101828]">
           Notifications
         </h1>
         <p className="mt-1 text-sm leading-5 text-[#6B7280]">

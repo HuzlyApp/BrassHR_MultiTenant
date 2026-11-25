@@ -417,8 +417,10 @@ export default function BusinessInfoTab() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Company Profile</h1>
-        <p className="mt-1 text-sm text-[#64748B]">
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
+          Company Profile
+        </h1>
+        <p className="mt-1 text-sm leading-5 text-[#64748B]">
           Manage your company details, contact information, and e-signature settings.
         </p>
       </div>

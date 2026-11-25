@@ -789,7 +789,7 @@ export default function AssessmentSettingsPanel({
           </Link>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-[28px] font-semibold leading-tight tracking-tight text-[#0F172A]">
+              <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
                 {professionName || "Profession assessment"}
               </h1>
               {statusBadge}

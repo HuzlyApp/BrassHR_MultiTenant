@@ -456,7 +456,7 @@ export default function AdminConsolePanel({
       >
         {embedInSettingsPage ? null : (
           <div>
-            <h1 className="text-xl font-semibold leading-7 text-black">User Management</h1>
+            <h1 className="text-lg font-semibold leading-6 text-black">User Management</h1>
             <p className="text-xs font-normal leading-4 text-[#6B7280]">
               Manage users, invitations, and administrative access for your organization.
             </p>

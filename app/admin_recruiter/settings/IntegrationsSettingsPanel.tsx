@@ -543,7 +543,9 @@ export default function IntegrationsSettingsPanel() {
   return (
     <div className="w-full min-w-0">
       <div className="mb-5">
-        <h1 className="text-2xl font-semibold tracking-tight text-[#012352]">Integrations</h1>
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#012352]">
+          Integrations
+        </h1>
         <p className="mt-1 text-sm text-[#64748B]">
           Connect BrassHR with favorite tools to streamline your workflow.
         </p>
