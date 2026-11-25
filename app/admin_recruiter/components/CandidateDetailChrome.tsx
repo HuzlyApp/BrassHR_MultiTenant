@@ -128,6 +128,9 @@ function CandidateDetailChromeInner({
     function handlePipelineRefresh(event: Event) {
       const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
       if (detail?.workerId !== applicantId) return;
+      if (detail.statusName) {
+        setProfile((current) => current?.worker ? { ...current, worker: { ...current.worker, status_label: detail.statusName } } : current);
+      }
       invalidateStaffDetailCache(workerProfileApiUrl(applicantId));
       refresh();
     }

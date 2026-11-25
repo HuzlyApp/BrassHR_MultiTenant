@@ -53,6 +53,12 @@ describe("shouldRequestAddressAutocomplete", () => {
 })
 
 describe("parseAutocompleteFeatures", () => {
+  it("restricts suggestions to the selected state in either name or code form", () => {
+    const feature = addressFeature("100 Main Street, Carrboro, North Carolina 27510, United States", 0.92)
+    expect(parseAutocompleteFeatures([feature], "Texas")).toEqual([])
+    expect(parseAutocompleteFeatures([feature], "NC")).toHaveLength(1)
+    expect(parseAutocompleteFeatures([feature], "North Carolina")).toHaveLength(1)
+  })
   it("returns street-address suggestions with parsed components", () => {
     const suggestions = parseAutocompleteFeatures([
       addressFeature("100 Main Street, Carrboro, North Carolina 27510, United States", 0.92),

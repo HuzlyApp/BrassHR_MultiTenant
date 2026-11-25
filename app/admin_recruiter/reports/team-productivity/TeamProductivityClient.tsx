@@ -385,7 +385,7 @@ export default function TeamProductivityClient() {
                       ? "text-[#374151] hover:bg-[#F9FAFB]"
                       : "cursor-not-allowed text-[#94A3B8]"
                 }`}
-                title={item.available ? undefined : "Awaiting department event instrumentation"}
+                title={item.available ? undefined : "Coming soon — awaiting department data"}
               >
                 {item.label}
               </button>

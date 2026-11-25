@@ -12,6 +12,22 @@ vi.mock("@/lib/admin/hooks/use-staff-module-access", () => ({ useModulePermissio
 vi.mock("@/app/admin_recruiter/components/AdvancedSearchModal", () => ({ default: () => null }));
 beforeEach(() => { mocks.fetch.mockReset().mockResolvedValue({ ok: true, json: async () => ({ workers: [{ id: "new-worker", candidate_id: "candidate-a", first_name: "Onboarding", last_name: "Person", status: "new", location: "Carthage, TX" }, { id: "active-worker", candidate_id: "candidate-b", first_name: "Active", last_name: "Person", status: "active", created_at: new Date().toISOString() }] }) }); vi.stubGlobal("fetch", mocks.fetch); });
 describe("worker directory states", () => {
+  it("offers the onboarding-gated applicant path and exports the filtered directory without selecting rows", async () => {
+    render(<WorkersPage />);
+    await screen.findByText("Onboarding Person");
+    expect(screen.getByRole("link", { name: "Add worker from applicants" })).toHaveAttribute("href", "/admin_recruiter/candidates");
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    expect(exports.csv).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "new-worker" }), expect.objectContaining({ id: "active-worker" })]));
+  });
+  it("keeps metrics and explains an empty archived directory", async () => {
+    render(<WorkersPage />);
+    await screen.findByText("Onboarding Person");
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ workers: [] }) });
+    fireEvent.click(screen.getByRole("button", { name: "Show archived workers" }));
+    expect(await screen.findByText("No archived workers yet.")).toBeInTheDocument();
+    expect(screen.getByText("Active Workers")).toBeInTheDocument();
+    expect(screen.getByText("Includes workers still onboarding")).toBeInTheDocument();
+  });
   it("loads an explicit archived directory view", async () => {
     render(<WorkersPage />);
     await screen.findByText("Onboarding Person");
@@ -25,10 +41,10 @@ describe("worker directory states", () => {
     await screen.findByText("Onboarding Person");
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Onboarding Person" }));
     expect(screen.getByRole("status")).toHaveTextContent("1 worker selected");
-    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Export", exact: true }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Download CSV" }));
     expect(exports.csv).toHaveBeenCalledWith([expect.objectContaining({ id: "new-worker", name: "Onboarding Person" })]);
-    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Export", exact: true }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Download XLS" }));
     expect(exports.xls).toHaveBeenCalledWith([expect.objectContaining({ id: "new-worker", name: "Onboarding Person" })]);
   });

@@ -377,7 +377,7 @@ function PublishedBadge() {
 function UnpublishedBadge() {
   return (
     <span className="inline-flex items-center rounded-full bg-[#F2F4F7] px-2.5 py-0.5 text-xs font-medium leading-[18px] text-[#667085]">
-      Unpublish
+      Unpublished
     </span>
   );
 }

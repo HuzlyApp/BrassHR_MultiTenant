@@ -19,6 +19,12 @@ function setup() {
   render(<AdminWorkerProfileClient workerId="candidate-a" />);
 }
 describe("worker profile employment details", () => {
+  it("shows an immediate accessible skeleton while profile reads are pending", () => {
+    mocks.detail.mockImplementationOnce(() => new Promise(() => {}));
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(<AdminWorkerProfileClient workerId="candidate-a" />);
+    expect(screen.getByRole("status", { name: "Loading worker profile" })).toHaveAttribute("aria-busy", "true");
+  });
   it("shows the same assignment dates, rates, and workplace as the directory projection", async () => {
     setup();
     expect(await screen.findByText("04/07/2027")).toBeInTheDocument();

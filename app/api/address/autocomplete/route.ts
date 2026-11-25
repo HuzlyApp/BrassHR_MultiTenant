@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     url.searchParams.set("country", "US")
     url.searchParams.set("types", "address")
 
-    const mapboxRes = await fetch(url.toString(), { cache: "no-store" })
+    const mapboxRes = await fetch(url.toString(), { cache: "no-store", signal: AbortSignal.timeout(5000) })
     if (!mapboxRes.ok) {
       const text = await mapboxRes.text().catch(() => "")
       console.error("[address/autocomplete] mapbox", mapboxRes.status, text.slice(0, 200))
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
 
     const data = (await mapboxRes.json()) as { features?: MapboxGeocodeFeature[] }
     const features = Array.isArray(data.features) ? data.features : []
-    const suggestions = parseAutocompleteFeatures(features)
+    const suggestions = parseAutocompleteFeatures(features, parts.state)
 
     return NextResponse.json({ suggestions })
   } catch (err) {

@@ -43,6 +43,7 @@ export type ResolvedEmailTemplate = {
 };
 
 export type AdminEmailTemplateItem = {
+  defaults?: { subject: string; body_html: string; body_text: string | null };
   template_key: string;
   name: string;
   locale: string;

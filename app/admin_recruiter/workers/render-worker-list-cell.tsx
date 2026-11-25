@@ -102,16 +102,16 @@ export function renderWorkerListCell(
             <Link
               href={jobHref}
               className="block truncate text-xs font-medium text-[#0F172A] hover:text-[color:var(--brand-primary,#C59B27)] hover:underline whitespace-nowrap transition-colors cursor-pointer"
-              title={w.jobRole || "—"}
+              title={w.jobRole && w.jobRole !== "—" ? w.jobRole : "Job role has not been set"}
             >
-              {w.jobRole || "—"}
+              {w.jobRole && w.jobRole !== "—" ? w.jobRole : "Not set"}
             </Link>
           ) : (
             <span
               className="block truncate text-xs text-[#374151] font-normal whitespace-nowrap"
-              title={w.jobRole || "—"}
+              title={w.jobRole && w.jobRole !== "—" ? w.jobRole : "Job role has not been set"}
             >
-              {w.jobRole || "—"}
+              {w.jobRole && w.jobRole !== "—" ? w.jobRole : "Not set"}
             </span>
           )}
         </div>
@@ -121,7 +121,7 @@ export function renderWorkerListCell(
     case "payRate":
       return (
         <span className="text-xs text-[#374151] whitespace-nowrap">
-          {w.payRate || "—"}
+          {w.payRate && w.payRate !== "—" ? w.payRate : "Not set"}
         </span>
       );
 

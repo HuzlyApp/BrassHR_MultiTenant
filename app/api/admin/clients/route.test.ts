@@ -13,6 +13,7 @@ describe("staff-created client organizations", () => {
     expect((await POST(request("Client Two"))).status).toBe(201);
     expect(mocks.insert).toHaveBeenCalledTimes(2);
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: "tenant", user_id: null }));
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ verification_status: "pending", onboarding_status: "pending", onboarding_completed_at: null }));
   });
   it.each(["", "A", "<script>x</script> Client", "x".repeat(121)])("rejects invalid company names before inserting", async (name) => {
     expect((await POST(request(name))).status).toBe(400);

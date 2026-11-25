@@ -191,6 +191,7 @@ export default function UpdateAssignedWorkflowControl({
             aria-label="Select workflow"
             className="absolute right-0 z-40 mt-1 max-h-72 w-[min(20rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
           >
+            <p className="border-b border-[#E5E7EB] px-3 py-2 text-xs text-[#667085]">This application keeps its assigned workflow when the job changes. Choose a workflow here to update this applicant.</p>
             {loadingOptions ? (
               <div className="flex items-center gap-2 px-3 py-3 text-xs text-[#667085]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -226,7 +227,7 @@ export default function UpdateAssignedWorkflowControl({
                       {workflow.employmentType ? <span className="mt-0.5 block text-[10px] text-[#667085]">Payroll type: {workflow.employmentType}</span> : null}
                       {selected ? (
                         <span className="mt-0.5 block text-[10px] text-[#667085]">
-                          Currently assigned
+                          Assigned to this application
                         </span>
                       ) : null}
                     </span>

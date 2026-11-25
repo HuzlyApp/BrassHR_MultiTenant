@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -787,6 +788,8 @@ export default function WorkersPage() {
 
       {/* 4 Metric Stat Cards */}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
+        {canEdit ? <Link href="/admin_recruiter/candidates" title="Approve an applicant through their assigned W2 or 1099 onboarding workflow." className="rounded-lg bg-[color:var(--brand-primary)] px-3 py-2 text-sm text-white">Add worker from applicants</Link> : null}
+        <button type="button" disabled={loading || filteredWorkers.length === 0} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm disabled:opacity-50" onClick={() => exportWorkersCsv(filteredWorkers)}>Export CSV</button>
         <button type="button" disabled={archiveBusy} aria-pressed={showArchived} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" onClick={() => { setShowArchived((value) => !value); setSelectedIds(new Set()); setCurrentPage(1); }}>{showArchived ? "Show current workers" : "Show archived workers"}</button>
         {archiveError ? <p role="alert" className="text-sm text-red-700">{archiveError}</p> : null}
       </div>
@@ -841,7 +844,7 @@ export default function WorkersPage() {
               </div>
             ) : paginatedWorkers.length === 0 ? (
               <div className="py-16 text-center text-sm text-[#64748B]">
-                No workers found matching your filters.
+                {showArchived && workers.length === 0 ? "No archived workers yet." : "No workers found matching your filters."}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
@@ -933,7 +936,7 @@ export default function WorkersPage() {
                       colSpan={listColumnOrder.length + 1}
                       className="py-16 text-center text-sm text-[#64748B] whitespace-nowrap"
                     >
-                      No workers found matching your filters.
+                      {showArchived && workers.length === 0 ? "No archived workers yet." : "No workers found matching your filters."}
                     </td>
                   </tr>
                 ) : (

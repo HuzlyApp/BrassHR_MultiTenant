@@ -121,9 +121,11 @@ export function useOnboardingFlows(opts?: {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error || "Failed to delete workflow");
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY }),
+      ]);
     },
   });
 
@@ -156,9 +158,11 @@ export function useOnboardingFlows(opts?: {
       if (!response.ok) throw new Error(data.error || `Failed to ${action} workflow`);
       return data.flow as OnboardingFlowListItem;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY }),
+      ]);
     },
   });
 
@@ -174,9 +178,11 @@ export function useOnboardingFlows(opts?: {
       if (!res.ok) throw new Error(data.error || "Failed to create flow");
       return data.flow!;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: LIBRARIES_QUERY_KEY }),
+      ]);
     },
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { interpolateTemplate } from "@/lib/email-templates/interpolation";
 import { sanitizeEmailHtml } from "@/lib/email-templates/sanitize-html";
 import { Mail } from "lucide-react";
@@ -64,6 +64,7 @@ export default function EmailTemplatesPanel() {
     (selected?.variables ?? []).map((variable) => {
       const key = variable.key;
       const sample = variable.sample?.trim() || "";
+      const sampleFallback = /email/i.test(key) ? "support@example.com" : /name/i.test(key) ? "Alex Morgan" : `Sample ${key}`;
       const tenantFallback =
         key === "tenantName" || key === "companyName" || key === "organizationName"
           ? tenantName?.trim() || ""
@@ -71,7 +72,7 @@ export default function EmailTemplatesPanel() {
       const resolved =
         tenantFallback && (!sample || sample === `[${key}]`)
           ? tenantFallback
-          : sample || (tenantFallback ? tenantFallback : `[${key}]`);
+          : sample && sample !== `[${key}]` ? sample : tenantFallback || sampleFallback;
       return [key, resolved];
     })
   );
@@ -134,7 +135,7 @@ export default function EmailTemplatesPanel() {
     void load();
   }, [load]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (selected) applySelection(selected);
   }, [selectedKey, selected, applySelection]);
 
@@ -348,6 +349,13 @@ export default function EmailTemplatesPanel() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setPreviewOpen(value => !value)} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold">{previewOpen ? "Hide preview" : "Preview email"}</button>
+            <button type="button" disabled={saving || !selected?.defaults} onClick={() => {
+              if (!selected?.defaults || !window.confirm("Replace this draft with the platform default? Save template to apply the change.")) return;
+              setSubject(selected.defaults.subject);
+              setBodyHtml(selected.defaults.body_html);
+              setBodyText(selected.defaults.body_text ?? "");
+              setMessage("Default content restored in this draft. Save template to apply it.");
+            }} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold disabled:opacity-50">Reset to default</button>
             <button
               type="button"
               disabled={saving}

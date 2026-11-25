@@ -510,7 +510,8 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
 
   if (loading) {
     return (
-      <div className={PAGE_CLASS}>
+      <div className={PAGE_CLASS} role="status" aria-label="Loading worker profile" aria-busy="true">
+        <span className="sr-only">Loading worker profile…</span>
         <div className="h-40 animate-pulse rounded-xl bg-[#F3F4F6]" />
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <div className="h-80 animate-pulse rounded-xl bg-[#F3F4F6]" />

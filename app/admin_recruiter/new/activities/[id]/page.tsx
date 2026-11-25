@@ -27,7 +27,7 @@ import {
   ordinalCallAttempt,
   type WorkerCallLog,
 } from "@/lib/admin/worker-call-logs";
-import { humanizeActivityAction } from "@/lib/admin/humanize-activity-action";
+import { humanizeActivityAction, collapseRepeatedProfileViews } from "@/lib/admin/humanize-activity-action";
 import {
   Briefcase,
   Calendar,
@@ -160,7 +160,7 @@ export default function NewApplicantActivitiesPage() {
     void reloadCallLogs();
   }, [reloadCallLogs]);
 
-  const activityHistory = profile?.activity_history ?? [];
+  const activityHistory = useMemo(() => collapseRepeatedProfileViews(profile?.activity_history ?? []), [profile?.activity_history]);
   const historyCount = activityHistory.length;
 
   const sortedCallLogs = useMemo(

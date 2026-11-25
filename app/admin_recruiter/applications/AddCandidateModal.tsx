@@ -786,6 +786,7 @@ export default function AddCandidateModal({
       setSuccessCandidateName(candidateName);
       resetCandidateEntry();
       setSuccessOpen(true);
+      onSuccess?.();
     } catch (uploadError) {
       setErrorMessage(
         uploadError instanceof Error ? uploadError.message : "Failed to add candidate"
@@ -800,13 +801,11 @@ export default function AddCandidateModal({
     setSuccessOpen(false);
     resetForm();
     onClose();
-    onSuccess?.();
   }
 
   function handleAddAnother() {
     setSuccessOpen(false);
     resetCandidateEntry();
-    onSuccess?.();
   }
 
   const hasResumeSource =

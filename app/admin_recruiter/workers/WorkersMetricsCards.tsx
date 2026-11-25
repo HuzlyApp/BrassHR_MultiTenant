@@ -71,6 +71,7 @@ export function WorkersMetricsCards({ counts, loading = false }: WorkersMetricsC
 
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold leading-4 text-[#374151]">{card.label}</p>
+              {card.id === "assigned" ? <p className="text-xs text-[#64748B]">Includes workers still onboarding</p> : null}
               <p className="text-2xl font-semibold leading-8 text-black">
                 {loading ? <span aria-label={`Loading ${card.label}`} className="my-1 block h-6 w-12 animate-pulse rounded bg-slate-200" /> : card.value.toLocaleString()}
               </p>

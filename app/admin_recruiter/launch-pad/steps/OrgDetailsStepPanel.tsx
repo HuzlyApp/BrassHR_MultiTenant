@@ -235,8 +235,7 @@ export function OrgDetailsStepPanel({
               Organization Details
             </h2>
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-              Company information for payroll and compliance. Use Skip if you want to finish this
-              later.
+              Review the prefilled company information for payroll and compliance, then select Save &amp; Continue to confirm and mark this step Done. Use Skip to finish later.
             </p>
           </div>
 

@@ -36,11 +36,11 @@ function normalizeEditorHtml(html: string): string {
 }
 
 function stripHtml(value: string): string {
-  if (!looksLikeHtml(value)) return value;
-  return value
+  const text = looksLikeHtml(value) ? value
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+    .replace(/<[^>]+>/g, "") : value;
+  return text
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -197,17 +197,17 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
     {
       icon: Italic,
       label: "Italic",
-      onClick: () => runCommand("italic"),
+      command: "italic",
     },
     {
       icon: Bold,
       label: "Bold",
-      onClick: () => runCommand("bold"),
+      command: "bold",
     },
     {
       icon: List,
       label: "Bullet list",
-      onClick: () => runCommand("insertUnorderedList"),
+      command: "insertUnorderedList",
     },
   ] as const;
 
@@ -215,12 +215,12 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
     <div>
       <div className="overflow-hidden rounded-lg border border-[#CBD5E1]">
         <div className="flex flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-[#F8FAFC] px-2 py-2">
-          {formatTools.map(({ icon: Icon, label, onClick }) => (
+          {formatTools.map(({ icon: Icon, label, command }) => (
             <button
               key={label}
               type="button"
               onMouseDown={(event) => event.preventDefault()}
-              onClick={onClick}
+              onClick={() => runCommand(command)}
               className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#334155]"
               aria-label={label}
               title={label}
