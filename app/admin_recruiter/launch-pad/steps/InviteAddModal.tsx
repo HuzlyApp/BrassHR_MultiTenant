@@ -26,11 +26,13 @@ export function InviteAddModal({
   onOpenChange,
   roleOptions,
   onAdd,
+  onAddAndSend,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   roleOptions: Array<{ value: string; label: string }>;
-  onAdd: (draft: InviteDraftInput) => void;
+  onAdd: (draft: InviteDraftInput) => boolean;
+  onAddAndSend: (draft: InviteDraftInput) => Promise<void>;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -41,6 +43,7 @@ export function InviteAddModal({
     "recruiter";
   const [role, setRole] = useState(defaultRole);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const reset = () => {
     setFirstName("");
@@ -48,40 +51,62 @@ export function InviteAddModal({
     setEmail("");
     setRole(defaultRole);
     setError(null);
+    setSending(false);
   };
 
-  const handleAdd = () => {
+  const buildDraft = (): InviteDraftInput | null => {
     const trimmedFirst = firstName.trim();
     const trimmedLast = lastName.trim();
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedFirst) {
       setError("First name is required.");
-      return;
+      return null;
     }
     if (!trimmedLast) {
       setError("Last name is required.");
-      return;
+      return null;
     }
     if (!trimmedEmail) {
       setError("Email is required.");
-      return;
+      return null;
     }
     if (!isValidEmail(trimmedEmail)) {
       setError("Enter a valid email address.");
-      return;
+      return null;
     }
     if (!role) {
       setError("Choose a role.");
-      return;
+      return null;
     }
-    onAdd({
+    setError(null);
+    return {
       firstName: trimmedFirst,
       lastName: trimmedLast,
       email: trimmedEmail,
       role,
-    });
+    };
+  };
+
+  const handleAdd = () => {
+    const draft = buildDraft();
+    if (!draft) return;
+    if (!onAdd(draft)) return;
     reset();
     onOpenChange(false);
+  };
+
+  const handleAddAndSend = async () => {
+    const draft = buildDraft();
+    if (!draft || sending) return;
+    setSending(true);
+    try {
+      await onAddAndSend(draft);
+      reset();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not send invite. Please try again.");
+      setSending(false);
+    }
   };
 
   return (
@@ -179,20 +204,31 @@ export function InviteAddModal({
             ) : null}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] px-5 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#E5E7EB] px-5 py-4">
             <Dialog.Close
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#012352] bg-white px-3.5 text-[14px] font-semibold text-[#012352]"
+              disabled={sending}
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#012352] bg-white px-3.5 text-[14px] font-semibold text-[#012352] disabled:opacity-60"
               style={interStyle}
             >
               Cancel
             </Dialog.Close>
             <button
               type="button"
+              disabled={sending}
               onClick={handleAdd}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-3.5 text-[14px] font-semibold text-white"
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-3.5 text-[14px] font-semibold text-white disabled:opacity-60"
               style={interStyle}
             >
               Add in list
+            </button>
+            <button
+              type="button"
+              disabled={sending}
+              onClick={() => void handleAddAndSend()}
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-3.5 text-[14px] font-semibold text-white disabled:opacity-60"
+              style={interStyle}
+            >
+              {sending ? "Sending…" : "Add in list & send invite"}
             </button>
           </div>
         </Dialog.Content>

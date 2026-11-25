@@ -12,6 +12,18 @@ type InviteRow = InviteDraftInput & {
   id: string;
   status: "pending" | "sent";
   sending?: boolean;
+  /** True when hydrated from the staff directory (already invited). */
+  fromServer?: boolean;
+};
+
+type DirectoryUser = {
+  id: string;
+  kind?: "member" | "invitation";
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  role?: string | null;
+  status?: string | null;
 };
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -30,6 +42,43 @@ const FALLBACK_ROLE_OPTIONS = SEEDED_STAFF_ROLES.filter((role) => role.isAssigna
 
 function createRowId() {
   return `invite-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeInviteRole(
+  role: string | null | undefined,
+  options: Array<{ value: string }>
+): string {
+  const token = (role ?? "").trim().toLowerCase();
+  if (options.some((option) => option.value === token)) return token;
+  if (token === "client") return "recruiter";
+  if (token === "owner") return "admin";
+  return options.find((option) => option.value === "recruiter")?.value ?? options[0]?.value ?? "recruiter";
+}
+
+function shouldShowAsSentInvite(user: DirectoryUser): boolean {
+  const status = (user.status ?? "").trim().toLowerCase();
+  if (user.kind === "invitation") {
+    return status === "pending" || status === "failed" || status === "expired";
+  }
+  // Invited members who have not finished setup yet.
+  return status === "pending";
+}
+
+function directoryUserToRow(
+  user: DirectoryUser,
+  options: Array<{ value: string }>
+): InviteRow | null {
+  const email = String(user.email ?? "").trim().toLowerCase();
+  if (!email) return null;
+  return {
+    id: user.id || createRowId(),
+    firstName: String(user.firstName ?? "").trim() || "Teammate",
+    lastName: String(user.lastName ?? "").trim() || "Invite",
+    email,
+    role: normalizeInviteRole(user.role, options),
+    status: "sent",
+    fromServer: true,
+  };
 }
 
 async function sendInviteRequest(row: InviteDraftInput) {
@@ -66,24 +115,48 @@ export function InviteStepPanel({
   const [bulkSending, setBulkSending] = useState(false);
   const [bannerEmails, setBannerEmails] = useState<string[]>([]);
   const [bannerOpen, setBannerOpen] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      setLoadingExisting(true);
       try {
         const response = await fetch("/api/admin/users", { cache: "no-store" });
         const data = (await response.json().catch(() => ({}))) as {
           roles?: Array<{ key: string; label: string }>;
+          users?: DirectoryUser[];
         };
-        if (!response.ok || cancelled || !data.roles?.length) return;
-        setRoleOptions(
-          data.roles.map((role) => ({
-            value: role.key,
-            label: role.label,
-          }))
-        );
+        if (!response.ok || cancelled) return;
+
+        const nextRoles =
+          data.roles && data.roles.length > 0
+            ? data.roles.map((role) => ({
+                value: role.key,
+                label: role.label,
+              }))
+            : FALLBACK_ROLE_OPTIONS;
+        setRoleOptions(nextRoles);
+
+        const existing = (data.users ?? [])
+          .filter(shouldShowAsSentInvite)
+          .map((user) => directoryUserToRow(user, nextRoles))
+          .filter((row): row is InviteRow => Boolean(row));
+
+        // Keep any local pending drafts; merge server sent invites by email.
+        setRows((current) => {
+          const pendingLocal = current.filter((row) => row.status === "pending" && !row.fromServer);
+          const byEmail = new Map<string, InviteRow>();
+          for (const row of existing) byEmail.set(row.email.toLowerCase(), row);
+          for (const row of pendingLocal) {
+            if (!byEmail.has(row.email.toLowerCase())) byEmail.set(row.email.toLowerCase(), row);
+          }
+          return [...byEmail.values()];
+        });
       } catch {
-        // Keep seeded role options.
+        // Keep seeded role options / empty list.
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
       }
     })();
     return () => {
@@ -104,14 +177,25 @@ export function InviteStepPanel({
   };
 
   const removeRow = (id: string) => {
+    const target = rows.find((row) => row.id === id);
+    if (target?.fromServer || target?.status === "sent") {
+      setError("Sent invites stay on the list. Manage them anytime in Settings > Users.");
+      return;
+    }
     setRows((current) => current.filter((row) => row.id !== id));
   };
 
-  const handleAddToList = (draft: InviteDraftInput) => {
+  const markSent = (emails: string[]) => {
+    if (emails.length === 0) return;
+    setBannerEmails(emails);
+    setBannerOpen(true);
+  };
+
+  const handleAddToList = (draft: InviteDraftInput): boolean => {
     const exists = rows.some((row) => row.email.toLowerCase() === draft.email.toLowerCase());
     if (exists) {
       setError("That email is already on the invite list.");
-      return;
+      return false;
     }
     setError(null);
     setRows((current) => [
@@ -122,12 +206,42 @@ export function InviteStepPanel({
         status: "pending",
       },
     ]);
+    return true;
   };
 
-  const markSent = (emails: string[]) => {
-    if (emails.length === 0) return;
-    setBannerEmails(emails);
-    setBannerOpen(true);
+  const handleAddAndSend = async (draft: InviteDraftInput) => {
+    const exists = rows.some((row) => row.email.toLowerCase() === draft.email.toLowerCase());
+    if (exists) {
+      throw new Error("That email is already on the invite list.");
+    }
+    const id = createRowId();
+    setError(null);
+    setRows((current) => [
+      ...current,
+      {
+        id,
+        ...draft,
+        status: "pending",
+        sending: true,
+      },
+    ]);
+    try {
+      await sendInviteRequest(draft);
+      setRows((current) =>
+        current.map((row) =>
+          row.id === id ? { ...row, status: "sent", sending: false, fromServer: true } : row
+        )
+      );
+      markSent([draft.email]);
+      toast.success("Invite sent successfully.");
+    } catch (cause) {
+      setRows((current) => current.filter((row) => row.id !== id));
+      throw new Error(
+        cause instanceof Error && cause.message && !/offline|network|fetch/i.test(cause.message)
+          ? cause.message
+          : "Could not send invite. Please try again."
+      );
+    }
   };
 
   const handleSendOne = async (id: string) => {
@@ -231,7 +345,11 @@ export function InviteStepPanel({
           </div>
 
           <div className="flex flex-col gap-3">
-            {rows.length === 0 ? (
+            {loadingExisting ? (
+              <p role="status" className="rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] px-4 py-6 text-center text-[13px] text-[#6B7280]" style={interStyle}>
+                Loading invites…
+              </p>
+            ) : rows.length === 0 ? (
               <p className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#FAFAFA] px-4 py-6 text-center text-[13px] text-[#6B7280]" style={interStyle}>
                 No invites yet. Click Add another to add someone to the list.
               </p>
@@ -271,9 +389,9 @@ export function InviteStepPanel({
                     <button
                       type="button"
                       aria-label={`Remove ${row.email}`}
-                      disabled={row.sending}
+                      disabled={row.sending || row.status === "sent" || row.fromServer}
                       onClick={() => removeRow(row.id)}
-                      className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+                      className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <X className="size-4" />
                     </button>
@@ -322,7 +440,7 @@ export function InviteStepPanel({
                 className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="inline-flex size-9 items-center justify-center rounded-lg bg-[#FBF8F2] text-[#BC8B41]">
+                  <span className="inline-flex size-9 items-center justify-center rounded-lg bg-[#E8EEF6] text-[#012352]">
                     <UserRound className="size-4" aria-hidden />
                   </span>
                   <span className="inline-flex h-6 items-center gap-1 rounded-md bg-[#F3F4F6] px-2 text-[11px] font-semibold text-[#374151]">
@@ -391,6 +509,7 @@ export function InviteStepPanel({
         onOpenChange={setModalOpen}
         roleOptions={roleOptions}
         onAdd={handleAddToList}
+        onAddAndSend={handleAddAndSend}
       />
 
       {sentCount > 0 ? <span className="sr-only">{sentCount} invites sent</span> : null}
