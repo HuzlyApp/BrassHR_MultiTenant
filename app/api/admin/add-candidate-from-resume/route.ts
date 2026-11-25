@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { adminAddCandidateFromResume } from "@/lib/jobs/admin-add-candidate-from-resume";
 import { parseAnalysisProvider } from "@/lib/jobs/match-analysis/schema";
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const result = await adminAddCandidateFromResume(supabase, {
+      portalEmailOrigin: resolveApplicantEmailAppOrigin(req),
       tenantId,
       jobRequisitionId,
       staffUserId: auth.devBypass ? null : auth.userId,
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
+        portalEmail: result.portalEmail,
         applicationId: result.applicationId,
         applicantProfileId: result.applicantProfileId,
         jobTitle: result.jobTitle,

@@ -5,6 +5,8 @@ const extractResumeTextFromUploadMock = vi.hoisted(() => vi.fn());
 const createAdminJobApplicationMock = vi.hoisted(() => vi.fn());
 const findActiveApplicationForJobMock = vi.hoisted(() => vi.fn());
 const runAutoQuickMatchMock = vi.hoisted(() => vi.fn());
+const portalEmailMock = vi.hoisted(() => vi.fn(async () => ({ sent: true })));
+vi.mock("@/lib/applicant-portal/send-access-email", () => ({ sendApplicantPortalAccessEmail: portalEmailMock }));
 
 vi.mock("@/lib/resume/grok-parse-resume-cached", () => ({
   grokParseResumeCached: (...args: unknown[]) => grokParseResumeCachedMock(...args),
@@ -132,6 +134,7 @@ describe("adminAddCandidateFromResume resume save", () => {
   });
 
   beforeEach(() => {
+    portalEmailMock.mockClear();
     grokParseResumeCachedMock.mockReset();
     extractResumeTextFromUploadMock.mockReset();
     createAdminJobApplicationMock.mockReset();
@@ -167,6 +170,9 @@ describe("adminAddCandidateFromResume resume save", () => {
     expect(inserts[0]?.job_application_id).toBe("app-1");
     expect(profileUpdates).toHaveLength(0);
     expect(result.applicationId).toBe("app-1");
+    expect(portalEmailMock).toHaveBeenCalledTimes(1);
+    expect(portalEmailMock).toHaveBeenCalledWith(supabase, expect.objectContaining({ tenantId: "tenant-1", workerId: "worker-1" }));
+    expect(result.portalEmail).toEqual({ sent: true });
   });
 
   it("stops retrying when the timed-out insert actually landed", async () => {
@@ -221,6 +227,7 @@ describe("adminAddCandidateFromResume resume save", () => {
     const result = await pending;
 
     expect(result.applicationId).toBe("app-existing");
+    expect(portalEmailMock).toHaveBeenCalledTimes(1);
     expect(inserts[0]?.job_application_id).toBe("app-existing");
     expect(profileUpdates[0]).toMatchObject({
       resume_file_name: expect.any(String),
@@ -255,6 +262,7 @@ describe("adminAddCandidateFromResume resume save", () => {
     ).rejects.toMatchObject({ code: "DUPLICATE_APPLICATION" });
     expect(inserts).toHaveLength(0);
     expect(profileUpdates).toHaveLength(0);
+    expect(portalEmailMock).not.toHaveBeenCalled();
   });
 
   it("does not point the profile at a new file when every resume save times out", async () => {
@@ -287,5 +295,6 @@ describe("adminAddCandidateFromResume resume save", () => {
 
     expect(inserts).toHaveLength(3);
     expect(profileUpdates).toHaveLength(0);
+    expect(portalEmailMock).not.toHaveBeenCalled();
   });
 });
