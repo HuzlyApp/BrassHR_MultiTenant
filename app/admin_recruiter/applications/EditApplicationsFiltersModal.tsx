@@ -217,6 +217,7 @@ type EditApplicationsFiltersModalProps = {
   value: ApplicationsExtendedFilterValues;
   options: FilterOptions;
   onSave: (next: ApplicationsExtendedFilterValues) => void;
+  onClear?: () => void;
   sortBy?: "newest" | "oldest" | "matchScore" | "matchScoreAsc";
   onSortByChange?: (value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") => void;
 };
@@ -406,6 +407,7 @@ export function EditApplicationsFiltersModal({
   value,
   options,
   onSave,
+  onClear,
   sortBy = "newest",
   onSortByChange,
 }: EditApplicationsFiltersModalProps) {
@@ -616,6 +618,7 @@ export function EditApplicationsFiltersModal({
               onClick={() => {
                 setDraft({ ...EMPTY_APPLICATIONS_EXTENDED_FILTERS });
                 setDraftSortBy("newest");
+                onClear?.();
               }}
               className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
             >

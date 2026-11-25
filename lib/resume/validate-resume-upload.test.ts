@@ -5,6 +5,9 @@ import {
 } from "@/lib/resume/validate-resume-upload";
 
 describe("validateResumeUploadFile", () => {
+  it("rejects empty resumes before parsing", () => {
+    expect(validateResumeUploadFile({ name: "empty.pdf", type: "application/pdf", size: 0 })).toMatch(/file is empty/i);
+  });
   it("accepts pdf/docx resumes under 10MB", () => {
     expect(
       validateResumeUploadFile({

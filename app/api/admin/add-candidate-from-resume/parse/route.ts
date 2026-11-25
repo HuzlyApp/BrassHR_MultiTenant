@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const resumeFile = form.get("resume");
-    const file = resumeFile instanceof File && resumeFile.size > 0 ? resumeFile : null;
+    const file = resumeFile instanceof File ? resumeFile : null;
     const resumeText = String(form.get("resumeText") ?? "").trim();
     const resumeTitle = String(form.get("resumeTitle") ?? "").trim();
 

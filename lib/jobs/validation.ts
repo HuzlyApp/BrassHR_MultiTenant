@@ -18,6 +18,12 @@ import { locationFromFreeText } from "@/lib/service-area/normalize";
  * Omitted JSON keys then fail with "expected nonoptional, received undefined".
  * `.optional()` marks the key as omittable; the transform stores null.
  */
+export function jobTitleValidationError(value: string | null | undefined): string | null {
+  if ((value?.trim().length ?? 0) > 200) return "Job title must be 200 characters or fewer.";
+  if (value && /<\/?[a-z][^>]*>/i.test(value)) return "Job title must be plain text without HTML tags.";
+  return null;
+}
+
 const optionalText = z
   .union([z.string(), z.null()])
   .optional()
@@ -82,7 +88,10 @@ export const jobRequisitionInputSchema = z.object({
   shiftType: optionalText,
   shiftDetails: optionalText,
   hoursPerWeek: optionalNonNegativeNumber,
-  publicTitle: optionalText,
+  publicTitle: optionalText.superRefine((value, ctx) => {
+    const message = jobTitleValidationError(value);
+    if (message) ctx.addIssue({ code: "custom", message });
+  }),
   publicDescription: optionalText,
   industryKey: optionalText,
   location: optionalText,
@@ -142,6 +151,7 @@ export const jobRequisitionInputSchema = z.object({
 });
 
 export const jobMutationSchema = z.object({
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
   job: jobRequisitionInputSchema,
   action: z.enum(["save_draft", "publish", "update", "unpublish", "close", "archive"]),
 });

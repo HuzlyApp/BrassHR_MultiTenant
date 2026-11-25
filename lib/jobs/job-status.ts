@@ -101,3 +101,13 @@ export function jobStatusDisplayLabel(status: string | null | undefined): string
       return "Draft";
   }
 }
+
+/** Editing job content does not reopen or unpublish a closed/filled/archived job. */
+export function jobLifecycleForSave(existing: Record<string, unknown> | null, publish: boolean, now: string) {
+  const status = normalizeJobRequisitionStatus(String(existing?.status ?? "draft"));
+  const date = (key: string): string | null => existing?.[key] ? String(existing[key]) : null;
+  if (!publish && existing && ["closed", "filled", "archived"].includes(status)) {
+    return { status, published_at: date("published_at"), closed_at: date("closed_at"), archived_at: date("archived_at") };
+  }
+  return { status: (publish ? "open" : "draft") as JobStatus, published_at: publish ? date("published_at") ?? now : null, closed_at: null, archived_at: null };
+}

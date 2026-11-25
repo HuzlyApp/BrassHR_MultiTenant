@@ -29,3 +29,12 @@ describe("client organization form", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
+
+it.each(["A", "<script>x</script> Client"])("rejects %s before sending a create request", async (name) => {
+  render(<ClientsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add Client" }));
+  fireEvent.change(screen.getByLabelText("Company Name"), { target: { value: name } });
+  fireEvent.click(screen.getByRole("button", { name: "Create Client" }));
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});

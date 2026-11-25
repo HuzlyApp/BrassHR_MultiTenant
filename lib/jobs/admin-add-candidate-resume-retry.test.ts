@@ -22,7 +22,8 @@ vi.mock("@/lib/jobs/service", () => ({
 }));
 
 vi.mock("@/lib/jobs/match-analysis/auto-quick-match", () => ({
-  runAutoQuickMatchForApplication: (...args: unknown[]) => runAutoQuickMatchMock(...args),
+  scheduleAutoQuickMatchForApplication: (...args: unknown[]) => runAutoQuickMatchMock(...args),
+  queuedAutoQuickMatchResult: () => ({ status: "ANALYZING" }),
 }));
 
 vi.mock("@/lib/onboarding/sync-worker-primary-resume-path", () => ({
@@ -173,6 +174,8 @@ describe("adminAddCandidateFromResume resume save", () => {
     expect(portalEmailMock).toHaveBeenCalledTimes(1);
     expect(portalEmailMock).toHaveBeenCalledWith(supabase, expect.objectContaining({ tenantId: "tenant-1", workerId: "worker-1" }));
     expect(result.portalEmail).toEqual({ sent: true });
+    expect(result.autoQuickMatch).toEqual({ status: "ANALYZING" });
+    expect(runAutoQuickMatchMock).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", jobApplicationId: "app-1" }));
   });
 
   it("stops retrying when the timed-out insert actually landed", async () => {

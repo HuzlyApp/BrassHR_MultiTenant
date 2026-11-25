@@ -14,7 +14,7 @@ describe("staff-created client organizations", () => {
     expect(mocks.insert).toHaveBeenCalledTimes(2);
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: "tenant", user_id: null }));
   });
-  it.each(["", "x".repeat(121)])("rejects invalid company names before inserting", async (name) => {
+  it.each(["", "A", "<script>x</script> Client", "x".repeat(121)])("rejects invalid company names before inserting", async (name) => {
     expect((await POST(request(name))).status).toBe(400);
     expect(mocks.insert).not.toHaveBeenCalled();
   });

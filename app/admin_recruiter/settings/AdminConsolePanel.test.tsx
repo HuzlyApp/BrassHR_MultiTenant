@@ -146,8 +146,9 @@ describe("AdminConsolePanel resend invitation", () => {
     fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } });
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Lovelace" } });
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: email } });
-    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid email address.");
+    fireEvent.blur(screen.getByLabelText("Email address"));
+    expect(screen.getByRole("button", { name: "Send invitation" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(email ? "Enter a valid email address." : "Email address is required.");
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
 
@@ -160,7 +161,8 @@ describe("AdminConsolePanel resend invitation", () => {
     fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Tester" } });
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "qa@example.com" } });
     expect(screen.getByRole("status")).toHaveTextContent("reserved example domain");
-    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+    fireEvent.blur(screen.getByLabelText("Email address"));
+    expect(screen.getByRole("button", { name: "Send invitation" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("real inbox you control");
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
@@ -184,4 +186,14 @@ describe("AdminConsolePanel resend invitation", () => {
       );
     });
   });
+});
+
+it("exposes the invite form as a named dialog and closes it with Escape", async () => {
+  render(<AdminConsolePanel />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Invite User" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Invite User" }));
+  const dialog = screen.getByRole("dialog", { name: "Invite User" });
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Invite User" })).not.toBeInTheDocument();
 });

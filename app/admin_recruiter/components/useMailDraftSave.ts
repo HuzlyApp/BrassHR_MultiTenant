@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffAuthHeaders } from "@/lib/staff-auth-headers";
 
 type SaveMailDraftInput = {
   workerId: string;
@@ -10,14 +10,6 @@ type SaveMailDraftInput = {
   bodyHtml?: string | null;
   templateKey?: string | null;
 };
-
-async function authHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
-}
 
 function hasDraftContent(input: Pick<SaveMailDraftInput, "subject" | "body">): boolean {
   return Boolean(input.subject.trim() || input.body.trim());
@@ -42,7 +34,8 @@ export function useMailDraftSave(workerId: string | null) {
     try {
       const res = await fetch("/api/admin/mail/drafts", {
         method: "POST",
-        headers: await authHeaders(),
+        headers: { ...(await staffAuthHeaders()), "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(input),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };

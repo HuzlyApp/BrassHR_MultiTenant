@@ -32,6 +32,13 @@ type ConsoleTab = "admins" | "recruiters" | "roles";
 const PAGE_SIZES = [5, 10, 20] as const;
 const ADMIN_ROLE_KEYS = new Set(["admin", "owner", "god_admin"]);
 
+function inviteEmailValidationMessage(raw: string): string | null {
+  const address = raw.trim();
+  if (!address) return "Email address is required.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) || address.length > 254) return "Enter a valid email address.";
+  return emailDeliveryValidationMessage(address);
+}
+
 const STATUS_STYLES: Record<StaffAccountStatus, string> = {
   pending: "bg-[#FEF3C7] text-[#B45309]",
   active: "bg-[rgba(18,170,0,0.15)] text-[#12AA00]",
@@ -58,6 +65,7 @@ function formatDateParts(value: string | null): { date: string; time: string } |
       timeZone: "America/New_York",
       hour: "numeric",
       minute: "2-digit",
+      timeZoneName: "short",
     }),
   };
 }
@@ -340,11 +348,7 @@ export default function AdminConsolePanel({
       setFormError("First name and last name are required.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.trim().length > 254) {
-      setFormError("Enter a valid email address.");
-      return;
-    }
-    const recipientError = emailDeliveryValidationMessage(email);
+    const recipientError = inviteEmailValidationMessage(email);
     if (recipientError) {
       setFormError(recipientError);
       return;
@@ -787,11 +791,15 @@ export default function AdminConsolePanel({
       {inviteOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-user-title"
+            onKeyDown={(event) => { if (event.key === "Escape" && !submitting) setInviteOpen(false); }}
             noValidate
             onSubmit={submitInvite}
             className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl"
           >
-            <h3 className="text-base font-semibold text-[#0F172A]">Invite User</h3>
+            <h3 id="invite-user-title" className="text-base font-semibold text-[#0F172A]">Invite User</h3>
             <p className="mt-1 text-sm text-[#64748B]">
               We’ll email a one-time activation link. They choose their own password; we never store or display one.
             </p>
@@ -826,7 +834,9 @@ export default function AdminConsolePanel({
                 onChange={(event) => {
                   setEmail(event.target.value);
                   setInviteConflict(null);
+                  setFormError(null);
                 }}
+                onBlur={() => setFormError(inviteEmailValidationMessage(email))}
                 className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#012352]"
               />
             </label>
@@ -872,7 +882,8 @@ export default function AdminConsolePanel({
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !firstName.trim() || !lastName.trim() || Boolean(inviteEmailValidationMessage(email))}
+                title="Enter first name, last name, and a valid email address."
                 className="rounded-lg bg-[#012352] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {submitting ? "Sending…" : "Send invitation"}
@@ -899,6 +910,7 @@ export default function AdminConsolePanel({
         onClose={() => setInviteSuccessOpen(false)}
         title="Success!"
         message={inviteSuccessMessage}
+        autoCloseMs={3500}
       />
     </section>
   );

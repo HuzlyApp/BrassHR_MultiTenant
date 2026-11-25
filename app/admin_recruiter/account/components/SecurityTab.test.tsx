@@ -155,7 +155,8 @@ describe("SecurityTab", () => {
     const input = screen.getByLabelText("New email");
     expect(input).toHaveValue("");
     await user.type(input, "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid email address.");
     expect(mockFetch).not.toHaveBeenCalled();
   });
