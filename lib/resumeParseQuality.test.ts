@@ -6,6 +6,15 @@ import {
 } from "@/lib/resumeParseQuality"
 
 describe("sanitizeResumeEmail", () => {
+  it("preserves valid experience and education when optional fields are absent or another entry is malformed", () => {
+    const result = normalizeParsedResume({
+      experience: [{ company: "Clinic", position: "RN" }, null, { company: 42 }],
+      education: [{ institution: "University", degree: "BSN" }, "invalid"],
+    });
+    expect(result.experience).toEqual([{ company: "Clinic", position: "RN", start_date: null, end_date: null, location: null, description: null }]);
+    expect(result.education).toEqual([{ institution: "University", degree: "BSN", field: null, start_date: null, end_date: null, gpa: null }]);
+  });
+
   it("repairs well-known provider TLD typos from PDF extraction", () => {
     expect(sanitizeResumeEmail("korrapatipragathi2709@gmail.cor")).toBe(
       "korrapatipragathi2709@gmail.com"

@@ -3,6 +3,7 @@ import {
   __setCacheAdapterForTests,
   buildCacheKey,
   deleteByPattern,
+  deleteCache,
   getOrSetCache,
   hashQueryParams,
   tablePattern,
@@ -17,6 +18,7 @@ vi.mock("@/lib/redis-timeout", async (importOriginal) => ({
 beforeEach(() => { circuit.open = false; });
 
 afterEach(() => {
+  vi.useRealTimers();
   __setCacheAdapterForTests(undefined);
   vi.restoreAllMocks();
 });
@@ -45,6 +47,32 @@ function memoryAdapter(initial = new Map<string, string>()) {
 }
 
 describe("cache utility", () => {
+  it("returns fresh data and keeps the memory fallback when a Redis write stalls", async () => {
+    vi.useFakeTimers();
+    __setCacheAdapterForTests({
+      get: async () => null, set: () => new Promise(() => {}), delete: async () => {},
+    });
+    const pending = getOrSetCache("timeout:write", async () => ({ fresh: true }));
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(pending).resolves.toEqual({ fresh: true });
+    const fetcher = vi.fn();
+    await expect(getOrSetCache("timeout:write", fetcher)).resolves.toEqual({ fresh: true });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(circuit.open).toBe(true);
+  });
+
+  it.each(["key", "pattern"])("bounds a stalled %s invalidation", async (kind) => {
+    vi.useFakeTimers();
+    __setCacheAdapterForTests({
+      get: async () => null, set: async () => {},
+      delete: () => new Promise(() => {}), deleteByPattern: () => new Promise(() => {}),
+    });
+    const pending = kind === "key" ? deleteCache("timeout:delete") : deleteByPattern("timeout:*");
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(pending).resolves.toBeUndefined();
+    expect(circuit.open).toBe(true);
+  });
+
   it("returns cached Redis data without calling the fetcher", async () => {
     const key = buildCacheKey("profiles", ["user", "user-a"]);
     const { adapter, store } = memoryAdapter(new Map([[key, JSON.stringify({ id: "user-a" })]]));
