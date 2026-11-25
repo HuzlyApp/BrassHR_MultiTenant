@@ -206,15 +206,14 @@ async function storeResumeFromFile(
 
   if (mode === "insert") {
     const jobApplicationId = options?.jobApplicationId?.trim();
-    if (!jobApplicationId) {
-      throw new ResumeUploadValidationError("Select a job before uploading your resume.");
+    if (jobApplicationId) {
+      await assertJobApplicationForWorker(
+        supabase,
+        applicant.id,
+        applicant.tenant_id,
+        jobApplicationId
+      );
     }
-    await assertJobApplicationForWorker(
-      supabase,
-      applicant.id,
-      applicant.tenant_id,
-      jobApplicationId
-    );
     await assertResumeUploadWithinLimit(supabase, {
       workerId: applicant.id,
       workerUserId: applicant.user_id,
@@ -336,23 +335,23 @@ async function storeResumeFromFile(
       })
       .eq("id", jobApplicationId)
       .eq("tenant_id", applicant.tenant_id);
-
-    scheduleUploadedResumeProcessing({
-      supabase,
-      resumeId: persistedId,
-      text,
-      fileHash,
-      workerId: applicant.id,
-      tenantId: applicant.tenant_id,
-      jobApplicationId,
-      analyzedByUserId: userId,
-      reason: mode === "update" ? "applicant_portal_resume_reupload" : "applicant_portal_resume_upload",
-      supersedeResumeId:
-        mode === "update" && options?.resumeId && options.resumeId !== persistedId
-          ? options.resumeId
-          : null,
-    });
   }
+
+  scheduleUploadedResumeProcessing({
+    supabase,
+    resumeId: persistedId,
+    text,
+    fileHash,
+    workerId: applicant.id,
+    tenantId: applicant.tenant_id,
+    jobApplicationId,
+    analyzedByUserId: userId,
+    reason: mode === "update" ? "applicant_portal_resume_reupload" : "applicant_portal_resume_upload",
+    supersedeResumeId:
+      mode === "update" && options?.resumeId && options.resumeId !== persistedId
+        ? options.resumeId
+        : null,
+  });
 
   return { resumeId: persistedId, parseStatus: "processing" };
 }
@@ -622,7 +621,7 @@ export async function uploadWorkerResumeForApplicant(
   applicant: ApplicantWorkerRow,
   userId: string,
   file: File,
-  jobApplicationId: string
+  jobApplicationId?: string | null
 ) {
   return storeResumeFromFile(supabase, applicant, userId, file, "insert", { jobApplicationId });
 }

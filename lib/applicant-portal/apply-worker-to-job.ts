@@ -58,7 +58,7 @@ async function getLatestWorkerResume(
   const resume = data as WorkerResumeRow | null;
   if (!resume?.id) {
     throw new JobValidationError(
-      "No resume found on your profile. Upload a resume under Profile → Documents, then try again.",
+      "No resume found on your profile. Upload a resume under Resumes, then try again.",
       {},
       "RESUME_REQUIRED"
     );
