@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 
 describe("persistWorkerResumeRecord", () => {
-  it("strips NUL bytes so Postgres does not reject the row with 22P05", async () => {
+  it.each([false, true])("strips NUL bytes and preserves the upload name when requested (%s)", async (preserveOriginalFileName) => {
     let inserted: Record<string, unknown> | null = null
     const supabase = {
       from: (table: string) => {
@@ -52,6 +52,7 @@ describe("persistWorkerResumeRecord", () => {
     const resumeId = await persistWorkerResumeRecord(supabase as never, "u1", {
       fileUrl: "path/resume.pdf",
       originalFileName: "Almog\u0000.pdf",
+      preserveOriginalFileName,
       extractedText: "Almog\u0000 Arazi\nEngineer",
       parsedData: { text: "Almog\u0000 Arazi" },
       enforceUploadLimit: false,
@@ -60,7 +61,7 @@ describe("persistWorkerResumeRecord", () => {
     expect(resumeId).toBe("r1")
     expect(inserted?.extracted_text).toBe("Almog Arazi\nEngineer")
     expect(inserted?.parsed_data).toEqual({ text: "Almog Arazi" })
-    expect(inserted?.original_file_name).toBe("Almog_Arazi_resume.pdf")
+    expect(inserted?.original_file_name).toBe(preserveOriginalFileName ? "Almog.pdf" : "Almog_Arazi_resume.pdf")
     expect(inserted?.file_name).toBe("Almog_Arazi_resume.pdf")
   })
 

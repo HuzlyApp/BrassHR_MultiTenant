@@ -204,6 +204,23 @@ async function storeResumeFromFile(
   });
   if (validationError) throw new ResumeUploadValidationError(validationError);
 
+  const { data: existingResumes, error: filenameError } = await supabase
+    .from("worker_resumes")
+    .select("id, original_file_name, file_name")
+    .eq("worker_id", applicant.id)
+    .eq("tenant_id", applicant.tenant_id)
+    .is("deleted_at", null);
+  if (filenameError) throw filenameError;
+  const filename = file.name.trim().toLowerCase();
+  if (existingResumes?.some((resume) =>
+    resume.id !== options?.resumeId &&
+    (resume.original_file_name || resume.file_name || "").trim().toLowerCase() === filename
+  )) {
+    throw new ResumeUploadValidationError(
+      "A resume with this filename already exists. If this is a different resume, rename the file and upload it again."
+    );
+  }
+
   if (mode === "insert") {
     const jobApplicationId = options?.jobApplicationId?.trim();
     if (jobApplicationId) {
@@ -275,7 +292,8 @@ async function storeResumeFromFile(
     applicant.id,
     {
       fileUrl: objectPath,
-      originalFileName: storedFileName,
+      originalFileName: file.name,
+      preserveOriginalFileName: true,
       parsedData: text ? { text } : {},
       parsingStatus: unreadableMessage ? "failed" : "processing",
       parseError: unreadableMessage,
@@ -580,11 +598,7 @@ async function enrichResumeUploaders(
 
   return items.map((item) => {
     const uploaderId = uploaderByResumeId.get(item.id) ?? null;
-    const originalFileName = buildWorkerResumeFileName({
-      firstName: worker?.first_name as string | null | undefined,
-      lastName: worker?.last_name as string | null | undefined,
-      originalFileName: item.originalFileName,
-    });
+    const originalFileName = item.originalFileName;
 
     if (uploaderId && workerUserId && uploaderId === workerUserId) {
       return {
