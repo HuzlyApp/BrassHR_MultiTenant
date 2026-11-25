@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { sendApplicantPortalAccessEmail, type PortalEmailResult } from "@/lib/applicant-portal/send-access-email";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import { createAdminJobApplication, findActiveApplicationForJob } from "@/lib/jobs/service";
@@ -39,6 +40,7 @@ import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
 export type AdminAddCandidateFromResumeInput = {
+  portalEmailOrigin?: string | null;
   tenantId: string;
   jobRequisitionId: string;
   staffUserId?: string | null;
@@ -58,6 +60,7 @@ export type AdminAddCandidateFromResumeInput = {
 };
 
 export type AdminAddCandidateFromResumeResult = {
+  portalEmail: PortalEmailResult;
   applicationId: string;
   applicantProfileId: string;
   jobTitle: string;
@@ -497,6 +500,8 @@ export async function adminAddCandidateFromResume(
   let repairedExistingApplication = false;
   try {
     const result = await createAdminJobApplication(supabase, {
+      deferPortalEmail: true,
+      portalEmailOrigin: input.portalEmailOrigin,
       tenantId: input.tenantId,
       jobRequisitionId,
       name: fullName,
@@ -586,6 +591,9 @@ export async function adminAddCandidateFromResume(
     });
   }
 
+  const portalEmail = await sendApplicantPortalAccessEmail(supabase, {
+    tenantId: input.tenantId, workerId, origin: input.portalEmailOrigin,
+  });
   let autoQuickMatch: AutoQuickMatchResult | null = null;
   if (applicationId) {
     // Await Step 1 so Vercel does not kill fire-and-forget work, and the UI can show fit.
@@ -601,6 +609,7 @@ export async function adminAddCandidateFromResume(
 
   return {
     applicationId,
+    portalEmail,
     applicantProfileId,
     jobTitle,
     candidateName: fullName,

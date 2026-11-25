@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { createAdminJobApplication, bulkDeleteJobApplications, deleteOrphanWorkersAfterApplicationDelete, parseBulkDeleteIds } from "@/lib/jobs/service";
@@ -405,6 +406,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await createAdminJobApplication(supabase, {
+      portalEmailOrigin: resolveApplicantEmailAppOrigin(req),
       tenantId,
       jobRequisitionId,
       name,
@@ -425,6 +427,7 @@ export async function POST(req: NextRequest) {
         application: result.application,
         applicantProfileId: result.applicantProfileId,
         jobTitle: result.jobTitle,
+        portalEmail: result.portalEmail,
       },
       { status: 201 }
     );

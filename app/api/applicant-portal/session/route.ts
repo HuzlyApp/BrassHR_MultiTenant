@@ -9,6 +9,7 @@ import {
 } from "@/lib/applicant-portal";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import { portalRoleFromResolved } from "@/lib/auth/portal-rbac";
+import { isPortalRole } from "@/lib/auth/app-role";
 import { resolveApplicantPortalTenantId } from "@/lib/applicant-portal/request";
 
 export const runtime = "nodejs";
@@ -36,11 +37,14 @@ export async function GET(req: NextRequest) {
     }
 
     const tenantId = await resolveApplicantPortalTenantId(supabase, req);
+    if (!tenantId) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     const applicant = await findApplicantByUserId(supabase, data.user.id, tenantId);
     if (!applicant?.id) return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
 
     const status = normalizeApplicantStatus(applicant.status);
-    const portalRole = portalRoleFromResolved(await resolveAppRoleForUser(data.user));
+    const role = await resolveAppRoleForUser(data.user, tenantId);
+    if (!isPortalRole(role)) return NextResponse.json({ error: "Portal membership is inactive or unavailable" }, { status: 403 });
+    const portalRole = portalRoleFromResolved(role);
 
     return NextResponse.json({
       ok: true,

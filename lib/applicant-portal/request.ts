@@ -7,6 +7,7 @@ import {
 } from "@/lib/applicant-portal";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
 import { portalApiForbidden } from "@/lib/auth/portal-rbac";
+import { isPortalRole } from "@/lib/auth/app-role";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { onboardingSlugFromRequestCookies } from "@/lib/tenant/onboarding-slug-from-cookie";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
@@ -71,13 +72,14 @@ export async function requireApprovedApplicant(
   }
 
   const tenantId = await resolveApplicantPortalTenantId(supabase, req);
+  if (!tenantId) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
   const applicant = await findApplicantByUserId(supabase, data.user.id, tenantId);
   if (!applicant?.id) {
     return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
   }
 
-  const role = await resolveAppRoleForUser(data.user);
-  if (portalApiForbidden(req.nextUrl.pathname, role)) {
+  const role = await resolveAppRoleForUser(data.user, tenantId);
+  if (!isPortalRole(role) || portalApiForbidden(req.nextUrl.pathname, role)) {
     return NextResponse.json(
       { error: "Your account does not have access to this portal.", code: "PORTAL_ROLE" },
       { status: 403 }
