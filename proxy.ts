@@ -749,7 +749,19 @@ async function proxyInner(request: NextRequest) {
     const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
 
     if (user && !isAnonymousUser && pathname.startsWith("/application")) {
-      const portalRole = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
+      let portalRole = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
+      if (tenantSlug) {
+        const svc = createServiceRoleClient();
+        if (svc) {
+          const { data: tenant } = await svc.from("tenants").select("id")
+            .or(`slug.eq.${tenantSlug},subdomain.eq.${tenantSlug}`).eq("is_active", true).maybeSingle();
+          if (tenant?.id) {
+            const { data: membership } = await svc.from("user_roles").select("role,is_active")
+              .eq("tenant_id", tenant.id).eq("user_id", user.id).maybeSingle();
+            portalRole = membership?.is_active ? parseAppRole(membership.role) : null;
+          }
+        }
+      }
       const redirectPath = portalPageRedirect(pathname, portalRole);
       if (redirectPath) {
         const destination = request.nextUrl.clone();

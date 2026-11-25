@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendApplicantPortalAccessEmail } from "@/lib/applicant-portal/send-access-email";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { formatApiError } from "@/lib/api/format-api-error";
 import { applyWorkerToJobWithResume } from "@/lib/applicant-portal/apply-worker-to-job";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
@@ -25,7 +27,11 @@ export async function POST(req: NextRequest) {
       workLocation: parseServiceAreaLocation(body.workLocation),
     });
 
+    const portalEmail = await sendApplicantPortalAccessEmail(auth.supabase, {
+      tenantId: auth.applicant.tenant_id, workerId: auth.applicant.id, origin: resolveApplicantEmailAppOrigin(req),
+    });
     return NextResponse.json({
+      portalEmail,
       applicationId: result.applicationId,
       resumeId: result.resumeId,
       message: "Application submitted successfully.",

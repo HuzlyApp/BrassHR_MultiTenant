@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
+import { sendApplicantPortalAccessEmail } from "@/lib/applicant-portal/send-access-email";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   PUBLIC_ACCEPTING_JOB_STATUS_QUERY,
@@ -2032,6 +2033,9 @@ export async function attachWorkflowInstanceToApplication(
 }
 
 export type CreateAdminCandidateInput = {
+  portalEmailOrigin?: string | null;
+  /** Resume uploads send only after the resume record has also been saved. */
+  deferPortalEmail?: boolean;
   tenantId: string;
   jobRequisitionId: string;
   name: string;
@@ -2336,10 +2340,14 @@ export async function createAdminJobApplication(
         .is("application_id", null);
     }
 
+    const portalEmail = input.deferPortalEmail ? undefined : await sendApplicantPortalAccessEmail(supabase, {
+      tenantId: input.tenantId, workerId: linkedWorkerId, origin: input.portalEmailOrigin,
+    });
     return {
       application: linked,
       applicantProfileId: profileId,
       jobTitle: String(job.public_title ?? ""),
+      portalEmail,
     };
   } catch (error) {
     await supabase.from("job_applications").delete().eq("id", application.id);

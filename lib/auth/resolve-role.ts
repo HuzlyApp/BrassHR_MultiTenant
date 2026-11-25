@@ -4,14 +4,20 @@ import { isPortalRole, parseAppRole, type AppRole } from "@/lib/auth/app-role";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 
 /** Current tenant membership is authoritative; JWT roles cannot defeat revocation. */
-export async function resolveAppRoleForUser(user: User): Promise<AppRole> {
+export async function resolveAppRoleForUser(user: User, requestedTenantId?: string | null): Promise<AppRole> {
   const sb = createServiceRoleClient();
-  if (!sb || user.is_anonymous) return "worker";
+  if (!sb || user.is_anonymous) return requestedTenantId ? "revoked" : "worker";
   const { data: profile, error } = await sb.from("users")
     .select("role,tenant_id,is_active,god_admin").eq("id", user.id).maybeSingle();
   const profileRole = parseAppRole(profile?.role);
   const portalFallback: AppRole = profileRole === "candidate" ? "candidate" : "worker";
-  if (error || !profile || profile.is_active === false) return portalFallback;
+  if (error || !profile || profile.is_active === false) return requestedTenantId ? "revoked" : portalFallback;
+  if (requestedTenantId) {
+    const { data, error } = await sb.from("user_roles").select("role,is_active")
+      .eq("user_id", user.id).eq("tenant_id", requestedTenantId).maybeSingle();
+    if (error || !data?.is_active) return "revoked";
+    return parseAppRole(data.role) ?? "revoked";
+  }
   if (profile.god_admin === true) return "admin";
   const tenantId = await resolveEffectiveAdminTenantId(sb, { userId: user.id, authUser: user, godAdmin: false });
   if (!tenantId) return profileRole && isPortalRole(profileRole) ? profileRole : portalFallback;

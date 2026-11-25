@@ -6,6 +6,9 @@ import {
   readOnboardingTenantSlugFromRequest,
 } from "@/lib/onboarding/resolve-onboarding-worker";
 import { submitOnboardingApplication } from "@/lib/onboarding/submit-onboarding-application";
+import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
+import { sendApplicantPortalAccessEmail } from "@/lib/applicant-portal/send-access-email";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 
 export const runtime = "nodejs";
 
@@ -71,8 +74,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const worker = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
+    const portalEmail = worker ? await sendApplicantPortalAccessEmail(supabase, {
+      tenantId: worker.tenantId, workerId: worker.workerId, origin: resolveApplicantEmailAppOrigin(req),
+    }) : { sent: false, error: "Candidate not found." };
     return NextResponse.json({
       ok: true,
+      portalEmail,
       submittedAt: result.submittedAt,
       submittedWithIncompleteSteps: result.submittedWithIncompleteSteps,
       incompleteStepKeys: result.incompleteStepKeys,
