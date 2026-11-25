@@ -36,11 +36,11 @@ import {
 function SectionCard({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-      <div className="border-b border-[#E5E7EB] px-5 py-3.5">
+      <div className="border-b border-[#E5E7EB] px-4 py-3 sm:px-5 sm:py-3.5">
         <h2 className="text-base font-semibold text-[#0F172A]">{title}</h2>
         {description ? <p className="mt-0.5 text-sm text-[#64748B]">{description}</p> : null}
       </div>
-      <div className="px-5 py-5">{children}</div>
+      <div className="px-4 py-4 sm:px-5 sm:py-5">{children}</div>
     </section>
   );
 }
@@ -449,12 +449,12 @@ export default function BusinessInfoTab() {
                 required
                 error={submitAttempted ? fieldErrors.companyName : null}
               />
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <TextField label="Legal Name" value={legalName} onChange={setLegalName} />
                 <TextField label="Subdomain" value={subdomain} onChange={setSubdomain} />
               </div>
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <SearchableSelectField
                   label="Industry"
                   required
@@ -498,7 +498,7 @@ export default function BusinessInfoTab() {
                   Select every industry this company supports. New jobs default to your primary
                   industry and can be overridden per job.
                 </p>
-                <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2">
                   {activeUserFacingIndustries().map((item) => {
                     const checked = hireForKeys.includes(item.key);
                     return (
@@ -550,7 +550,7 @@ export default function BusinessInfoTab() {
 
           <SectionCard title="Location & Contact" description="Where the business is based and how to reach you.">
             <div className="flex flex-col gap-5">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <SearchableSelectField
                   label="State"
                   required
@@ -602,7 +602,7 @@ export default function BusinessInfoTab() {
                 error={submitAttempted ? fieldErrors.address : null}
               />
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <TextField
                   label="Business Phone"
                   value={businessPhone}
@@ -623,7 +623,7 @@ export default function BusinessInfoTab() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <TextField
                   label="Zip Code"
                   value={zipCode}
@@ -647,12 +647,12 @@ export default function BusinessInfoTab() {
             </div>
           </SectionCard>
 
-          <div className="flex flex-col-reverse justify-end gap-2 pt-1 sm:flex-row">
+          <div className="flex flex-col-reverse items-stretch gap-2 pt-1 min-[500px]:items-end sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={resetFromOrganization}
               disabled={saving}
-              className="inline-flex h-10 items-center justify-center rounded-lg border px-5 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg border px-5 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-60 min-[500px]:w-auto"
               style={{
                 color: "var(--brand-secondary, #012352)",
                 borderColor: "var(--brand-secondary, #012352)",
@@ -663,7 +663,7 @@ export default function BusinessInfoTab() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex h-10 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg px-5 text-sm font-semibold text-white disabled:opacity-60 min-[500px]:w-auto"
               style={{ backgroundColor: "var(--brand-primary, #012352)" }}
             >
               {saving ? "Saving…" : "Save Changes"}

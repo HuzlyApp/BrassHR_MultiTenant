@@ -268,7 +268,7 @@ function IntegrationCard({
             onClick={onConnect}
             disabled={item.id !== "custom-api"}
             title={item.id !== "custom-api" ? "Provider connection setup is not available yet." : undefined}
-            className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#012352] px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC]"
+            className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#012352] px-3 text-sm font-medium text-[#012352] hover:bg-[#F8FAFC] min-[500px]:w-auto"
           >
             {item.id === "custom-api" ? "Manage API access" : "Not available yet"}
           </button>
@@ -595,7 +595,7 @@ export default function IntegrationsSettingsPanel() {
                     </button>
                   ) : null}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2">
                   {items.map((item) => (
                     <IntegrationCard
                       key={item.id}
@@ -727,7 +727,7 @@ export default function IntegrationsSettingsPanel() {
                 <button
                   type="button"
                   onClick={saveWebhook}
-                  className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#012352] px-4 text-sm font-medium text-white hover:brightness-95"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#012352] px-4 text-sm font-medium text-white hover:brightness-95 min-[500px]:w-auto sm:self-end"
                 >
                   Save Changes
                 </button>

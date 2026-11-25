@@ -430,7 +430,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
           </div>
 
           <div className="mt-5 space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <label className="block space-y-1.5 sm:col-span-2">
                 <span className={labelClass}>Title</span>
                 <input

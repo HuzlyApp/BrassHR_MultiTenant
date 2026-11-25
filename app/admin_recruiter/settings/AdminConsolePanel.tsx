@@ -795,7 +795,7 @@ export default function AdminConsolePanel({
             <p className="mt-1 text-sm text-[#64748B]">
               We’ll email a one-time activation link. They choose their own password; we never store or display one.
             </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="block space-y-1.5">
                 <span className="text-sm font-semibold text-[#0F172A]">First name</span>
                 <input

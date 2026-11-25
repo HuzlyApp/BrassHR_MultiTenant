@@ -118,7 +118,7 @@ function CategoryCard({
         />
       </div>
       <div
-        className={`mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 ${
+        className={`mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2 ${
           enabled ? "" : "pointer-events-none opacity-45"
         }`}
       >
@@ -427,12 +427,12 @@ export default function NotificationsSettingsPanel() {
             </p>
           </section>
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse items-stretch gap-2 min-[500px]:items-end sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={handleCancel}
               disabled={saving || !isDirty}
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-5 text-sm font-medium text-[#012352] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-5 text-sm font-medium text-[#012352] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 min-[500px]:w-auto"
             >
               Cancel
             </button>
@@ -440,7 +440,7 @@ export default function NotificationsSettingsPanel() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || !isDirty}
-              className="inline-flex h-10 items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 min-[500px]:w-auto"
               style={{ backgroundColor: "var(--brand-primary)" }}
             >
               {saving ? "Saving…" : "Save Changes"}

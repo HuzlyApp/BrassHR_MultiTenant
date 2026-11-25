@@ -107,7 +107,7 @@ export default function SettingsSectionClient({ section }: SettingsSectionClient
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6 ">
+    <div className="w-full min-w-0 space-y-4 md:space-y-6">
       {showPageHeader ? (
         <SettingsSectionHeader title={meta.title} description={meta.description} />
       ) : null}
