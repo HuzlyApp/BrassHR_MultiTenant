@@ -5,10 +5,8 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-// import { FaApple } from "react-icons/fa";
-// import { FaXTwitter } from "react-icons/fa6";
-// import { FcGoogle } from "react-icons/fc";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
+import { buildGoogleOAuthRedirectTo, rememberOAuthNextPath } from "@/lib/auth/oauth";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
@@ -131,19 +129,32 @@ function LoginLoadingShell({ brand }: { brand?: TenantBranding | null }) {
   return <div className="min-h-screen bg-white" aria-hidden="true" />;
 }
 
-/*
-function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
+function SocialButton({
+  children,
+  label,
+  onClick,
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
   return (
     <button
       type="button"
       aria-label={label}
-      className="flex h-[40px] w-[40px] items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[18px] text-black transition hover:bg-[#f8fafc]"
+      title={title ?? label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-[40px] w-[40px] items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[18px] text-black transition hover:bg-[#f8fafc] disabled:opacity-60"
     >
       {children}
     </button>
   );
 }
-*/
 
 function LoginPageContent() {
   const router = useRouter();
@@ -179,6 +190,8 @@ function LoginPageContent() {
     agree: false,
   });
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [oauthStarting, setOauthStarting] = useState(false);
+  const oauthHandledRef = useRef(false);
 
   useEffect(() => {
     if (!serverBranding) return;
@@ -444,7 +457,7 @@ function LoginPageContent() {
 
   const finishAuthenticatedSession = async (
     login: PendingLogin,
-    options?: { godAdmin?: boolean }
+    options?: { godAdmin?: boolean; skipOtpBind?: boolean }
   ) => {
     if (step !== "authenticator") {
       let challengeState: "ready" | "challenge" | "unavailable" = "unavailable";
@@ -472,11 +485,13 @@ function LoginPageContent() {
     }
     clearAdminLoginDraft();
 
-    const bound = await fetch("/api/auth/login-otp/bind-session", { method: "POST" });
-    if (!bound.ok) {
-      setAuthError({ error: "Please verify your login code again.", code: "OTP_INVALID", field: null });
-      setStep("otp");
-      return false;
+    if (!options?.skipOtpBind) {
+      const bound = await fetch("/api/auth/login-otp/bind-session", { method: "POST" });
+      if (!bound.ok) {
+        setAuthError({ error: "Please verify your login code again.", code: "OTP_INVALID", field: null });
+        setStep("otp");
+        return false;
+      }
     }
 
     const { data: userData } = await supabaseBrowser.auth.getUser();
@@ -717,6 +732,120 @@ function LoginPageContent() {
     };
     await submitCredentialsForOtp(login);
   };
+
+  const buildLoginOAuthNextPath = () => {
+    const params = new URLSearchParams();
+    params.set("oauth", "google");
+    const tenant = searchParams.get("tenant")?.trim();
+    const role = searchParams.get("role")?.trim();
+    const next = searchParams.get("next")?.trim();
+    if (tenant) params.set("tenant", tenant);
+    if (role) params.set("role", role);
+    if (next) params.set("next", next);
+    const base = isAdminRoute ? "/admin" : "/login";
+    return `${base}?${params.toString()}`;
+  };
+
+  const startGoogleLogin = () => {
+    if (oauthStarting || submitting || showRedirecting) return;
+    clearAuthError();
+    setOauthStarting(true);
+    void (async () => {
+      try {
+        rememberOAuthNextPath(buildLoginOAuthNextPath());
+        const redirectTo = buildGoogleOAuthRedirectTo(window.location.origin);
+        const { error } = await supabaseBrowser.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo,
+            queryParams: { prompt: "select_account" },
+          },
+        });
+        if (error) {
+          setAuthError(classifyAuthMessage(error.message));
+          setOauthStarting(false);
+        }
+      } catch (e) {
+        setAuthError(classifyAuthMessage(e instanceof Error ? e.message : undefined));
+        setOauthStarting(false);
+      }
+    })();
+  };
+
+  const completeGoogleLogin = async () => {
+    setSubmitting(true);
+    clearAuthError();
+    setShowRedirecting(true);
+    try {
+      const bindRes = await fetch("/api/auth/oauth/bind-session", { method: "POST" });
+      const bindPayload = (await bindRes.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        email?: string;
+      };
+      if (!bindRes.ok) {
+        await supabaseBrowser.auth.signOut().catch(() => undefined);
+        setShowRedirecting(false);
+        setSubmitting(false);
+        setAuthError({
+          error:
+            bindPayload.error ||
+            "Google sign-in could not be completed. Sign up first or use email.",
+          code:
+            bindPayload.code === "ACCOUNT_REQUIRED"
+              ? "UNKNOWN"
+              : bindPayload.code === "STAFF_ROLE_REQUIRED"
+                ? "STAFF_ROLE_REQUIRED"
+                : "UNKNOWN",
+          field: null,
+        });
+        return;
+      }
+      const email =
+        bindPayload.email ||
+        (await supabaseBrowser.auth.getUser()).data.user?.email?.trim().toLowerCase() ||
+        "";
+      if (!email) {
+        setShowRedirecting(false);
+        setSubmitting(false);
+        setAuthError({
+          error: "Google sign-in did not return an email. Try again.",
+          code: "UNKNOWN",
+          field: null,
+        });
+        return;
+      }
+      const ok = await finishAuthenticatedSession(
+        { email, password: "", rememberMe: form.rememberMe },
+        { skipOtpBind: true }
+      );
+      if (!ok) {
+        setSubmitting(false);
+      }
+    } catch (e) {
+      setShowRedirecting(false);
+      setSubmitting(false);
+      setAuthError(classifyAuthMessage(e instanceof Error ? e.message : undefined));
+    }
+  };
+
+  useEffect(() => {
+    const oauthError = searchParams.get("error")?.trim();
+    if (oauthError && !oauthHandledRef.current) {
+      setAuthError(
+        classifyAuthMessage(
+          oauthError === "oauth_missing_code" || oauthError === "oauth_config"
+            ? "Google sign-in failed. Please try again."
+            : oauthError
+        )
+      );
+    }
+    if (searchParams.get("oauth") !== "google" || oauthHandledRef.current) return;
+    oauthHandledRef.current = true;
+    void completeGoogleLogin();
+    // Intentionally once per oauth return landing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const completeLogin = async (credentials?: PendingLogin) => {
     const login = credentials ?? pendingLogin;
@@ -1050,7 +1179,6 @@ function LoginPageContent() {
               ) : null}
             </div>
 
-            {/* Social login — hidden until provider integration is ready
             <div className="flex items-center gap-[14px]">
               <div className="h-px flex-1 bg-[#e7edf4]" />
               <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={loginFieldTypographyStyle}>
@@ -1060,17 +1188,39 @@ function LoginPageContent() {
             </div>
 
             <div className="flex justify-center gap-[15px]">
-              <SocialButton label="Continue with Google">
-                <FcGoogle />
+              <SocialButton
+                label="Continue with Google"
+                title="Continue with Google"
+                disabled={oauthStarting || submitting}
+                onClick={startGoogleLogin}
+              >
+                <Image
+                  src="/icons/braas-HR/tenant-onboarding/social-google.svg"
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 object-contain"
+                />
               </SocialButton>
-              <SocialButton label="Continue with Apple">
-                <FaApple />
+              <SocialButton label="Continue with Apple" title="Coming soon">
+                <Image
+                  src="/icons/braas-HR/tenant-onboarding/social-apple.svg"
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 object-contain"
+                />
               </SocialButton>
-              <SocialButton label="Continue with X">
-                <FaXTwitter className="h-[15px] w-[15px]" />
+              <SocialButton label="Continue with X" title="Coming soon">
+                <Image
+                  src="/icons/braas-HR/tenant-onboarding/social-x.svg"
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 object-contain"
+                />
               </SocialButton>
             </div>
-            */}
           </form>
         )}
       </LoginPageShell>

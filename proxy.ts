@@ -232,7 +232,9 @@ function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/auth/login-otp/send") return true;
   if (pathname === "/api/auth/login-otp/verify") return true;
   if (pathname === "/api/auth/login-otp/assert-verified") return true;
+  if (pathname === "/api/auth/oauth/bind-session") return true;
   if (pathname === "/api/auth/signup") return true;
+  if (pathname === "/api/auth/signup/oauth-complete") return true;
   if (pathname === "/api/auth/signup/check-email") return true;
   if (pathname === "/api/auth/signup/options") return true;
   if (pathname === "/api/auth/forgot-password/check-email") return true;
