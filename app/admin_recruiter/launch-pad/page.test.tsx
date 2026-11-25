@@ -75,7 +75,7 @@ describe("Launch Pad finish handoff", () => {
   it("shows signup interests before the checklist, including direct step links", async () => {
     server.interests = { keys: [], skipped: false, answeredAt: null };
     render(<LaunchPadPage />);
-    expect(await screen.findByRole("heading", { name: "What brings you to brassHR" })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /Your signup interests/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm domain" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Time & Attendance" }));
     fireEvent.click(screen.getByRole("button", { name: "Save & Continue" }));

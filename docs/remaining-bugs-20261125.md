@@ -46,6 +46,7 @@ Security/performance advisor counts remained 175/6, with no new findings. Existi
 - The source TypeScript check passed using the repository's normal exclusions plus generated/output directories excluded in a temporary configuration. The default check after production compilation exposes existing generated route-export/type errors in untouched templates, Launch Pad domain, scheduling, applicant-about-me, workflow, and worker-signin routes. The root tsconfig and those routes were not changed or their checks disabled. Production compile mode passed; this is not a claim that the default full type check is clean.
 - Live database assertions described above were rolled back before the separately scoped, audited correction.
 - Real inbox delivery, production pay rates, full authenticated page timings, and a complete signed-in applicant walkthrough were not verified.
+- During final pull, staging advanced to 9b871b12. Its newer UI/OAuth/directory changes were preserved. The overlapping application fixes match this branch; 56 checks passed across 12 files on merged staging after replacing an obsolete heading locator with the accessible signup-interests group. Selection/save/navigation assertions remain intact.
 
 ## Remaining five
 
