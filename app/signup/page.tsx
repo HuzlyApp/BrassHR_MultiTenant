@@ -10,6 +10,11 @@ import { INDUSTRY_OPTIONS } from "@/app/tenant-onboarding/constants";
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  buildGoogleOAuthRedirectTo,
+  namePartsFromOAuthUser,
+  rememberOAuthNextPath,
+} from "@/lib/auth/oauth";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { getStateCodeFromName } from "@/lib/us-state-names";
@@ -153,6 +158,7 @@ function TextField({
   type = "text",
   error,
   maxLength,
+  readOnly,
 }: {
   label: string;
   value: string;
@@ -163,6 +169,7 @@ function TextField({
   type?: "text" | "email";
   error?: string | null;
   maxLength?: number;
+  readOnly?: boolean;
 }) {
   return (
     <div className="w-full">
@@ -175,8 +182,9 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
+        readOnly={readOnly}
         style={interStyle}
-        className={`${inputClass} ${
+        className={`${inputClass} ${readOnly ? "bg-[#F9FAFB] text-[#6B7280]" : ""} ${
           error
             ? "border-[#E11D48] focus:border-[#E11D48] focus:ring-2 focus:ring-[#E11D48]/15"
             : "border-[#CBD5E1] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/20"
@@ -293,6 +301,8 @@ export default function SignupPage() {
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [oauthMode, setOauthMode] = useState(false);
+  const [oauthStarting, setOauthStarting] = useState(false);
 
   useLayoutEffect(() => {
     const draft = readTenantSignupDraft();
@@ -302,8 +312,75 @@ export default function SignupPage() {
       setPassword(draft.password);
       setVerifyPassword(draft.verifyPassword);
     }
+    try {
+      if (sessionStorage.getItem("braasSignupOauthGoogle") === "1") {
+        setOauthMode(true);
+      }
+    } catch {
+      /* ignore */
+    }
     setDraftHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error")?.trim();
+    if (oauthError) {
+      setSubmitError(
+        oauthError === "oauth_missing_code" || oauthError === "oauth_config"
+          ? "Google sign-up failed. Please try again."
+          : oauthError
+      );
+    }
+
+    let storedOauth = false;
+    try {
+      storedOauth = sessionStorage.getItem("braasSignupOauthGoogle") === "1";
+    } catch {
+      storedOauth = false;
+    }
+    const fromQuery = params.get("oauth") === "google";
+    if (!fromQuery && !storedOauth) return;
+
+    let alive = true;
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabaseBrowser.auth.getUser();
+      if (!alive) return;
+      if (!user?.email) {
+        if (fromQuery) {
+          setSubmitError("Google sign-up did not complete. Please try again.");
+        }
+        return;
+      }
+      const parts = namePartsFromOAuthUser(user);
+      setOauthMode(true);
+      try {
+        sessionStorage.setItem("braasSignupOauthGoogle", "1");
+      } catch {
+        /* ignore */
+      }
+      setForm((prev) => ({
+        ...prev,
+        firstName: prev.firstName.trim() || parts.firstName,
+        lastName: prev.lastName.trim() || parts.lastName,
+        workEmail: parts.email || prev.workEmail,
+      }));
+      setEmailCheckStatus("available");
+      setTouchedEmail(true);
+      if (fromQuery || oauthError) {
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete("error");
+        clean.searchParams.delete("oauth");
+        window.history.replaceState({}, "", clean.pathname + (clean.search ? clean.search : ""));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [draftHydrated]);
 
   useLayoutEffect(() => {
     if (!draftHydrated || redirecting) return;
@@ -505,6 +582,32 @@ export default function SignupPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const startGoogleSignup = () => {
+    if (oauthStarting || submitting || redirecting) return;
+    setSubmitError(null);
+    setOauthStarting(true);
+    void (async () => {
+      try {
+        rememberOAuthNextPath("/signup?oauth=google");
+        const redirectTo = buildGoogleOAuthRedirectTo(window.location.origin);
+        const { error } = await supabaseBrowser.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo,
+            queryParams: { prompt: "select_account" },
+          },
+        });
+        if (error) {
+          setSubmitError(error.message || "Could not start Google sign-up.");
+          setOauthStarting(false);
+        }
+      } catch {
+        setSubmitError("Could not start Google sign-up. Please try again.");
+        setOauthStarting(false);
+      }
+    })();
+  };
+
   const continueToCompany = () => {
     setTouchedEmail(true);
     setPersonalSubmitAttempted(true);
@@ -526,9 +629,11 @@ export default function SignupPage() {
       const phoneOk = !phoneValidationMessage(snapshot.phone, { required: false });
       if (!phoneOk) return;
 
-      const rules = getPasswordRules(snapshot.password);
-      if (!rules.every((rule) => rule.passed) || snapshot.password !== snapshot.verifyPassword) {
-        return;
+      if (!oauthMode) {
+        const rules = getPasswordRules(snapshot.password);
+        if (!rules.every((rule) => rule.passed) || snapshot.password !== snapshot.verifyPassword) {
+          return;
+        }
       }
 
       setEmailCheckStatus("checking");
@@ -554,31 +659,36 @@ export default function SignupPage() {
       setSubmitting(true);
       setSubmitError(null);
       try {
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            firstName: form.firstName,
-            lastName: form.lastName,
-            workEmail: form.workEmail,
-            phone: form.phone,
-            companyName: form.companyName,
-            companyWebsite: form.companyWebsite,
-            industry: primaryIndustry,
-            industries: selectedIndustries,
-            isStaffingCompany: form.isStaffingCompany,
-            jobTitle: form.jobTitle.trim() || "Owner",
-            city: form.city,
-            state: form.state,
-            zipCode: form.zipCode,
-            address1: form.address1,
-            address2: form.address2,
-            hqState: form.state,
-            primaryCity: form.city,
-            primaryState: form.state,
-            password,
-          }),
-        });
+        const signupBody = {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          workEmail: form.workEmail,
+          phone: form.phone,
+          companyName: form.companyName,
+          companyWebsite: form.companyWebsite,
+          industry: primaryIndustry,
+          industries: selectedIndustries,
+          isStaffingCompany: form.isStaffingCompany,
+          jobTitle: form.jobTitle.trim() || "Owner",
+          city: form.city,
+          state: form.state,
+          zipCode: form.zipCode,
+          address1: form.address1,
+          address2: form.address2,
+          hqState: form.state,
+          primaryCity: form.city,
+          primaryState: form.state,
+          ...(oauthMode ? {} : { password }),
+        };
+
+        const res = await fetch(
+          oauthMode ? "/api/auth/signup/oauth-complete" : "/api/auth/signup",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(signupBody),
+          }
+        );
         const payload = (await res.json().catch(() => ({}))) as {
           error?: string;
           waitlisted?: boolean;
@@ -589,18 +699,24 @@ export default function SignupPage() {
           return;
         }
 
-        const email = form.workEmail.trim().toLowerCase();
-        const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) {
-          setSubmitError(
-            signInError.message ||
-              "Account created, but sign-in failed. Use Sign In to continue to tenant setup."
-          );
-          setSubmitting(false);
-          return;
+        if (!oauthMode) {
+          const email = form.workEmail.trim().toLowerCase();
+          const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (signInError) {
+            setSubmitError(
+              signInError.message ||
+                "Account created, but sign-in failed. Use Sign In to continue to tenant setup."
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        if (oauthMode) {
+          await supabaseBrowser.auth.refreshSession().catch(() => undefined);
         }
 
         const {
@@ -639,6 +755,11 @@ export default function SignupPage() {
         if (payload.waitlisted) {
           setRedirecting(true);
           clearTenantSignupDraft();
+          try {
+            sessionStorage.removeItem("braasSignupOauthGoogle");
+          } catch {
+            /* ignore */
+          }
           window.setTimeout(() => {
             window.location.assign("/signup/waitlist");
           }, 80);
@@ -673,6 +794,11 @@ export default function SignupPage() {
         }
         setRedirecting(true);
         clearTenantSignupDraft();
+        try {
+          sessionStorage.removeItem("braasSignupOauthGoogle");
+        } catch {
+          /* ignore */
+        }
         window.setTimeout(() => {
           window.location.assign(provisionPayload.redirectTo ?? ADMIN_LAUNCH_PAD_ROUTE);
         }, 80);
@@ -778,13 +904,20 @@ export default function SignupPage() {
                   required
                   type="email"
                   value={form.workEmail}
+                  readOnly={oauthMode}
                   onChange={(value) => {
+                    if (oauthMode) return;
                     setTouchedEmail(true);
                     update("workEmail", value);
                   }}
                   placeholder="you@company.com"
                   error={emailError}
                 />
+                {oauthMode ? (
+                  <p className="text-[12px] leading-4 text-[#6B7280]" style={interStyle}>
+                    Signed in with Google. Complete your company details next.
+                  </p>
+                ) : null}
 
                 <div className="w-full">
                   <FieldLabel>Mobile Phone</FieldLabel>
@@ -822,26 +955,30 @@ export default function SignupPage() {
                   ) : null}
                 </div>
 
-                <PasswordField label="Password" value={password} onChange={setPassword} error={passwordError} />
-                <PasswordField
-                  label="Verify Password"
-                  value={verifyPassword}
-                  onChange={setVerifyPassword}
-                  error={verifyPasswordError}
-                />
+                {!oauthMode ? (
+                  <>
+                    <PasswordField label="Password" value={password} onChange={setPassword} error={passwordError} />
+                    <PasswordField
+                      label="Verify Password"
+                      value={verifyPassword}
+                      onChange={setVerifyPassword}
+                      error={verifyPasswordError}
+                    />
 
-                {personalSubmitAttempted && password && !passwordIsStrongEnough ? (
-                  <ul className="space-y-1">
-                    {passwordRules.map((rule) => (
-                      <li
-                        key={rule.label}
-                        className={`text-[12px] leading-4 ${rule.passed ? "text-[#16A34A]" : "text-[#6B7280]"}`}
-                        style={interStyle}
-                      >
-                        {rule.passed ? "✓" : "•"} {rule.label}
-                      </li>
-                    ))}
-                  </ul>
+                    {personalSubmitAttempted && password && !passwordIsStrongEnough ? (
+                      <ul className="space-y-1">
+                        {passwordRules.map((rule) => (
+                          <li
+                            key={rule.label}
+                            className={`text-[12px] leading-4 ${rule.passed ? "text-[#16A34A]" : "text-[#6B7280]"}`}
+                            style={interStyle}
+                          >
+                            {rule.passed ? "✓" : "•"} {rule.label}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
                 ) : null}
 
                 <button
@@ -865,8 +1002,23 @@ export default function SignupPage() {
                 </div>
 
                 <div className="flex items-center justify-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={startGoogleSignup}
+                    disabled={oauthStarting || oauthMode}
+                    aria-label="Sign up with Google"
+                    title={oauthMode ? "Signed in with Google" : "Sign up with Google"}
+                    className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-[#E5E7EB] bg-white p-2.5 disabled:opacity-60"
+                  >
+                    <Image
+                      src="/icons/braas-HR/tenant-onboarding/social-google.svg"
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 object-contain"
+                    />
+                  </button>
                   {[
-                    { src: "/icons/braas-HR/tenant-onboarding/social-google.svg", label: "Google" },
                     { src: "/icons/braas-HR/tenant-onboarding/social-apple.svg", label: "Apple" },
                     { src: "/icons/braas-HR/tenant-onboarding/social-x.svg", label: "X" },
                   ].map((social) => (
