@@ -24,6 +24,7 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const requestIdRef = useRef(0)
+  const focusedRef = useRef(false)
   /** Must match the value written into the input after select (display label), not full place_name. */
   const verifiedQueryRef = useRef("")
 
@@ -50,14 +51,17 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
   )
 
   const closeSuggestions = useCallback(() => {
+    focusedRef.current = false
     setIsOpen(false)
   }, [])
 
   const openSuggestions = useCallback(() => {
+    focusedRef.current = true
     if (suggestions.length > 0) setIsOpen(true)
   }, [suggestions.length])
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current
     const trimmed = query.trim()
     if (!shouldRequestPlaceAutocomplete(trimmed)) {
       setSuggestions([])
@@ -80,15 +84,19 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
       resetVerification()
     }
 
-    const requestId = ++requestIdRef.current
+    const controller = new AbortController()
+    setSuggestions([])
+    setIsOpen(false)
     setIsLoading(true)
     setSearchError(null)
 
+    const deadline = window.setTimeout(() => controller.abort(), 6000)
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await fetch("/api/address/places", {
             method: "POST",
+            signal: controller.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query: trimmed }),
           })
@@ -103,9 +111,10 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
           }
 
           const payload = (await res.json()) as { suggestions?: PlaceSuggestion[] }
+          if (requestId !== requestIdRef.current) return
           const next = Array.isArray(payload.suggestions) ? payload.suggestions : []
           setSuggestions(next)
-          setIsOpen(next.length > 0)
+          setIsOpen(focusedRef.current && next.length > 0)
           setSearchError(next.length === 0 ? PLACE_AUTOCOMPLETE_EMPTY_MESSAGE : null)
         } catch {
           if (requestId !== requestIdRef.current) return
@@ -113,12 +122,18 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
           setIsOpen(false)
           setSearchError(PLACE_AUTOCOMPLETE_ERROR_MESSAGE)
         } finally {
+          window.clearTimeout(deadline)
           if (requestId === requestIdRef.current) setIsLoading(false)
         }
       })()
     }, debounceMs)
 
-    return () => window.clearTimeout(timer)
+    return () => {
+      ++requestIdRef.current
+      window.clearTimeout(timer)
+      window.clearTimeout(deadline)
+      controller.abort()
+    }
   }, [query, debounceMs, isVerified, resetVerification])
 
   return {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateClientCompanyName } from "@/lib/clients/validation";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { parseContactPersonFromAbout } from "@/lib/facilities/address";
@@ -298,11 +299,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
     const companyName = String(body.companyName ?? body.company_name ?? "").trim();
-    if (!companyName) {
-      return NextResponse.json({ error: "Company name is required." }, { status: 400 });
-    }
-
-    if (companyName.length > 120) return NextResponse.json({ error: "Company name must be 120 characters or fewer." }, { status: 400 });
+    const nameError = validateClientCompanyName(companyName);
+    if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
 
     const contactPerson = String(body.contactPerson ?? body.contact_person ?? "").trim();
 

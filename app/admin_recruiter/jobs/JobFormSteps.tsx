@@ -362,6 +362,7 @@ export function JobFormStepRequisition({
             </label>
             <input
               id="job-title"
+              maxLength={200}
               className={JOB_FORM_INPUT_CLASS}
               value={job.publicTitle ?? ""}
               onChange={(event) => onJobChange("publicTitle", event.target.value)}
@@ -1139,6 +1140,9 @@ export function JobFormStepCompensation({
   const isMspRnr = isMspRecruitAndRelease(job);
   const hoursShowBy = ui.hoursShowBy || "Fixed Hours";
   const showFixedHours = hoursShowBy === "Fixed Hours";
+  const payReviewWarning = [job.payRateMin, job.payRateMax].some((rate) =>
+    typeof rate === "number" && (rate === 0 || rate > 1_000_000)
+  ) ? <p role="status" className="text-sm text-amber-800">Please review this pay rate before publishing: zero or unusually high amounts may be incorrect.</p> : null;
 
   const benefitOptions = [
     ...JOB_FORM_BENEFIT_OPTIONS,
@@ -1199,6 +1203,7 @@ export function JobFormStepCompensation({
 
     return (
       <div className="space-y-8">
+        {payReviewWarning}
         <section className={JOB_FORM_FIELDS_CLASS}>
           <div
             className={`grid gap-4 min-[700px]:items-end ${
@@ -1251,6 +1256,7 @@ export function JobFormStepCompensation({
                       }
                     />
                   </div>
+                  <FieldError error={fieldErrors.payRateMin} />
                 </div>
                 <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
                 <div className="min-w-0">
@@ -1299,6 +1305,7 @@ export function JobFormStepCompensation({
                     }
                   />
                 </div>
+                  <FieldError error={fieldErrors.payRateMin} />
               </div>
             )}
 
@@ -1602,6 +1609,7 @@ export function JobFormStepCompensation({
 
   return (
     <div className="space-y-8">
+        {payReviewWarning}
       <section className={JOB_FORM_FIELDS_CLASS}>
         <div>
           <label className={JOB_FORM_LABEL_CLASS}>Compensation</label>
@@ -1682,6 +1690,7 @@ export function JobFormStepCompensation({
                     }
                   />
                 </div>
+                  <FieldError error={fieldErrors.payRateMin} />
               </div>
               <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
               <div className="min-w-0">
@@ -1730,6 +1739,7 @@ export function JobFormStepCompensation({
                   }
                 />
               </div>
+                  <FieldError error={fieldErrors.payRateMin} />
             </div>
           )}
 

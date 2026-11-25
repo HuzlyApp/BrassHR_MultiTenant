@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   __setCacheAdapterForTests,
   buildCacheKey,
@@ -7,6 +7,14 @@ import {
   hashQueryParams,
   tablePattern,
 } from "@/lib/cache";
+
+const circuit = vi.hoisted(() => ({ open: false }));
+vi.mock("@/lib/redis-timeout", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/redis-timeout")>(),
+  isRedisCircuitOpen: () => circuit.open,
+  markRedisUnavailable: () => { circuit.open = true; },
+}));
+beforeEach(() => { circuit.open = false; });
 
 afterEach(() => {
   __setCacheAdapterForTests(undefined);
@@ -77,6 +85,21 @@ describe("cache utility", () => {
       from: "supabase",
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a failed adapter throughout cooldown and retries it after recovery", async () => {
+    const get = vi.fn().mockRejectedValue(new Error("redis unavailable"));
+    const set = vi.fn().mockResolvedValue(undefined);
+    __setCacheAdapterForTests({ get, set, delete: vi.fn() });
+    await getOrSetCache("circuit:first", async () => 1);
+    await getOrSetCache("circuit:second", async () => 2);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(set).not.toHaveBeenCalled();
+    circuit.open = false;
+    get.mockResolvedValue(null);
+    await getOrSetCache("circuit:recovered", async () => 3);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(set).toHaveBeenCalledOnce();
   });
 
   it("keeps user and tenant scoped keys isolated", () => {

@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const relocateToJobSite = String(form.get("relocateToJobSite") ?? "") === "true";
     const analysisProvider = parseAnalysisProvider(form.get("analysisProvider"));
     const resumeFile = form.get("resume");
-    const file = resumeFile instanceof File && resumeFile.size > 0 ? resumeFile : null;
+    const file = resumeFile instanceof File ? resumeFile : null;
 
     if (!jobRequisitionId) {
       return NextResponse.json({ error: "jobId is required" }, { status: 400 });

@@ -559,9 +559,10 @@ export default function JobCandidateReviewClient() {
     setZoom(100);
   }, [workerId, resumeUrl, resumePreviewKey]);
 
+  const selectedApplicationId = selected?.id;
   const reloadWorkerProfile = useCallback(async (targetWorkerId: string) => {
-    const applicationQuery = selected?.id
-      ? `&applicationId=${encodeURIComponent(selected.id)}`
+    const applicationQuery = selectedApplicationId
+      ? `&applicationId=${encodeURIComponent(selectedApplicationId)}`
       : "";
     const response = await fetch(
       `/api/admin/worker-profile?workerId=${encodeURIComponent(targetWorkerId)}${applicationQuery}`,
@@ -570,7 +571,7 @@ export default function JobCandidateReviewClient() {
     const payload = (await response.json()) as WorkerProfilePayload & { error?: string };
     if (!response.ok) throw new Error(payload.error || "Failed to refresh profile");
     setProfile(payload);
-  }, [selected?.id]);
+  }, [selectedApplicationId]);
 
   function beginReuploadResume() {
     if (!selected?.id) return;
@@ -1353,13 +1354,20 @@ export default function JobCandidateReviewClient() {
                       >
                         <X className="h-4 w-4" strokeWidth={2.25} />
                       </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
-                        aria-label="More"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
+                      <label className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F8FAFC] sm:h-8 sm:w-8">
+                        <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                        <select aria-label="More" title="Change application status" value="" disabled={statusBusy}
+                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          onChange={(event) => {
+                            const option = statusOptions.find((status) => status.id === event.target.value);
+                            if (option) beginStatusChange(option);
+                          }}>
+                          <option value="" disabled>Change application status</option>
+                          {statusOptions.filter((status) => status.id !== selected?.status_id).map((status) => (
+                            <option key={status.id} value={status.id}>{status.name}</option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

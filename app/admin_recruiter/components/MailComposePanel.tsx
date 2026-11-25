@@ -14,7 +14,7 @@ import { useMailDraftSave } from "./useMailDraftSave";
 import type { EmploymentWorkerRecord } from "@/lib/admin/employment-workers";
 import type { TenantMailInboxItem } from "@/lib/communication/list-tenant-mail-inbox";
 import type { MailDraftListItem } from "@/lib/communication/mail-drafts";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffAuthHeaders } from "@/lib/staff-auth-headers";
 
 import { fetchStaffDetailJson } from "@/lib/admin/staff-detail-fetch-cache";
 
@@ -83,14 +83,6 @@ type MailComposePanelProps = {
   onDraftSaved?: () => Promise<void> | void;
   onDraftDeleted?: () => void;
 };
-
-async function authHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export function MailComposePanel({
   initialWorkerId = null,
@@ -244,7 +236,7 @@ export function MailComposePanel({
       try {
         const res = await fetch("/api/admin/mail/drafts", {
           cache: "no-store",
-          headers: await authHeaders(),
+          headers: await staffAuthHeaders(),
         });
         const json = (await res.json().catch(() => ({}))) as {
           drafts?: MailDraftListItem[];
@@ -401,7 +393,7 @@ export function MailComposePanel({
       const res = await fetch("/api/admin/mail/drafts", {
         method: "DELETE",
         headers: {
-          ...(await authHeaders()),
+          ...(await staffAuthHeaders()),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
@@ -477,13 +469,13 @@ export function MailComposePanel({
   }
 
   const candidateSelect = (
-    <MailComposeFieldRow label="Candidate">
+    <MailComposeFieldRow label="To">
       <MailComposeCandidateDropdown
         id="mail-compose-candidate"
         value={selectedWorkerId}
         applicantOptions={applicantOptions}
         workerOptions={workerOptions}
-        placeholder="Pick a candidate"
+        placeholder="Search candidate name or email"
         disabled={sending}
         loading={loadingCandidates}
         loadingLabel="Loading..."

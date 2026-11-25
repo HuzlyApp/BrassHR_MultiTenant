@@ -22,7 +22,7 @@ function resumeTextKey(text: string): string {
  */
 export async function grokParseResumeCached(
   text: string,
-  opts?: ResumeFieldExtractOptions,
+  opts?: ResumeFieldExtractOptions & { timeoutMs?: number },
 ): Promise<NormalizedParsedResume> {
   return getOrSetCache(
     `resume:grok-parse:${RESUME_PARSE_CACHE_VERSION}:${resumeTextKey(`${text}\nfilename:${opts?.fileName ?? ""}`)}`,

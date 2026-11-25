@@ -201,6 +201,11 @@ export default function TenantOnboardingWorkflowBuilder({
   const [flowTitle, setFlowTitle] = useState("");
   const [publishStatus, setPublishStatus] = useState<"draft" | "published">("published");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [stepLibrary, setStepLibrary] = useState<StepCategory[]>([]);
   const [initialNodes, setInitialNodes] = useState<Node<WorkflowNodeData>[]>([]);
   const [initialEdges, setInitialEdges] = useState<Edge[]>([]);
@@ -696,6 +701,7 @@ export default function TenantOnboardingWorkflowBuilder({
     ) => {
       if (editingTemplate?.isViewOnly || flowViewOnly) return;
       const saveGeneration = options.saveGeneration;
+      const generationAtStart = saveGenerationRef.current;
       const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim();
       if (!options.silent) {
         if (options.template) setSavingTemplate(true);
@@ -914,8 +920,10 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : "Save failed";
-        setLocalError(message);
-        if (!options.silent) toast.error(message);
+        if (generationAtStart === saveGenerationRef.current) {
+          setLocalError(message);
+          if (!options.silent) toast.error(message);
+        }
       } finally {
         if (!options.silent) {
           if (options.template) setSavingTemplate(false);
@@ -992,6 +1000,7 @@ export default function TenantOnboardingWorkflowBuilder({
     (state: WorkflowState) => {
       latestStateRef.current = state;
       if (editingTemplate?.isViewOnly || flowViewOnly) return;
+      setLocalError(null);
       if (skipNextChange.current) {
         skipNextChange.current = false;
         return;
@@ -1180,10 +1189,10 @@ export default function TenantOnboardingWorkflowBuilder({
     if (!timestamp) return undefined;
     const minutesAgo = Math.max(
       0,
-      Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000)
+      Math.floor((clockNow - new Date(timestamp).getTime()) / 60000)
     );
     return { author: tenantName || "You", minutesAgo };
-  }, [editingTemplate, templateUpdatedAt, tenantName, updatedAt]);
+  }, [editingTemplate, templateUpdatedAt, tenantName, updatedAt, clockNow]);
 
   const statusSuffix = [
     savingTemplate ? "saving template…" : null,
@@ -1211,7 +1220,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const isDraft = publishStatus === "draft";
 
   const setUndoControlsRef = useRef(workflowHeader?.setUndoControls);
-  setUndoControlsRef.current = workflowHeader?.setUndoControls;
+  useEffect(() => { setUndoControlsRef.current = workflowHeader?.setUndoControls; }, [workflowHeader?.setUndoControls]);
 
   const registerUndoControls = useCallback(
     (

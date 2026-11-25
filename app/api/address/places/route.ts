@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       "place,locality,neighborhood,district,postcode,address"
     )
 
-    const mapboxRes = await fetch(url.toString(), { cache: "no-store" })
+    const mapboxRes = await fetch(url.toString(), { cache: "no-store", signal: AbortSignal.any([req.signal, AbortSignal.timeout(4500)]) })
     if (!mapboxRes.ok) {
       const text = await mapboxRes.text().catch(() => "")
       console.error("[address/places] mapbox", mapboxRes.status, text.slice(0, 200))

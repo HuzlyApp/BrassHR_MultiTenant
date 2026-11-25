@@ -61,3 +61,11 @@ describe("single-resume import", () => {
     await waitFor(() => expect(mocks.fetch).toHaveBeenCalledWith("/api/admin/add-candidate-from-resume/parse", expect.objectContaining({ method: "POST" })));
   });
 });
+
+it("shows the review warning when AI parsing falls back to extracted identity", async () => {
+  mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ qualityOk: false, warning: "AI parsing is temporarily unavailable. Review the extracted fields.", parsed: { firstName: "Jane", lastName: "Doe", email: "jane@example.com" } }) });
+  const { container } = render(<AddCandidateModal open jobId="job-a" onClose={vi.fn()} />);
+  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [files()[0]] } });
+  expect(await screen.findByText(/AI parsing is temporarily unavailable/)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText("First name")).toHaveValue("Jane");
+});

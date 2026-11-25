@@ -107,7 +107,7 @@ export type GrokParseResumeResult = {
 /** Parse resume text with regex pre-extraction + reduced Grok payload. */
 export async function grokParseResume(
   fullText: string,
-  opts?: ResumeFieldExtractOptions,
+  opts?: ResumeFieldExtractOptions & { timeoutMs?: number },
 ): Promise<GrokParseResumeResult> {
   const preExtracted = preExtractResumeFields(fullText, opts)
   const grokSnippet = buildGrokResumeSnippet(fullText, 12000)
@@ -128,7 +128,7 @@ export async function grokParseResume(
       { role: "system", content: buildSystemPrompt(preExtracted) },
       { role: "user", content: grokSnippet },
     ],
-  })
+  }, opts?.timeoutMs ? { timeout: opts.timeoutMs, maxRetries: 0 } : undefined)
   const aiParseMs = timer.elapsedMs()
 
   const result = completion.choices?.[0]?.message?.content || ""

@@ -48,6 +48,7 @@ import {
   applicationMatchesDateAppliedFilter,
   applicationMatchesMatchScoreFilter,
   EditApplicationsFiltersModal,
+  EMPTY_APPLICATIONS_EXTENDED_FILTERS,
   type ApplicationsExtendedFilterValues,
 } from "@/app/admin_recruiter/applications/EditApplicationsFiltersModal";
 import { JobsBreadcrumb } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
@@ -1157,6 +1158,7 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     async function run() {
       const requestJobId = jobId;
       const tab = resolveApplicationTabParam(String(activeTab), statusOptions);
@@ -1199,7 +1201,7 @@ export default function JobApplicationsPage() {
       if (highlightMultiJobApplicants) params.set("multiJob", "1");
       setLoading(true);
       try {
-        const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
+        const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
         const payload = await response.json();
         if (cancelled) return;
         if (!response.ok) throw new Error(payload.error || "Failed to load applications");
@@ -1239,6 +1241,7 @@ export default function JobApplicationsPage() {
     void run();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [jobId, applicationsRefreshNonce, matchScoreFilter, skillsFilter, page, pageSize, activeTab, statusOptions, candidateSearchQuery, locationFilter, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, dateAppliedFilter, highlightMultiJobApplicants, listSort, roleFilter, clientFilter, matchFilter, ownerFilter, keywordQuery]);
 
@@ -1310,8 +1313,8 @@ export default function JobApplicationsPage() {
   );
 
   function openAddCandidateModal() {
-    if (!jobId && jobOptions.length === 0) {
-      toast.error("Please select a job first or create a job requisition.");
+    if (!jobId && !jobOptions.some((option) => option.status === "open")) {
+      toast.error("Open a job requisition before adding candidates.");
       return;
     }
     // Keep job unbound when none selected so the modal shows the job picker.
@@ -1776,10 +1779,16 @@ export default function JobApplicationsPage() {
   );
 
   const handleResetApplicationsSearch = useCallback(() => {
+    handleSaveEditFilters({ ...EMPTY_APPLICATIONS_EXTENDED_FILTERS });
     setCandidateSearchQuery("");
-    setSkillsFilter([]);
+    setKeywordQuery("");
+    setRoleFilter("");
+    setHighlightMultiJobApplicants(false);
+    setActiveTab("all");
+    setListSort(EMPTY_APPLICATION_LIST_SORT);
     setPage(1);
-  }, []);
+    setSelectedIds(new Set());
+  }, [handleSaveEditFilters]);
 
   const statusTabs = useMemo(() => {
     const pipeline = jobScopedStatusOptions.filter((option) => option.systemKey !== "archived");
@@ -2093,7 +2102,7 @@ export default function JobApplicationsPage() {
   ]);
   const pageEnd = resultTotal === 0
     ? 0
-    : pageStart + displayRows.length - 1;
+    : Math.min(resultTotal, pageStart + displayRows.length - 1);
 
   const displayTotal = resultTotal;
   // Keep a flat id list for selection helpers that still expect ApplicationRow[].
@@ -3605,6 +3614,7 @@ export default function JobApplicationsPage() {
                 {highlightMultiJobApplicants
                   ? "No applicants have applied to multiple jobs."
                   : "No applicants match these filters."}
+                <button type="button" onClick={handleResetApplicationsSearch} className="mx-auto mt-3 block underline">Clear all filters</button>
               </p>
             ) : (
               displayRows.map((row) => renderApplicantCard(row))
@@ -3670,6 +3680,7 @@ export default function JobApplicationsPage() {
                       {highlightMultiJobApplicants
                         ? "No applicants have applied to multiple jobs."
                         : "No applicants match these filters."}
+                      <button type="button" onClick={handleResetApplicationsSearch} className="mx-auto mt-3 block underline">Clear all filters</button>
                     </td>
                   </tr>
                 ) : (
@@ -3832,6 +3843,7 @@ export default function JobApplicationsPage() {
           assignees: dynamicOwnerOptions,
         }}
         onSave={handleSaveEditFilters}
+        onClear={handleResetApplicationsSearch}
       />
 
       {rowActionsMenu ? (
@@ -4052,7 +4064,7 @@ export default function JobApplicationsPage() {
         jobId={jobId}
         jobTitle={jobTitle}
         jobLocation={jobLocation !== "—" ? jobLocation : null}
-        jobOptions={jobOptions.map((option) => ({
+        jobOptions={jobOptions.filter((option) => option.status === "open").map((option) => ({
           id: option.id,
           title: option.public_title?.trim() || "Untitled job",
         }))}

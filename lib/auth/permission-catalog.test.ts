@@ -211,3 +211,7 @@ describe("permission catalog", () => {
     expect(sql).not.toContain("'manage'");
   });
 });
+
+it("checks the workflows alias using Workflow Library permissions", () => {
+  expect(classifyProtectedPath("/admin_recruiter/workflows")).toMatchObject({ kind: "resource", resourceKey: "settings_automation" });
+});

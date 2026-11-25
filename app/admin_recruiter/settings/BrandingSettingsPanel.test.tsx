@@ -5,15 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BrandingSettingsPanel from "./BrandingSettingsPanel";
 import { defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), section: "colors" }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), section: "colors", tab: "" }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }), usePathname: () => "/settings/branding",
-  useSearchParams: () => new URLSearchParams({ section: mocks.section }),
+  useSearchParams: () => new URLSearchParams({ section: mocks.section, tab: mocks.tab }),
 }));
 vi.mock("@/lib/staff-auth-headers", () => ({ staffFetchInit: async () => ({}) }));
 vi.mock("@/app/components/tenant/TenantBrandingContext", () => ({ useTenantBranding: () => defaultTenantBranding() }));
 vi.mock("./BrandingAuthPreview", () => ({ default: () => null }));
-vi.mock("./HireJourneyThemePanel", () => ({ default: () => null }));
+vi.mock("./HireJourneyThemePanel", () => ({ default: () => <div>Hiring journey settings</div> }));
 vi.mock("@/lib/tenant/branding-events", () => ({ notifyBrandingUpdated: vi.fn() }));
 
 const saved = { ...defaultTenantBranding(), primaryHex: "#123456", secondaryHex: "#234567", accentHex: "#345678" };
@@ -22,6 +22,7 @@ function mount() {
 }
 beforeEach(() => {
   mocks.section = "colors";
+  mocks.tab = "";
   mocks.fetch.mockReset().mockResolvedValue({ ok: true, json: async () => ({ tenantId: "tenant", branding: saved }) });
   vi.stubGlobal("fetch", mocks.fetch);
 });
@@ -88,4 +89,11 @@ describe("branding edits", () => {
     expect(await screen.findByText("Login headline is required and must be 120 characters or fewer.")).toBeInTheDocument();
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
   });
+});
+
+it("opens Hiring Journey from its direct URL", async () => {
+  mocks.tab = "hiring-journey";
+  mount();
+  expect(await screen.findByText("Hiring journey settings")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Upload Company logo")).not.toBeInTheDocument();
 });

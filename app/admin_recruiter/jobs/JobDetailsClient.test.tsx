@@ -42,3 +42,12 @@ describe("archived job details deletion", () => {
     expect(screen.queryByRole("menuitem", { name: "Delete job" })).not.toBeInTheDocument();
   });
 });
+
+describe("candidate actions require an open job", () => {
+  it.each(["closed", "draft", "paused"])("blocks resume uploads and matching on %s jobs", async (status) => {
+    mocks.detail.mockResolvedValue({ ok: true, payload: { job: { id: "job-a", public_title: "QA role", status, tags: [] } } });
+    render(<JobDetailsClient jobId="job-a" />);
+    expect(await screen.findByRole("button", { name: "Upload Resumes" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Match Candidates" })).toBeDisabled();
+  });
+});

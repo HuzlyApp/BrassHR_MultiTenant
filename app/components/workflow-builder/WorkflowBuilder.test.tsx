@@ -15,3 +15,8 @@ describe("workflow publish display", () => {
     expect(screen.getByText(/Last updated/)).toHaveTextContent("Published");
   });
 });
+
+it("shows old updates in days rather than thousands of minutes", () => {
+  render(<WorkflowBuilder title="Old template" stepLibrary={[]} initialNodes={[]} initialEdges={[]} lastUpdated={{ author: "Admin", minutesAgo: 47217 }} />);
+  expect(screen.getByText(/Last updated/)).toHaveTextContent("32d ago by Admin");
+});

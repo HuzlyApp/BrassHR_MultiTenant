@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateClientCompanyName } from "@/lib/clients/validation";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -37,7 +38,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ clien
   if (body?.action === "archive" || body?.action === "restore") patch.archived_at = body.action === "archive" ? new Date().toISOString() : null;
   else if (body?.action === "edit") {
     const name = typeof body.companyName === "string" ? body.companyName.trim() : "";
-    if (!name || name.length > 200) return NextResponse.json({ error: "Company name is required and must be 200 characters or fewer." }, { status: 400 });
+    const nameError = validateClientCompanyName(name);
+    if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
     patch.company_name = name;
   } else return NextResponse.json({ error: "Choose edit, archive or restore." }, { status: 400 });
   const { data, error } = await scope.db.from("clients").update(patch).eq("tenant_id", scope.tenantId).eq("id", scope.clientId).select("id, company_name, archived_at").maybeSingle();
