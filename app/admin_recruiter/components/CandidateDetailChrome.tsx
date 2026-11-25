@@ -118,6 +118,7 @@ function CandidateDetailChromeInner({
   const [loading, setLoading] = useState(true);
   const [refreshToken, setRefreshToken] = useState(0);
   const [commOpen, setCommOpen] = useState(false);
+  const headerView = activeTab === "Resume" ? "header" : undefined;
 
   const refresh = useCallback(() => {
     setRefreshToken((value) => value + 1);
@@ -142,7 +143,7 @@ function CandidateDetailChromeInner({
     async function load() {
       try {
         const result = await fetchStaffDetailJson<ChromeProfilePayload>(
-          workerProfileApiUrl(applicantId),
+          workerProfileApiUrl(applicantId, null, headerView),
           // After Mark as complete / pipeline refresh, skip the 30s TTL cache.
           refreshToken > 0 ? { bust: true } : undefined
         );
@@ -163,13 +164,13 @@ function CandidateDetailChromeInner({
     return () => {
       cancelled = true;
     };
-  }, [applicantId, refreshToken]);
+  }, [applicantId, refreshToken, headerView]);
 
   const worker = profile?.worker;
   const name = `${worker?.first_name ?? ""} ${worker?.last_name ?? ""}`.trim() || "Applicant";
   const jobTitle = profile?.job_title?.trim() || "";
   const jobRequisitionId = profile?.job_requisition_id?.trim() || "";
-  const role = jobTitle || "—";
+  const role = jobTitle || worker?.job_role?.trim() || "—";
   const roleHref = jobRequisitionId
     ? `/admin_recruiter/jobs/${encodeURIComponent(jobRequisitionId)}`
     : null;
@@ -234,7 +235,7 @@ function CandidateDetailChromeInner({
             applicationDate={formatHeaderDate(
               profile?.application_applied_at ?? worker?.created_at
             )}
-            jobId={worker?.job_id ?? profile?.job_id ?? null}
+            jobId={worker?.job_id ?? profile?.job_id ?? profile?.job_requisition_id ?? null}
             source={profile?.activity?.source ?? null}
             progressPercent={progressPercent}
             progressInProgress={progressInProgress}

@@ -10,6 +10,7 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ from: mocks.fro
 vi.mock("@/lib/audit/activity-log", () => ({ writeActivityLog: vi.fn() }));
 vi.mock("@/lib/applicant-portal/worker-profile-photo", () => ({ resolveWorkerProfilePhotoUrl: async () => null }));
 import { GET } from "./route";
+vi.mock("@/lib/jobs/application-statuses/attach-worker-application-status", () => ({ getApplicationStatusSummaryForWorker: vi.fn(async () => ({ jobTitle: "Registered Nurse", jobRequisitionId: "job-a", sourceJobId: "MSP-123", appliedAt: "2026-11-25" })) }));
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "qa-test-key");
@@ -26,6 +27,15 @@ beforeEach(() => {
 });
 const request = () => new NextRequest(`https://qa.test/api/admin/worker-profile?workerId=${id}&view=resume`);
 describe("compact resume profile projection", () => {
+  it("returns compact header job context without document scans or onboarding queries", async () => {
+    const response = await GET(new NextRequest(`https://qa.test/api/admin/worker-profile?workerId=${id}&view=header`));
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ job_title: "Registered Nurse", job_requisition_id: "job-a", job_id: "MSP-123" });
+    expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(["worker", "worker_requirements"]);
+    const { getApplicationStatusSummaryForWorker } = await import("@/lib/jobs/application-statuses/attach-worker-application-status");
+    expect(getApplicationStatusSummaryForWorker).toHaveBeenCalledWith(expect.anything(), { tenantId: "tenant-a", workerId: id });
+  });
   it("returns the resume before loading document scans or onboarding progress and excludes unrelated private fields", async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
