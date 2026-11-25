@@ -141,6 +141,7 @@ export function LogoStepPanel({
     setSaving(true);
     setError(null);
     try {
+      const uploaded: string[] = [];
       if (logoFile) {
         const form = new FormData();
         form.append("field", "logo");
@@ -152,6 +153,7 @@ export function LogoStepPanel({
           setSavedLogoUrl(data.logoUrl);
           setLogoPreview(data.logoUrl);
           setLogoFile(null);
+          uploaded.push("logo");
         }
       }
       if (faviconFile) {
@@ -165,6 +167,7 @@ export function LogoStepPanel({
           setSavedFaviconUrl(data.logoUrl);
           setFaviconPreview(data.logoUrl);
           setFaviconFile(null);
+          uploaded.push("favicon");
         }
       }
       if (logoName.trim() || tagline.trim()) {
@@ -178,7 +181,17 @@ export function LogoStepPanel({
         });
         if (!response.ok) throw new Error("Could not save your company branding.");
       }
-      toast.success(hasAnyUpload ? "Branding images saved." : "Branding details saved.");
+      if (uploaded.includes("logo") && uploaded.includes("favicon")) {
+        toast.success("Logo and favicon uploaded successfully.");
+      } else if (uploaded.includes("logo")) {
+        toast.success("Logo uploaded successfully.");
+      } else if (uploaded.includes("favicon")) {
+        toast.success("Favicon uploaded successfully.");
+      } else if (hasAnyUpload) {
+        toast.success("Branding images saved.");
+      } else {
+        toast.success("Branding details saved.");
+      }
       onComplete();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save your company branding.");

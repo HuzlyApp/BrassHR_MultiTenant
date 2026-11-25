@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import { buildLaunchPadDomainDisplayUrl } from "@/lib/tenant/tenant-vanity-url";
+import { DomainSuccessModal } from "../DomainSuccessModal";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
+
+function clientOrigin(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.origin;
+}
 
 export function DomainStepPanel({
   onBack,
@@ -19,9 +26,12 @@ export function DomainStepPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [rootDomain, setRootDomain] = useState("");
+  const [usesTenantQuery, setUsesTenantQuery] = useState(false);
   const [developmentWorkspaceUrl, setDevelopmentWorkspaceUrl] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [successDomainLabel, setSuccessDomainLabel] = useState("");
 
   useEffect(() => {
     if (organization?.subdomain) setSubdomain(organization.subdomain);
@@ -33,19 +43,39 @@ export function DomainStepPanel({
     setStatus(null);
     void (async () => {
       try {
-        const response = await fetch("/api/admin/launch-pad/domain", { cache: "no-store", signal: controller.signal });
-        const data = await response.json() as { rootDomain?: string; usesTenantQuery?: boolean; workspaceUrl?: string; error?: string; detail?: string };
-        if (!response.ok || !data.rootDomain) throw new Error(data.detail ?? data.error ?? "Could not load your domain settings.");
+        const response = await fetch("/api/admin/launch-pad/domain", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as {
+          rootDomain?: string;
+          usesTenantQuery?: boolean;
+          workspaceUrl?: string;
+          error?: string;
+          detail?: string;
+        };
+        if (!response.ok || !data.rootDomain) {
+          throw new Error(data.detail ?? data.error ?? "Could not load your domain settings.");
+        }
         setRootDomain(data.rootDomain);
-        setDevelopmentWorkspaceUrl(data.usesTenantQuery ? data.workspaceUrl ?? null : null);
+        setUsesTenantQuery(Boolean(data.usesTenantQuery));
+        setDevelopmentWorkspaceUrl(data.usesTenantQuery ? (data.workspaceUrl ?? null) : null);
       } catch (cause) {
-        if (!controller.signal.aborted) setStatus(cause instanceof Error ? cause.message : "Could not load your domain settings.");
+        if (!controller.signal.aborted) {
+          setStatus(cause instanceof Error ? cause.message : "Could not load your domain settings.");
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();
   }, [loadAttempt]);
+
+  const previewLabel = buildLaunchPadDomainDisplayUrl({
+    subdomain: subdomain.trim(),
+    rootDomain,
+    origin: usesTenantQuery ? clientOrigin() : null,
+  });
 
   const handleContinue = async () => {
     setSaving(true);
@@ -56,15 +86,36 @@ export function DomainStepPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subdomain }),
       });
-      const data = await response.json() as { error?: string; detail?: string; workspaceUrl?: string };
+      const data = (await response.json()) as {
+        error?: string;
+        detail?: string;
+        rootDomain?: string;
+        usesTenantQuery?: boolean;
+        domainDisplayUrl?: string | null;
+      };
       if (!response.ok) throw new Error(data.detail ?? data.error ?? "Could not save your domain.");
       await refresh();
-      onComplete();
+      const nextRoot = data.rootDomain || rootDomain;
+      const queryMode = data.usesTenantQuery ?? usesTenantQuery;
+      const label =
+        data.domainDisplayUrl?.trim() ||
+        buildLaunchPadDomainDisplayUrl({
+          subdomain: subdomain.trim(),
+          rootDomain: nextRoot,
+          origin: queryMode ? clientOrigin() : null,
+        });
+      setSuccessDomainLabel(label);
+      setSuccessOpen(true);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save your domain.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const finishAfterSuccess = () => {
+    setSuccessOpen(false);
+    onComplete();
   };
 
   return (
@@ -83,7 +134,8 @@ export function DomainStepPanel({
           <div className="rounded-xl border border-[#E5E7EB] p-[30px]">
             {developmentWorkspaceUrl ? (
               <p className="mb-4 break-all text-[12px] text-[#6B7280]">
-                This deployment uses tenant links: {developmentWorkspaceUrl}. The subdomain below is saved for your production address; no custom domain is connected here.
+                This deployment uses tenant links: {developmentWorkspaceUrl}. The subdomain below is
+                saved for your production address; no custom domain is connected here.
               </p>
             ) : null}
             <div className="flex items-center gap-0">
@@ -94,7 +146,7 @@ export function DomainStepPanel({
                   setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
                 }
                 placeholder="yourname"
-                className="h-9 min-w-0 flex-1 rounded-l-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#012352]"
+                className="h-9 min-w-0 flex-1 rounded-l-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[color:var(--brand-secondary,#012352)]"
                 style={interStyle}
               />
               <span
@@ -104,6 +156,12 @@ export function DomainStepPanel({
                 {rootDomain ? `.${rootDomain}` : loading ? "Loading domain…" : "Domain unavailable"}
               </span>
             </div>
+            {previewLabel ? (
+              <p className="mt-3 break-all text-[12px] text-[#6B7280]" style={interStyle}>
+                Domain preview:{" "}
+                <span className="font-medium text-[#0F172A]">{previewLabel}</span>
+              </p>
+            ) : null}
             {status ? (
               <p
                 role="alert"
@@ -114,7 +172,13 @@ export function DomainStepPanel({
               </p>
             ) : null}
             {!rootDomain && !loading ? (
-              <button type="button" className="mt-3 text-sm font-semibold text-[#012352] underline" onClick={() => setLoadAttempt((value) => value + 1)}>Retry domain settings</button>
+              <button
+                type="button"
+                className="mt-3 text-sm font-semibold text-[color:var(--brand-secondary,#012352)] underline"
+                onClick={() => setLoadAttempt((value) => value + 1)}
+              >
+                Retry domain settings
+              </button>
             ) : null}
           </div>
         </div>
@@ -129,6 +193,12 @@ export function DomainStepPanel({
           />
         </div>
       </div>
+
+      <DomainSuccessModal
+        open={successOpen}
+        domainLabel={successDomainLabel}
+        onClose={finishAfterSuccess}
+      />
     </div>
   );
 }

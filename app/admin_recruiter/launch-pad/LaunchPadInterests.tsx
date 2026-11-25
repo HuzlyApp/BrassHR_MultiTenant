@@ -47,8 +47,8 @@ export function LaunchPadInterests({ tenantId, initialKeys = [], onComplete, onB
 
   return (
     <section className="min-h-full w-full bg-[#F4F4F4] p-6 text-[#012352] sm:p-[30px]">
-      <h1 className="text-2xl font-semibold leading-8 text-black">What brings you to brassHR</h1>
-      <p className="mt-1 text-sm text-[#6B7280]">Choose what matters most to you, and we’ll make sure to help you hit your goals.</p>
+      <h1 className="text-2xl font-semibold leading-8 text-black">Goals</h1>
+      <p className="mt-1 text-sm text-[#6B7280]">What brings you to brassHR? Choose what matters most, and we’ll help you hit your goals.</p>
       <form className="mt-9" onSubmit={(event) => { event.preventDefault(); void save(false); }}>
         <fieldset disabled={saving}>
           <legend className="sr-only">Your signup interests. Select all that apply.</legend>

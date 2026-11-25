@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLaunchPadDomainDisplayUrl,
   buildTenantVanityUrl,
   buildTenantWorkspaceUrl,
   isAppRouterFlightRequest,
@@ -16,6 +17,38 @@ describe("buildTenantWorkspaceUrl", () => {
   it("uses the chosen production subdomain", () => {
     expect(buildTenantWorkspaceUrl({ slug: "zippycorp", subdomain: "example" }, "/admin_recruiter/home", { origin: "https://brasshr.com", rootDomain: "brasshr.com" }))
       .toBe("https://example.brasshr.com/admin_recruiter/home");
+  });
+});
+
+describe("buildLaunchPadDomainDisplayUrl", () => {
+  it("shows full local origin with subdomain tenant query", () => {
+    expect(
+      buildLaunchPadDomainDisplayUrl({
+        subdomain: "new-jobs-test",
+        rootDomain: "brasshr.com",
+        origin: "http://localhost:3000",
+      })
+    ).toBe("http://localhost:3000/?tenant=new-jobs-test");
+  });
+
+  it("shows full staging origin with subdomain tenant query", () => {
+    expect(
+      buildLaunchPadDomainDisplayUrl({
+        subdomain: "new-jobs-test",
+        rootDomain: "brasshr.com",
+        origin: "https://brasshr-devmode.vercel.app",
+      })
+    ).toBe("https://brasshr-devmode.vercel.app/?tenant=new-jobs-test");
+  });
+
+  it("shows production vanity host without protocol", () => {
+    expect(
+      buildLaunchPadDomainDisplayUrl({
+        subdomain: "new-jobs-test",
+        rootDomain: "brasshr.com",
+        origin: "https://brasshr.com",
+      })
+    ).toBe("new-jobs-test.brasshr.com");
   });
 });
 
