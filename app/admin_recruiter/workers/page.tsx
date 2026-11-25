@@ -26,6 +26,7 @@ import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
 import { WorkersFilterBar } from "./WorkersFilterBar";
 import { WorkerGridCard } from "./WorkerGridCard";
+import { WorkersBulkSelectionSnackbar } from "./WorkersBulkSelectionSnackbar";
 import {
   FacilitiesModal,
   ChangeManagerModal,
@@ -658,7 +659,10 @@ export default function WorkersPage() {
     });
   };
 
-  // Row Action handler
+  function selectedWorkersList() {
+    return workers.filter((w) => selectedIds.has(w.id));
+  }
+
   async function archiveWorker(worker: WorkerListRow) {
     if (!canEdit || archiveBusy || !window.confirm(`${showArchived ? "Restore" : "Archive"} ${worker.name}? Employment records and history will be preserved.`)) return;
     setArchiveBusy(true);
@@ -671,6 +675,49 @@ export default function WorkersPage() {
       await loadWorkers();
     } catch (error) { setArchiveError(error instanceof Error ? error.message : "Could not update worker archive."); }
     finally { setArchiveBusy(false); }
+  }
+
+  async function bulkArchiveSelected() {
+    const selected = selectedWorkersList();
+    if (!canEdit || archiveBusy || selected.length === 0) return;
+    const actionLabel = showArchived ? "Restore" : "Archive";
+    if (
+      !window.confirm(
+        `${actionLabel} ${selected.length} worker${selected.length === 1 ? "" : "s"}? Employment records and history will be preserved.`
+      )
+    ) {
+      return;
+    }
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      const action = showArchived ? "restore" : "archive";
+      for (const worker of selected) {
+        const response = await fetch(
+          `/api/admin/employment-workers/${encodeURIComponent(worker.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action }),
+          }
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            (payload as { error?: string }).error ||
+              `Could not ${action} ${worker.name}.`
+          );
+        }
+      }
+      setSelectedIds(new Set());
+      await loadWorkers();
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error ? error.message : "Could not update worker archive."
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
   }
 
   const handleRowAction = (
@@ -736,6 +783,16 @@ export default function WorkersPage() {
 
       {/* Workers list/grid container */}
       <div className="min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-2xs">
+        <WorkersBulkSelectionSnackbar
+          selectedCount={selectedIds.size}
+          archivedView={showArchived}
+          archiveBusy={archiveBusy}
+          canEdit={canEdit}
+          onArchive={() => void bulkArchiveSelected()}
+          onExportCsv={() => exportWorkersCsv(selectedWorkersList())}
+          onExportXls={() => exportWorkersXls(selectedWorkersList())}
+          onClear={() => setSelectedIds(new Set())}
+        />
         {viewMode === "grid" ? (
           <div className="p-3 sm:p-4" aria-busy={loading}>
             {loading ? (
@@ -937,44 +994,6 @@ export default function WorkersPage() {
           </div>
         </div>
       </div>
-
-      {/* Floating Bulk Selection Action Bar */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-4 py-2.5 shadow-xl animate-in fade-in slide-in-from-bottom-3 duration-200 sm:bottom-6 sm:gap-3 sm:px-5">
-          <span className="text-xs font-semibold text-[#0F172A] whitespace-nowrap">
-            {selectedIds.size} worker{selectedIds.size > 1 ? "s" : ""} selected
-          </span>
-          <div className="hidden h-4 w-px bg-[#E2E8F0] sm:block" />
-          <button
-            type="button"
-            onClick={() => {
-              const selectedWorkers = workers.filter((w) => selectedIds.has(w.id));
-              exportWorkersCsv(selectedWorkers);
-            }}
-            className="text-xs font-semibold text-[#475569] hover:text-[#0F172A] cursor-pointer whitespace-nowrap"
-          >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const selectedWorkers = workers.filter((w) => selectedIds.has(w.id));
-              exportWorkersXls(selectedWorkers);
-            }}
-            className="text-xs font-semibold text-[#475569] hover:text-[#0F172A] cursor-pointer whitespace-nowrap"
-          >
-            Export XLS
-          </button>
-          <div className="hidden h-4 w-px bg-[#E2E8F0] sm:block" />
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs font-medium text-[#94A3B8] hover:text-[#64748B] cursor-pointer whitespace-nowrap"
-          >
-            Deselect All
-          </button>
-        </div>
-      )}
 
       {/* Actions Dropdown Portal (Rendered to document.body, outside table scrollable area) */}
       {actionsMenuState ? (
