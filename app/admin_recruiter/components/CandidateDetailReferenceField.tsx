@@ -3,6 +3,12 @@
 import { useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
+import CandidateDetailFieldEditModal from "./CandidateDetailFieldEditModal";
+import {
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "./candidate-detail-field-layout";
+import { useCompactViewport } from "@/app/admin_recruiter/hooks/useCompactViewport";
 import {
   filterCandidateFieldInput,
   formatPhoneForEdit,
@@ -49,11 +55,14 @@ export default function CandidateDetailReferenceField({
   saving = false,
   onSave,
 }: CandidateDetailReferenceFieldProps) {
+  const compact = useCompactViewport();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ReferenceFormValue>(value);
   const [localSaving, setLocalSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const busy = saving || localSaving;
+  const showInlineEditor = editing && !compact;
+  const showModalEditor = editing && compact;
 
   function openEditor() {
     if (busy) return;
@@ -109,82 +118,84 @@ export default function CandidateDetailReferenceField({
     }
   }
 
+  const referenceEditors = (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <input
+        type="text"
+        value={draft.first}
+        onChange={(e) => {
+          setDraft((prev) => ({
+            ...prev,
+            first: filterCandidateFieldInput("person_name", e.target.value),
+          }));
+          if (saveError) setSaveError(null);
+        }}
+        placeholder="First name"
+        disabled={busy}
+        className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
+          saveError ? "border-red-400" : "border-[#D1D5DB]"
+        }`}
+      />
+      <input
+        type="text"
+        value={draft.last}
+        onChange={(e) => {
+          setDraft((prev) => ({
+            ...prev,
+            last: filterCandidateFieldInput("person_name", e.target.value),
+          }));
+          if (saveError) setSaveError(null);
+        }}
+        placeholder="Last name"
+        disabled={busy}
+        className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
+          saveError ? "border-red-400" : "border-[#D1D5DB]"
+        }`}
+      />
+      <input
+        type="email"
+        value={draft.email}
+        onChange={(e) => {
+          setDraft((prev) => ({
+            ...prev,
+            email: filterCandidateFieldInput("email", e.target.value),
+          }));
+          if (saveError) setSaveError(null);
+        }}
+        placeholder="Email"
+        disabled={busy}
+        className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
+          saveError ? "border-red-400" : "border-[#D1D5DB]"
+        }`}
+      />
+      <input
+        type="tel"
+        inputMode="tel"
+        value={draft.phone}
+        onChange={(e) => {
+          setDraft((prev) => ({
+            ...prev,
+            phone: filterCandidateFieldInput("phone", e.target.value),
+          }));
+          if (saveError) setSaveError(null);
+        }}
+        placeholder="(555) 555-5555"
+        disabled={busy}
+        maxLength={14}
+        className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
+          saveError ? "border-red-400" : "border-[#D1D5DB]"
+        }`}
+      />
+    </div>
+  );
+
   return (
     <>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
-        {label}
-      </div>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
-        {editing ? (
+      <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>{label}</div>
+      <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
+        {showInlineEditor ? (
           <div className="space-y-2">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="text"
-                value={draft.first}
-                onChange={(e) => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    first: filterCandidateFieldInput("person_name", e.target.value),
-                  }));
-                  if (saveError) setSaveError(null);
-                }}
-                placeholder="First name"
-                disabled={busy}
-                className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              />
-              <input
-                type="text"
-                value={draft.last}
-                onChange={(e) => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    last: filterCandidateFieldInput("person_name", e.target.value),
-                  }));
-                  if (saveError) setSaveError(null);
-                }}
-                placeholder="Last name"
-                disabled={busy}
-                className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              />
-              <input
-                type="email"
-                value={draft.email}
-                onChange={(e) => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    email: filterCandidateFieldInput("email", e.target.value),
-                  }));
-                  if (saveError) setSaveError(null);
-                }}
-                placeholder="Email"
-                disabled={busy}
-                className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              />
-              <input
-                type="tel"
-                inputMode="tel"
-                value={draft.phone}
-                onChange={(e) => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    phone: filterCandidateFieldInput("phone", e.target.value),
-                  }));
-                  if (saveError) setSaveError(null);
-                }}
-                placeholder="(555) 555-5555"
-                disabled={busy}
-                maxLength={14}
-                className={`min-h-10 w-full rounded-lg border px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              />
-            </div>
+            {referenceEditors}
             {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
             <div className="flex items-center gap-2">
               <button
@@ -221,6 +232,18 @@ export default function CandidateDetailReferenceField({
           </div>
         )}
       </div>
+
+      <CandidateDetailFieldEditModal
+        open={showModalEditor}
+        title={isMissing ? `Add ${label}` : `Edit ${label}`}
+        busy={busy}
+        error={saveError}
+        onClose={cancelEditor}
+        onSave={() => void handleSave()}
+      >
+        <label className="mb-2 block text-sm font-medium text-[#374151]">{label}</label>
+        {referenceEditors}
+      </CandidateDetailFieldEditModal>
     </>
   );
 }

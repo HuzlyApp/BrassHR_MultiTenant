@@ -6,16 +6,20 @@ type BrandedStepperCompleteIconProps = {
   className?: string;
 };
 
-/** Completed onboarding step — filled circle with check, uses tenant primary color. */
+/**
+ * Completed onboarding step — Figma-style filled circle with inner white ring + check.
+ * Uses tenant primary (Brass default tan `#BC8B41`).
+ */
 export default function BrandedStepperCompleteIcon({
   className = "h-8 w-8",
 }: BrandedStepperCompleteIconProps) {
   return (
     <span
-      className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] ${className}`}
+      className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary,#BC8B41)] ${className}`}
       aria-hidden
     >
-      <Check className="h-4 w-4 text-white" strokeWidth={2.5} />
+      <span className="pointer-events-none absolute inset-[3px] rounded-full border border-white/90" />
+      <Check className="relative z-10 h-3.5 w-3.5 text-white" strokeWidth={2.75} />
     </span>
   );
 }

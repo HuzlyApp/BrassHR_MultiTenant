@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
+import CandidateDetailFieldEditModal from "./CandidateDetailFieldEditModal";
+import {
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "./candidate-detail-field-layout";
 import type { SelectOption } from "./CandidateDetailSelectField";
+import { useCompactViewport } from "@/app/admin_recruiter/hooks/useCompactViewport";
 
 type CandidateDetailCityFieldProps = {
   label: string;
@@ -34,12 +40,15 @@ export default function CandidateDetailCityField({
   onLoadCities,
   onSave,
 }: CandidateDetailCityFieldProps) {
+  const compact = useCompactViewport();
   const [editing, setEditing] = useState(false);
   const [draftState, setDraftState] = useState(stateCode);
   const [draftCity, setDraftCity] = useState(editValue);
   const [localSaving, setLocalSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const busy = saving || localSaving;
+  const showInlineEditor = editing && !compact;
+  const showModalEditor = editing && compact;
 
   useEffect(() => {
     if (!editing) {
@@ -92,51 +101,53 @@ export default function CandidateDetailCityField({
     }
   }
 
+  const cityEditors = (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <select
+        value={draftState}
+        onChange={(e) => {
+          setDraftState(e.target.value);
+          setDraftCity("");
+          if (saveError) setSaveError(null);
+        }}
+        disabled={busy}
+        className="min-h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)]"
+      >
+        <option value="">Pick state</option>
+        {states.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={draftCity}
+        onChange={(e) => {
+          setDraftCity(e.target.value);
+          if (saveError) setSaveError(null);
+        }}
+        disabled={busy || citiesLoading || !draftState}
+        className="min-h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)]"
+      >
+        <option value="">
+          {citiesLoading ? "Loading cities…" : draftState ? "Pick city" : "Pick state first"}
+        </option>
+        {cities.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   return (
     <>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
-        {label}
-      </div>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
-        {editing ? (
+      <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>{label}</div>
+      <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
+        {showInlineEditor ? (
           <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <select
-                value={draftState}
-                onChange={(e) => {
-                  setDraftState(e.target.value);
-                  setDraftCity("");
-                  if (saveError) setSaveError(null);
-                }}
-                disabled={busy}
-                className="min-h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)]"
-              >
-                <option value="">Pick state</option>
-                {states.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={draftCity}
-                onChange={(e) => {
-                  setDraftCity(e.target.value);
-                  if (saveError) setSaveError(null);
-                }}
-                disabled={busy || citiesLoading || !draftState}
-                className="min-h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-[14px] outline-none focus:border-[var(--brand-primary)]"
-              >
-                <option value="">
-                  {citiesLoading ? "Loading cities…" : draftState ? "Pick city" : "Pick state first"}
-                </option>
-                {cities.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {cityEditors}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -178,6 +189,18 @@ export default function CandidateDetailCityField({
           </div>
         )}
       </div>
+
+      <CandidateDetailFieldEditModal
+        open={showModalEditor}
+        title={isMissing ? `Add ${label}` : `Edit ${label}`}
+        busy={busy}
+        error={saveError}
+        onClose={cancelEditor}
+        onSave={() => void handleSave()}
+      >
+        <label className="mb-2 block text-sm font-medium text-[#374151]">{label}</label>
+        {cityEditors}
+      </CandidateDetailFieldEditModal>
     </>
   );
 }
