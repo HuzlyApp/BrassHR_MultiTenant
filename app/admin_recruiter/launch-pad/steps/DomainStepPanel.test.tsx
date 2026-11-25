@@ -35,14 +35,25 @@ describe("domain settings and handoff", () => {
     expect(screen.getByRole("button", { name: "Save & Continue" })).toBeEnabled();
   });
 
-  it("completes the domain task without requiring an activated workspace URL", async () => {
-    mocks.fetch.mockResolvedValueOnce(Response.json({ rootDomain: "brasshr.test" }));
-    mocks.fetch.mockResolvedValueOnce(Response.json({ ok: true }));
+  it("shows the success modal after saving, then completes when closed", async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({ rootDomain: "brasshr.com", usesTenantQuery: true }));
+    mocks.fetch.mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        rootDomain: "brasshr.com",
+        usesTenantQuery: true,
+        domainDisplayUrl: "http://localhost:3000/?tenant=test-5",
+      })
+    );
     const onComplete = renderPanel();
-    await screen.findByText(".brasshr.test");
+    await screen.findByText(".brasshr.com");
     fireEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith());
+    expect(await screen.findByRole("heading", { name: "Success!" })).toBeInTheDocument();
+    expect(screen.getAllByText("http://localhost:3000/?tenant=test-5").length).toBeGreaterThan(0);
+    expect(onComplete).not.toHaveBeenCalled();
     expect(JSON.parse(mocks.fetch.mock.calls[1][1].body)).toEqual({ subdomain: "test-5" });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith());
   });
 
   it("does not open a handoff when the domain could not be saved", async () => {
@@ -52,6 +63,7 @@ describe("domain settings and handoff", () => {
     await screen.findByText(".brasshr.test");
     fireEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("That subdomain is already taken.");
+    expect(screen.queryByRole("heading", { name: "Success!" })).not.toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
   });
 });

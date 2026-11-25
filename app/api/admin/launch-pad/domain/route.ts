@@ -5,7 +5,11 @@ import { LAUNCH_PAD_STEP_IDS } from "@/app/admin_recruiter/launch-pad/constants"
 import { checkSubdomainAvailabilityForOnboarding } from "@/lib/tenant/check-subdomain-availability";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { getEffectiveRootDomain } from "@/lib/tenant/tenant-host-resolution";
-import { buildTenantWorkspaceUrl, usesTenantQueryUrls } from "@/lib/tenant/tenant-vanity-url";
+import {
+  buildLaunchPadDomainDisplayUrl,
+  buildTenantWorkspaceUrl,
+  usesTenantQueryUrls,
+} from "@/lib/tenant/tenant-vanity-url";
 import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { registerTenantDomain } from "@/lib/vercel";
@@ -18,11 +22,25 @@ function requestOrigin(request?: Request): string | undefined {
 function payload(tenant: { slug: string; subdomain: string | null }, request?: Request) {
   const rootDomain = getEffectiveRootDomain();
   const origin = requestOrigin(request);
+  const usesTenantQuery = origin ? usesTenantQueryUrls(new URL(origin).hostname) : false;
   return {
     subdomain: tenant.subdomain,
     rootDomain,
-    usesTenantQuery: origin ? usesTenantQueryUrls(new URL(origin).hostname) : false,
-    workspaceUrl: tenant.subdomain ? buildTenantWorkspaceUrl({ slug: tenant.slug, subdomain: tenant.subdomain }, ADMIN_RECRUITER_HOME_ROUTE, { rootDomain, origin }) : null,
+    usesTenantQuery,
+    workspaceUrl: tenant.subdomain
+      ? buildTenantWorkspaceUrl(
+          { slug: tenant.slug, subdomain: tenant.subdomain },
+          ADMIN_RECRUITER_HOME_ROUTE,
+          { rootDomain, origin }
+        )
+      : null,
+    domainDisplayUrl: tenant.subdomain
+      ? buildLaunchPadDomainDisplayUrl({
+          subdomain: tenant.subdomain,
+          rootDomain,
+          origin,
+        })
+      : null,
   };
 }
 

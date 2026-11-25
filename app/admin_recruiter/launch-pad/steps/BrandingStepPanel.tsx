@@ -109,7 +109,7 @@ export function BrandingStepPanel({
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not save your branding.");
-      toast.success("Branding colors saved.");
+      toast.success("Branding colors saved successfully.");
       onComplete();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save your branding.");

@@ -36,9 +36,15 @@ type SettingsSelectProps = {
   searchable?: boolean;
   searchPlaceholder?: string;
   placeholder?: string;
+  /**
+   * Fixed accent for selected/focus styles (e.g. Launch Pad navy `#012352`).
+   * When set, tenant `--brand-secondary` is ignored.
+   */
+  accentHex?: string;
 };
 
 const MENU_MAX_HEIGHT = 280;
+const DEFAULT_ACCENT = "#012352";
 
 export default function SettingsSelect({
   id,
@@ -55,19 +61,25 @@ export default function SettingsSelect({
   searchable = false,
   searchPlaceholder = "Search...",
   placeholder = "Select",
+  accentHex,
 }: SettingsSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({ visibility: "hidden" });
-  const [brandSecondary, setBrandSecondary] = useState("#012352");
+  const [brandSecondary, setBrandSecondary] = useState(accentHex?.trim() || DEFAULT_ACCENT);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const selected = options.find((option) => option.value === value);
   const label = displayLabel ?? selected?.label ?? "";
+  const fixedAccent = accentHex?.trim() || "";
 
   const resolveBrandSecondary = useCallback(() => {
+    if (fixedAccent) {
+      setBrandSecondary(fixedAccent);
+      return;
+    }
     const trigger = triggerRef.current;
     if (!trigger || typeof window === "undefined") return;
     const valueFromTrigger = getComputedStyle(trigger).getPropertyValue("--brand-secondary").trim();
@@ -79,7 +91,7 @@ export default function SettingsSelect({
       .getPropertyValue("--brand-secondary")
       .trim();
     if (valueFromRoot) setBrandSecondary(valueFromRoot);
-  }, []);
+  }, [fixedAccent]);
 
   const filteredOptions = useMemo(() => {
     if (!searchable) return options;
@@ -285,7 +297,14 @@ export default function SettingsSelect({
       : null;
 
   return (
-    <div className={`relative ${className ?? ""}`}>
+    <div
+      className={`relative ${className ?? ""}`}
+      style={
+        fixedAccent
+          ? ({ ["--brand-secondary" as string]: fixedAccent } as CSSProperties)
+          : undefined
+      }
+    >
       <button
         ref={triggerRef}
         id={id}
@@ -296,7 +315,7 @@ export default function SettingsSelect({
         aria-controls={listId}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-[8px] border border-[#CBD5E1] bg-white px-3 pr-3 text-left font-normal text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-secondary)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_16%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9] disabled:opacity-70 ${heightClass} ${triggerClassName ?? ""}`}
+        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-[8px] border border-[#CBD5E1] bg-white px-3 pr-3 text-left font-normal text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-secondary,#012352)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_16%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9] disabled:opacity-70 ${heightClass} ${triggerClassName ?? ""}`}
       >
         <span className={`min-w-0 flex-1 truncate ${label ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>
           {label || placeholder}

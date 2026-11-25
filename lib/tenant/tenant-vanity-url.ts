@@ -75,6 +75,35 @@ export function buildTenantWorkspaceUrl(tenant: { slug: string; subdomain: strin
   return buildTenantVanityUrl(tenant.subdomain, path, { rootDomain: options.rootDomain });
 }
 
+/**
+ * Launch Pad domain success / preview label.
+ * Local & staging: `{origin}/?tenant={subdomain}`
+ * Production vanity: `{subdomain}.{rootDomain}`
+ */
+export function buildLaunchPadDomainDisplayUrl(params: {
+  subdomain: string;
+  rootDomain?: string;
+  origin?: string | null;
+}): string {
+  const subdomain = params.subdomain.trim().toLowerCase();
+  if (!subdomain) return "";
+  const rootDomain = params.rootDomain?.trim().toLowerCase() || getEffectiveRootDomain();
+  const origin = params.origin?.trim() || "";
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      if (usesTenantQueryUrls(parsed.hostname)) {
+        const url = new URL("/", parsed.origin);
+        url.searchParams.set("tenant", subdomain);
+        return url.href;
+      }
+    } catch {
+      // Fall through to vanity host label.
+    }
+  }
+  return `${subdomain}.${rootDomain}`;
+}
+
 /** Recruiter dashboard routes should open on the tenant vanity host when available. */
 export function shouldUseTenantVanityHost(path: string): boolean {
   const pathname = path.split("?")[0]?.trim() || "";
