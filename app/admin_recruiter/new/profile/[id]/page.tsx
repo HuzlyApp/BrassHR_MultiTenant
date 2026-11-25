@@ -703,13 +703,29 @@ export default function NewApplicantProfilePage() {
     [data?.onboardingSteps]
   );
 
-  const visibleOnboardingSteps = useMemo(
+  const preHireOnboardingComplete = useMemo(
     () =>
-      showPostHireOnboardingSteps
-        ? [...preHireOnboardingSteps, ...postHireOnboardingSteps]
-        : preHireOnboardingSteps,
-    [preHireOnboardingSteps, postHireOnboardingSteps, showPostHireOnboardingSteps]
+      preHireOnboardingSteps.length > 0 &&
+      preHireOnboardingSteps.every((step) => step.state === "complete"),
+    [preHireOnboardingSteps]
   );
+
+  // Collapsed: pre-hire only, or post-hire only once pre-hire is done.
+  // Expanded (View more): both pre-hire and post-hire.
+  const visibleOnboardingSteps = useMemo(() => {
+    if (showPostHireOnboardingSteps) {
+      return [...preHireOnboardingSteps, ...postHireOnboardingSteps];
+    }
+    if (preHireOnboardingComplete && postHireOnboardingSteps.length > 0) {
+      return postHireOnboardingSteps;
+    }
+    return preHireOnboardingSteps;
+  }, [
+    preHireOnboardingComplete,
+    preHireOnboardingSteps,
+    postHireOnboardingSteps,
+    showPostHireOnboardingSteps,
+  ]);
 
   const onboardingSectionMinHeight = useMemo(() => {
     const stepCount = Math.max(visibleOnboardingSteps.length, 1);
@@ -1443,26 +1459,33 @@ export default function NewApplicantProfilePage() {
                           ) : null}
                         </div>
                       ) : null}
-                      {postHireOnboardingSteps.length > 0 ? (
+                      {preHireOnboardingSteps.length > 0 &&
+                      postHireOnboardingSteps.length > 0 ? (
                         <div className="mb-3 flex justify-end">
                           <button
                             type="button"
                             onClick={() =>
                               setShowPostHireOnboardingSteps((current) => !current)
                             }
-                            className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                            className="text-xs font-semibold text-[color:var(--brand-primary,#BC8B41)] hover:underline"
                           >
                             {showPostHireOnboardingSteps ? "View less" : "View more"}
                           </button>
                         </div>
                       ) : null}
                       <div className="relative space-y-0 text-xs text-gray-600">
-                        <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[color:var(--brand-primary)]" />
+                        <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[#BFDBFE]" />
                         {visibleOnboardingSteps.map((s, idx) => {
                           const isFirstPostHire =
                             showPostHireOnboardingSteps &&
                             s.phase === "post_hire" &&
                             visibleOnboardingSteps[idx - 1]?.phase !== "post_hire";
+                          const stepNumber =
+                            (showPostHireOnboardingSteps
+                              ? idx
+                              : preHireOnboardingComplete && s.phase === "post_hire"
+                                ? preHireOnboardingSteps.length + idx
+                                : idx) + 1;
                           return (
                             <div key={s.id}>
                               {isFirstPostHire ? (
@@ -1475,8 +1498,8 @@ export default function NewApplicantProfilePage() {
                                   {s.state === "complete" ? (
                                     <BrandedStepperCompleteIcon className="relative z-10 h-8 w-8" />
                                   ) : (
-                                    <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-white text-[13px] font-semibold leading-none tabular-nums text-[color:var(--brand-primary)]">
-                                      {idx + 1}
+                                    <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border-[1.5px] border-[#93C5FD] bg-white text-[13px] font-semibold leading-none tabular-nums text-[#60A5FA]">
+                                      {stepNumber}
                                     </div>
                                   )}
                                 </div>
