@@ -113,7 +113,7 @@ export function jobDetailsApiUrl(jobId: string): string {
   return `/api/admin/jobs/${encodeURIComponent(jobId)}?view=details`;
 }
 
-export function workerProfileApiUrl(workerId: string, applicationId?: string | null, view?: "resume"): string {
+export function workerProfileApiUrl(workerId: string, applicationId?: string | null, view?: "resume" | "header"): string {
   const applicationQuery = applicationId
     ? `&applicationId=${encodeURIComponent(applicationId)}`
     : "";

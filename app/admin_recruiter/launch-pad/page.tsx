@@ -56,7 +56,7 @@ function LaunchPadContent() {
     setInterests(null);
     if (!tenantId) return () => { cancelled = true; };
     const loadInterests = async () => {
-      const response = await fetch("/api/admin/launch-pad/interests", { cache: "no-store" });
+      const response = await fetch("/api/admin/launch-pad/interests", { cache: "no-store", signal: AbortSignal.timeout(15_000) });
       const data = await response.json() as { tenantId?: string; interests?: SignupInterests; error?: string };
       if (response.status === 403 && !cancelled) setAccessDenied(true);
       if (!response.ok || data.tenantId !== tenantId || !data.interests) throw new Error(data.error ?? "Could not load your signup interests.");

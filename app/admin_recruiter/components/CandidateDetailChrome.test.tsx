@@ -6,12 +6,17 @@ const workerId = "11111111-1111-4111-8111-111111111111";
 const mocks = vi.hoisted(() => ({ load: vi.fn(), invalidate: vi.fn(), pathname: "/admin_recruiter/new/profile/11111111-1111-4111-8111-111111111111" }));
 vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname }));
 vi.mock("@/lib/admin/staff-detail-fetch-cache", () => ({ fetchStaffDetailJson: mocks.load, invalidateStaffDetailCache: mocks.invalidate, workerProfileApiUrl: (id: string) => `/api/admin/worker-profile?workerId=${id}` }));
-vi.mock("./DetailedCandidateHeader", () => ({ default: ({ statusLabel, phone, progressUpcoming }: { statusLabel: string; phone: string; progressUpcoming: number }) => <div>{statusLabel}<span>{phone}</span><span data-testid="upcoming">{progressUpcoming}</span></div> }));
+vi.mock("./DetailedCandidateHeader", () => ({ default: ({ statusLabel, phone, progressUpcoming, jobId }: { statusLabel: string; phone: string; progressUpcoming: number; jobId: string }) => <div>{statusLabel}<span>{phone}</span><span data-testid="upcoming">{progressUpcoming}</span><span data-testid="job-id">{jobId}</span></div> }));
 vi.mock("./DetailedTabs", () => ({ default: () => null }));
 vi.mock("./CandidateCommunicationDialog", () => ({ default: () => null }));
 import CandidateDetailChrome from "./CandidateDetailChrome";
 afterEach(cleanup);
 describe("persistent candidate header", () => {
+  it("shows the applied job identifier when there is no external MSP requisition number", async () => {
+    mocks.load.mockResolvedValueOnce({ ok: true, payload: { worker: { first_name: "QA" }, job_requisition_id: "applied-job-a" } });
+    render(<CandidateDetailChrome>Profile</CandidateDetailChrome>);
+    await waitFor(() => expect(screen.getByTestId("job-id")).toHaveTextContent("applied-job-a"));
+  });
   it("counts the same 25 pre-hire steps on Profile and Pre-hire instead of mixing in 19 post-hire steps", async () => {
     mocks.load.mockResolvedValueOnce({ ok: true, payload: { worker: { first_name: "QA" }, onboardingSteps: [
       ...Array.from({ length: 25 }, (_, i) => ({ id: `pre-${i}`, phase: "pre_hire", state: "pending" })),

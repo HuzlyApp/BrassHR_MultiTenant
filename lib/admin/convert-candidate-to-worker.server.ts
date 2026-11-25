@@ -206,6 +206,9 @@ export async function convertCandidateToWorker(
   let base: ConvertCandidateResult;
 
   if (error) {
+    if (error.code === "23514" && /matching W2 or 1099 workflow/.test(error.message)) {
+      return { ok: false, error: "Assign a matching W2 or 1099 workflow with Pre-Hire and Post-Hire steps before creating this worker.", status: 409, code: "ONBOARDING_REQUIRED" };
+    }
     console.error("[convert-candidate] guarded conversion failed", { code: error.code });
     return {
       ok: false,

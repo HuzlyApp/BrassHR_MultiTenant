@@ -7,6 +7,7 @@ import { useCandidateDetailChromeActive } from "../../../../components/Candidate
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../../components/CandidateDetailLoader";
+import ResumePdfPreview from "../../../../components/ResumePdfPreview";
 // import ProfileSubTabs from "../../../../components/ProfileSubTabs";
 import {
   fetchStaffDetailJson,
@@ -352,7 +353,7 @@ export default function NewApplicantProfileResumePage() {
                         <div className="border-b border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
                           If the embedded preview is blank, your browser may not support this document viewer. <a className="font-medium underline" href={embedUrl ?? resumeUrl} target="_blank" rel="noopener noreferrer">Open in new tab</a> or download the resume above.
                         </div>
-                        <iframe
+                        {lowerPath.endsWith(".pdf") || lowerUrl.includes(".pdf") ? <ResumePdfPreview url={embedUrl ?? resumeUrl} /> : <iframe
                           title="Resume preview"
                           src={embedUrl ?? resumeUrl}
                           className="h-[calc(100dvh-260px)] min-h-[700px] w-full"
@@ -361,7 +362,7 @@ export default function NewApplicantProfileResumePage() {
                               "Preview is blocked on this device. Use 'Open in new tab' to view the resume."
                             )
                           }
-                        />
+                        />}
                         {resumePreviewError ? (
                           <div className="border-t border-zinc-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                             {resumePreviewError}
