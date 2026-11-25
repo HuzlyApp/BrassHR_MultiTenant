@@ -9,7 +9,7 @@ import {
 } from "@/lib/dialpad/cti";
 import { formatPhoneDisplay, toE164 } from "@/lib/dialpad/phone";
 import type { DialpadCallLog } from "@/lib/dialpad/client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import toast from "react-hot-toast";
 
@@ -63,7 +63,7 @@ type ActiveCall = {
   elapsedSeconds: number;
 };
 
-const DIALPAD_PANEL_FETCH_TIMEOUT_MS = 15_000;
+const DIALPAD_PANEL_FETCH_TIMEOUT_MS = 6_000;
 
 export default function CallSettingsPanel() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -149,7 +149,7 @@ export default function CallSettingsPanel() {
   }
 
   const refreshCallLogsRef = useRef(refreshCallLogs);
-  refreshCallLogsRef.current = refreshCallLogs;
+  useLayoutEffect(() => { refreshCallLogsRef.current = refreshCallLogs; });
 
   function post(command: ReturnType<typeof dialpadCtiCommand>) {
     postDialpadCti(iframeRef.current?.contentWindow, command);

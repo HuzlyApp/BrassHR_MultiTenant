@@ -151,3 +151,7 @@ describe("reviewParsedCandidateName", () => {
     expect(reviewParsedCandidateName("", "").needsReview).toBe(true);
   });
 });
+
+it("does not mislabel a short numeric suffix as a phone number", () => {
+  expect(validatePersonName("Paste 1125", { label: "Last name" })).toMatchObject({ ok: false, error: "Last name cannot include numbers." });
+});

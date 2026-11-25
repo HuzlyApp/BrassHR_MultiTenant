@@ -374,6 +374,7 @@ export function actionForMethod(method: string): PermissionAction {
 
 /** Legacy URLs must use the same grants as the canonical staff endpoint. */
 export function canonicalStaffApiPath(path: string): string {
+  if (path === "/admin_recruiter/workflows") return "/admin_recruiter/dashboard/workflowlibrary";
   const aliases: Array<[string, string]> = [
     ["/api/v1/clock-events", "/api/admin/scheduling/clock-events"],
     ["/api/v1/clock-ins", "/api/admin/scheduling/clock-ins"],

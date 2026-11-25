@@ -10,6 +10,8 @@ import {
 
 export type JobRequisitionFormDraft = {
   jobId: string | null;
+  baseUpdatedAt?: string | null;
+  originalStatus?: "draft" | "published";
   step: JobFormStep;
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -60,6 +62,8 @@ export function readJobRequisitionFormDraft(
 
     return {
       jobId: draftJobId,
+      baseUpdatedAt: typeof parsed.baseUpdatedAt === "string" ? parsed.baseUpdatedAt : null,
+      originalStatus: parsed.originalStatus === "published" ? "published" : "draft",
       step: parsed.step ?? "setup",
       job,
       ui: normalizeDraftUi(parsed.ui, job),

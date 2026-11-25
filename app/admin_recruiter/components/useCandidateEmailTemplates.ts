@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AdminEmailTemplateItem } from "@/lib/email-templates/types";
 import { EMAIL_TEMPLATE_TYPE_LABELS } from "@/lib/email-templates/template-keys";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffAuthHeaders } from "@/lib/staff-auth-headers";
 
 type TemplatePreview = {
   template_key: string;
@@ -12,14 +12,6 @@ type TemplatePreview = {
   body_html: string;
   body_text: string;
 };
-
-async function authHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export function templateDisplayName(template: AdminEmailTemplateItem): string {
   return (
@@ -44,7 +36,9 @@ export function useCandidateEmailTemplates(workerId: string | null) {
     try {
       const res = await fetch("/api/admin/email-templates", {
         cache: "no-store",
-        headers: await authHeaders(),
+        headers: await staffAuthHeaders(),
+        credentials: "include",
+        signal: AbortSignal.timeout(15000),
       });
       const json = (await res.json().catch(() => ({}))) as {
         templates?: AdminEmailTemplateItem[];
@@ -84,7 +78,7 @@ export function useCandidateEmailTemplates(workerId: string | null) {
         }
         const res = await fetch(
           `/api/admin/candidates/${encodeURIComponent(targetWorkerId)}/communications/email/template-preview?templateKey=${encodeURIComponent(templateKey)}&origin=${encodeURIComponent(origin)}`,
-          { cache: "no-store", headers: await authHeaders() }
+          { cache: "no-store", credentials: "include", headers: await staffAuthHeaders(), signal: AbortSignal.timeout(15000) }
         );
         const json = (await res.json().catch(() => ({}))) as TemplatePreview & {
           error?: string;

@@ -65,7 +65,7 @@ import {
 } from "@/lib/jobs/job-requisition-form-draft";
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
-import { validateJobCompensationFields } from "@/lib/jobs/validation";
+import { validateJobCompensationFields, jobTitleValidationError } from "@/lib/jobs/validation";
 import { useJobFormStep } from "./use-job-form-step";
 
 const initialJob: JobRequisitionInput = {
@@ -92,6 +92,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const brandStyle = primaryButtonStyle(brandVars);
 
   const [persistedJobId, setPersistedJobId] = useState(jobId);
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState<string | null>(null);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const { step, setStep, restoreStep } = useJobFormStep(jobId ? "requisition" : "setup", draftHydrated);
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
@@ -147,6 +148,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const draft = readJobRequisitionFormDraft(jobId ?? null);
     if (draft) {
       skipJobLoadRef.current = Boolean(jobId);
+      setBaseUpdatedAt(draft.baseUpdatedAt ?? null);
+      setOriginalStatus(draft.originalStatus ?? "draft");
       restoreStep(draft.step);
       setJob(draft.job);
       setUi(draft.ui);
@@ -166,6 +169,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     if (!draftHydrated || saving || draftClearedRef.current) return;
     writeJobRequisitionFormDraft({
       jobId: jobId ?? null,
+      baseUpdatedAt,
+      originalStatus,
       step,
       job,
       ui,
@@ -180,6 +185,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     });
   }, [
     draftHydrated,
+    baseUpdatedAt,
+    originalStatus,
     saving,
     jobId,
     step,
@@ -215,7 +222,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   useEffect(() => {
     if (jobId) return;
     setReferenceJobsLoading(true);
-    void fetch("/api/admin/jobs", { cache: "no-store" })
+    void fetch("/api/admin/jobs?fields=reference", { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
@@ -236,6 +243,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load job");
         const row = payload.job as Record<string, unknown>;
+        setBaseUpdatedAt(typeof row.updated_at === "string" ? row.updated_at : null);
         setOriginalStatus(
           isLiveJobRequisitionStatus(String(row.status ?? "")) ? "published" : "draft"
         );
@@ -446,6 +454,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [job.profession, job.professionId, options?.professions]);
 
   function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
+    setMessage("");
     if (
       originalStatus === "published" &&
       (key === "professionId" || key === "employmentType")
@@ -528,6 +537,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         }
       }
     } else {
+      const titleError = jobTitleValidationError(current.publicTitle);
+      if (titleError) errors.publicTitle = titleError;
       if (!current.publicTitle?.trim()) {
         errors.publicTitle = "Job Title is required.";
       }
@@ -575,6 +586,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     }
   ) {
     if (saving) return;
+    if (persistedJobId && !baseUpdatedAt) {
+      setMessage("This draft has no saved revision. Use Reload saved job to load the latest version before saving.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     setFieldErrors({});
@@ -646,6 +661,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           action,
           job: payloadJob,
           jobId: persistedJobId,
+          expectedUpdatedAt: persistedJobId ? baseUpdatedAt ?? undefined : undefined,
           screeningQuestions,
           confirmRoutingChange: confirmRoutingChange || workflowChange?.confirmWorkflowChange === true,
           confirmWorkflowChange: workflowChange?.confirmWorkflowChange === true,
@@ -698,6 +714,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       }
       if (payload.job?.id) {
         setPersistedJobId(String(payload.job.id));
+        setBaseUpdatedAt(typeof payload.job.updated_at === "string" ? payload.job.updated_at : null);
       }
       if (payload.serviceAreaWarning) {
         // Draft was saved with a hold warning — treat as successful save and leave the form.
@@ -836,6 +853,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function handleNext() {
+    setMessage("");
+    setFieldErrors({});
     if (step === "requisition" || step === "msp-details") {
       const errors = {
         ...validateRequisitionStep(buildPayloadJob()),
@@ -855,7 +874,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       const compensationErrors = validateJobCompensationFields(buildPayloadJob());
       if (Object.keys(compensationErrors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...compensationErrors }));
-        setMessage(Object.values(compensationErrors)[0] ?? "Fix pay and hours before continuing.");
         return;
       }
       setStep("description");
@@ -970,6 +988,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           {message ? (
             <div className="mb-5 whitespace-pre-line rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
               {message}
+              {persistedJobId ? <button type="button" className="mt-2 block underline" onClick={() => {
+                if (!window.confirm("Discard local changes and reload the saved job?")) return;
+                draftClearedRef.current = true;
+                clearJobRequisitionFormDraft();
+                window.location.reload();
+              }}>Reload saved job</button> : null}
             </div>
           ) : null}
 
@@ -1180,7 +1204,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               termsAccepted={termsAccepted}
               brandStyle={brandStyle}
               saveDraftLabel={
-                serviceAreaBlocked || originalStatus === "draft" ? "Save draft" : "Save"
+                serviceAreaBlocked || (!persistedJobId && originalStatus === "draft") ? "Save draft" : "Save"
               }
               onBack={handleBack}
               onNext={handleNext}

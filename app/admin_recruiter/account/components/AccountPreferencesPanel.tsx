@@ -791,6 +791,7 @@ export default function AccountPreferencesPanel({
               <FieldLabel htmlFor="next-email">New email</FieldLabel>
               <input
                 id="next-email"
+                onBlur={() => setEmailError(validateEmailChange(normalizeAccountEmail(nextEmail), email))}
                 type="email"
                 className={FIELD}
                 value={nextEmail}
@@ -817,7 +818,7 @@ export default function AccountPreferencesPanel({
                 type="submit"
                 className={BTN_PRIMARY}
                 style={{ backgroundColor: "var(--brand-primary, #012352)" }}
-                disabled={emailBusy}
+                disabled={emailBusy || Boolean(validateEmailChange(normalizeAccountEmail(nextEmail), email))}
               >
                 {emailBusy ? "Sending code..." : "Continue"}
               </button>

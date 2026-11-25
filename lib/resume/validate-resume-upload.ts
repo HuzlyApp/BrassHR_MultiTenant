@@ -83,6 +83,9 @@ export function validateResumeUploadFile(input: {
   size: number;
   maxBytes?: number;
 }): string | null {
+  if (!Number.isFinite(input.size) || input.size <= 0) {
+    return "This resume file is empty. Please choose a non-empty PDF or DOCX file.";
+  }
   const maxBytes = input.maxBytes ?? 10 * 1024 * 1024;
   const mime = (input.type || "").toLowerCase();
   if (!isAcceptedResumeFileName(input.name) && !isAcceptedResumeMime(mime)) {

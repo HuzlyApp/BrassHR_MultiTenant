@@ -535,7 +535,6 @@ export default function BusinessInfoTab() {
                   if (websiteError) setWebsiteError(null);
                 }}
                 type="url"
-                required
                 onBlur={() => {
                   const value = website.trim();
                   let valid = false;

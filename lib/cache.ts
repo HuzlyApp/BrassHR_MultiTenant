@@ -14,6 +14,7 @@ import {
 } from "@/lib/cache-keys";
 import {
   getRedisTimeoutMs,
+  __resetRedisCircuitForTests,
   isRedisCircuitOpen,
   markRedisUnavailable,
   withRedisTimeout,
@@ -189,6 +190,7 @@ async function createAdapter(): Promise<CacheAdapter | null> {
 }
 
 async function getAdapter(): Promise<CacheAdapter | null> {
+  if (isRedisCircuitOpen()) return null;
   if (testAdapter !== undefined) return testAdapter;
   if (!adapterPromise) {
     adapterPromise = withRedisTimeout(createAdapter(), "adapter").catch((error) => {
@@ -198,7 +200,11 @@ async function getAdapter(): Promise<CacheAdapter | null> {
       return null;
     });
   }
-  return adapterPromise;
+  const pending = adapterPromise;
+  const adapter = await pending;
+  // A missing adapter during cooldown must not disable caching permanently.
+  if (!adapter && adapterPromise === pending) adapterPromise = null;
+  return adapter;
 }
 
 export async function getCache<T>(key: string): Promise<T | null> {
@@ -350,6 +356,7 @@ export async function invalidateResourceCache(table: string, resourceId: string)
 }
 
 export function __setCacheAdapterForTests(adapter: CacheAdapter | null | undefined): void {
+  __resetRedisCircuitForTests();
   testAdapter = adapter;
   adapterPromise = null;
 }

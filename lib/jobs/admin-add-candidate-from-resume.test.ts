@@ -102,7 +102,7 @@ describe("prepareResumeCandidate", () => {
     const result = await prepareResumeCandidate({ resumeText: READABLE_RESUME, resumeTitle: "QA_TEST_Applicant_resume" });
     expect(result.parsed).toMatchObject({ first_name: "Jordan", last_name: "Lee", email: "jordan.lee@clinic.org" });
     expect(result.qualityOk).toBe(true);
-    expect(grokParseResumeCachedMock).toHaveBeenCalledWith(expect.any(String), { fileName: null });
+    expect(grokParseResumeCachedMock).toHaveBeenCalledWith(expect.any(String), { fileName: null, timeoutMs: 8000 });
   });
   it("keeps structured ATS sections through normalization and storage", async () => {
     grokParseResumeCachedMock.mockResolvedValue({ ...PARTIAL_PARSE, summary: "Experienced registered nurse.", skills: ["ICU"], experience: [{ company: "Clinic", position: "RN", start_date: "2021", end_date: null, location: null, description: "Patient care" }], education: [{ institution: "University", degree: "BSN", field: null, start_date: null, end_date: "2020", gpa: null }] });
@@ -130,7 +130,8 @@ describe("prepareResumeCandidate", () => {
       resumeText: READABLE_RESUME,
     });
 
-    expect(result.qualityOk).toBe(true);
+    expect(result.qualityOk).toBe(false);
+    expect(result.qualityMessage).toMatch(/Review the extracted fields/);
     expect(result.parsed.email).toBe("jordan.lee@clinic.org");
     expect(result.parsed.phone).toContain("404");
   });

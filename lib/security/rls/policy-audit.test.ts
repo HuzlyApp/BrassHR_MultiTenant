@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
   FK_SPOOF_CANDIDATE_TABLES,
@@ -11,15 +11,19 @@ import {
 const ROOT = path.resolve(__dirname, "../../..");
 
 function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === ".git" || name === ".next") continue;
-    const full = path.join(dir, name);
-    const st = statSync(full);
-    if (st.isDirectory()) walk(full, files);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".next") continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, files);
     else files.push(full);
   }
   return files;
 }
+
+// Read the same immutable migration corpus once, keeping all security assertions.
+const migrationSql = walk(path.join(ROOT, "supabase/migrations"))
+  .filter((file) => file.endsWith(".sql"))
+  .map((file) => ({ file, sql: readFileSync(file, "utf8") }));
 
 describe("RLS policy audit (static)", () => {
   it("flags public tables that historically had RLS disabled", () => {
@@ -67,10 +71,7 @@ describe("RLS policy audit (static)", () => {
   });
 
   it("does not grant change_job_application_status to anon in later migrations", () => {
-    const migrationsDir = path.join(ROOT, "supabase/migrations");
-    const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql"));
-    for (const file of files) {
-      const sql = readFileSync(path.join(migrationsDir, file), "utf8");
+    for (const { file, sql } of migrationSql) {
       const grantAnon = /GRANT EXECUTE ON FUNCTION public\.change_job_application_status[\s\S]{0,80}anon/i.test(
         sql
       );
@@ -79,9 +80,7 @@ describe("RLS policy audit (static)", () => {
   });
 
   it("does not use user_metadata / raw_user_meta_data for tenant authorization", () => {
-    const sqlFiles = walk(path.join(ROOT, "supabase/migrations")).filter((f) => f.endsWith(".sql"));
-    for (const file of sqlFiles) {
-      const sql = readFileSync(file, "utf8");
+    for (const { sql } of migrationSql) {
       expect(sql).not.toMatch(/auth\.jwt\(\)\s*->>\s*'user_metadata'/i);
       expect(sql).not.toMatch(/raw_user_meta_data/);
     }

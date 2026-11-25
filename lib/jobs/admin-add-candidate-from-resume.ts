@@ -32,7 +32,8 @@ import {
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { buildWorkerResumeFileName } from "@/lib/resume/worker-resume-file-name";
 import {
-  runAutoQuickMatchForApplication,
+  scheduleAutoQuickMatchForApplication,
+  queuedAutoQuickMatchResult,
   type AutoQuickMatchResult,
 } from "@/lib/jobs/match-analysis/auto-quick-match";
 import type { AnalysisProvider } from "@/lib/jobs/match-analysis/schema";
@@ -287,14 +288,16 @@ async function parseExtractedResumeText(
   const fallback = normalizeParsedResume(preExtracted);
 
   let parsed = fallback;
+  let aiUnavailable = false;
   if (!contentError) {
     try {
       parsed = normalizeParsedResume(
-        await grokParseResumeCached(extractedText, { fileName }),
+        await grokParseResumeCached(extractedText, { fileName, timeoutMs: 8000 }),
       );
     } catch (parseError) {
       console.error("[admin-add-candidate-from-resume] grok parse failed", parseError);
       parsed = fallback;
+      aiUnavailable = true;
     }
   }
 
@@ -316,7 +319,7 @@ async function parseExtractedResumeText(
   }
 
   if (hasAdminCandidateIdentity(parsed)) {
-    return { parsed, qualityOk: true, qualityMessage: null };
+    return { parsed, qualityOk: !aiUnavailable, qualityMessage: aiUnavailable ? "AI parsing is temporarily unavailable. Review the extracted fields before adding this candidate." : null };
   }
 
   return {
@@ -596,8 +599,9 @@ export async function adminAddCandidateFromResume(
   });
   let autoQuickMatch: AutoQuickMatchResult | null = null;
   if (applicationId) {
-    // Await Step 1 so Vercel does not kill fire-and-forget work, and the UI can show fit.
-    autoQuickMatch = await runAutoQuickMatchForApplication({
+    // The candidate is saved; AI matching runs after the response via Next after().
+    autoQuickMatch = queuedAutoQuickMatchResult();
+    scheduleAutoQuickMatchForApplication({
       supabase,
       tenantId: input.tenantId,
       jobApplicationId: applicationId,

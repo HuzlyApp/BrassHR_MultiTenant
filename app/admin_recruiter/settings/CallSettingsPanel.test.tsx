@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CallSettingsPanel from "@/app/admin_recruiter/settings/CallSettingsPanel";
 import { postDialpadCti } from "@/lib/dialpad/cti";
@@ -20,7 +20,7 @@ describe("CallSettingsPanel", () => {
     vi.clearAllMocks();
     vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockReturnValue(window);
   });
-  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it("shows call controls immediately even when Dialpad never responds", async () => {
     vi.stubGlobal(
       "fetch",
@@ -159,4 +159,23 @@ describe("CallSettingsPanel", () => {
       expect.objectContaining({ method: "decline_call", payload: { call_id: "88" } })
     );
   });
+});
+
+it("ends a stalled call-log refresh with a retry state in six seconds", async () => {
+  vi.useFakeTimers();
+  vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), ms);
+    return controller.signal;
+  });
+  vi.stubGlobal("fetch", vi.fn((_url: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
+    init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason));
+  })));
+  render(<CallSettingsPanel />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+  expect(screen.getByText("Dialpad timed out. Try refreshing call logs.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });

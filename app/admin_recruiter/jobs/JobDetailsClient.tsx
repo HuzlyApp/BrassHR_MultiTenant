@@ -896,6 +896,8 @@ export default function JobDetailsClient({ jobId }: Props) {
                       <div className="mt-2 flex w-full flex-col gap-2.5 min-[400px]:gap-3 min-[500px]:flex-row min-[500px]:flex-wrap">
                         <button
                           type="button"
+                          disabled={normalizeJobRequisitionStatus(String(job.status)) !== "open"}
+                          title={normalizeJobRequisitionStatus(String(job.status)) !== "open" ? "Open this job before matching candidates." : undefined}
                           onClick={() => setImportOpen(true)}
                           className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
                           style={outlineBrandStyle}
@@ -909,6 +911,8 @@ export default function JobDetailsClient({ jobId }: Props) {
                         </button>
                         <button
                           type="button"
+                          disabled={normalizeJobRequisitionStatus(String(job.status)) !== "open"}
+                          title={normalizeJobRequisitionStatus(String(job.status)) !== "open" ? "Open this job before uploading resumes." : undefined}
                           onClick={() => setAddCandidateOpen(true)}
                           className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[500px]:w-auto`}
                           style={outlineBrandStyle}
@@ -918,7 +922,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                             className="h-4 w-4 shrink-0"
                             color={primaryColor}
                           />
-                          Upload Resume&apos;s
+                          Upload Resumes
                         </button>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlowProvider,
   useEdgesState,
@@ -172,8 +172,10 @@ function WorkflowBuilderInner({
   const [redoStack, setRedoStack] = useState<WorkflowState[]>([]);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+  useLayoutEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
   const [searchTerm, setSearchTerm] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -265,7 +267,7 @@ function WorkflowBuilderInner({
   }, [editingTitle, title]);
 
   const initialCanvasRef = useRef({ nodes: initialNodes, edges: initialEdges });
-  initialCanvasRef.current = { nodes: initialNodes, edges: initialEdges };
+  useLayoutEffect(() => { initialCanvasRef.current = { nodes: initialNodes, edges: initialEdges }; }, [initialNodes, initialEdges]);
   const lastResetKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -390,7 +392,7 @@ function WorkflowBuilderInner({
   }, [handleRedo, handleUndo]);
 
   const registerUndoControlsRef = useRef(registerUndoControls);
-  registerUndoControlsRef.current = registerUndoControls;
+  useLayoutEffect(() => { registerUndoControlsRef.current = registerUndoControls; }, [registerUndoControls]);
 
   useEffect(() => {
     registerUndoControlsRef.current?.({
@@ -759,7 +761,11 @@ function WorkflowBuilderInner({
                 style={{ color: TEXT_MUTED }}
               >
                 {publishStatusLabel ?? "Draft"} <span style={{ color: "#d0d5dd" }}>•</span> Last updated{" "}
-                {lastUpdated.minutesAgo}m ago by {lastUpdated.author}
+                {lastUpdated.minutesAgo < 60
+                  ? `${lastUpdated.minutesAgo}m ago`
+                  : lastUpdated.minutesAgo < 1440
+                    ? `${Math.floor(lastUpdated.minutesAgo / 60)}h ago`
+                    : `${Math.floor(lastUpdated.minutesAgo / 1440)}d ago`} by {lastUpdated.author}
               </p>
             ) : null}
           </div>

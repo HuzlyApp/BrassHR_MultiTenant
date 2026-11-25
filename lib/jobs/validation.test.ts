@@ -295,3 +295,7 @@ describe("job requisition validation", () => {
     expect(message).toContain("Ask an administrator to create a workflow mapping");
   });
 });
+
+it.each(["x".repeat(201), "<script>alert(1)</script>"])("rejects invalid job titles in draft saves", (publicTitle) => {
+  expect(jobMutationSchema.safeParse({ action: "save_draft", job: { ...validJob, publicTitle } }).success).toBe(false);
+});

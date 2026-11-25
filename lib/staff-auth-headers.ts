@@ -20,7 +20,13 @@ async function getStaffAccessToken(): Promise<string | null> {
 }
 
 export async function staffAuthHeaders(): Promise<HeadersInit> {
-  const token = await getStaffAccessToken();
+  // Keep bearer auth when available. A stalled browser SDK must not indefinitely
+  // block the existing cookie fallback; the server still verifies the session.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const token = await Promise.race([
+    getStaffAccessToken(),
+    new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 1000); }),
+  ]).finally(() => { if (timer) clearTimeout(timer); });
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

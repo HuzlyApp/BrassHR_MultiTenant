@@ -70,3 +70,31 @@ describe("schedule form feedback", () => {
     expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
   });
 });
+
+it("starts a new shift without the employee selected in a cancelled draft", async () => {
+  render(<SchedulePageClient />);
+  await screen.findByRole("status");
+  fireEvent.click(screen.getByRole("button", { name: "Post a Shift" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Select employee" }), { target: { value: "employee-a" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Post a Shift" }));
+  expect(screen.getByRole("combobox", { name: "Select employee" })).toHaveValue("");
+});
+
+it("requires an explicit confirmation for an end time on the following day", async () => {
+  render(<SchedulePageClient />);
+  await screen.findByRole("status");
+  fireEvent.click(screen.getByRole("button", { name: "Post a Shift" }));
+  const title = screen.getByPlaceholderText("e.g. Warehouse Staff, Morning Shift");
+  const form = title.closest("form")!;
+  fireEvent.change(title, { target: { value: "Overnight coverage" } });
+  fireEvent.change(form.querySelector('input[type="date"]')!, { target: { value: easternDateString(new Date()) } });
+  fireEvent.change(form.querySelectorAll('input[type="time"]')[1], { target: { value: "07:00" } });
+  const previousConfirm = window.confirm;
+  const confirm = vi.fn(() => false);
+  window.confirm = confirm;
+  fireEvent.click(screen.getByRole("button", { name: "Create Shift" }));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("overnight shift ends on the following day"));
+  expect(mocks.fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+  window.confirm = previousConfirm;
+});

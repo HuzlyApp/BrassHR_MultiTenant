@@ -185,5 +185,6 @@ export class JobValidationError extends Error {
 
 /** Invalid industry keys are HTTP 400; other job validation stays 422. */
 export function jobValidationHttpStatus(error: JobValidationError): number {
+  if (error.code === "JOB_CONFLICT") return 409;
   return error.fieldErrors.industryKey ? 400 : 422;
 }
