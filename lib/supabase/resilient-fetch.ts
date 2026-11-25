@@ -1,4 +1,4 @@
-        /** Server-side fetch with longer timeout and light retry for Supabase REST calls. */
+/** Server-side fetch with bounded attempts and retries for safe reads only. */
 export function createResilientFetch(options?: {
   timeoutMs?: number;
   retries?: number;
@@ -8,15 +8,22 @@ export function createResilientFetch(options?: {
 
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     let lastError: unknown;
+    const request = typeof Request !== "undefined" && input instanceof Request ? input : null;
+    const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+    const callerSignal = init?.signal ?? request?.signal;
+    const canRetry = method === "GET" || method === "HEAD";
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const signal = callerSignal
+        ? AbortSignal.any([callerSignal, controller.signal])
+        : controller.signal;
 
       try {
         const response = await fetch(input, {
           ...init,
-          signal: controller.signal,
+          signal,
         });
         clearTimeout(timer);
         return response;
@@ -24,7 +31,8 @@ export function createResilientFetch(options?: {
         clearTimeout(timer);
         lastError = error;
         const retryable = isRetryableFetchError(error);
-        if (!retryable || attempt >= retries) {
+        // An interrupted write may already have committed. Never replay it here.
+        if (!canRetry || signal.aborted || !retryable || attempt >= retries) {
           throw error;
         }
         await sleep(400 * (attempt + 1));

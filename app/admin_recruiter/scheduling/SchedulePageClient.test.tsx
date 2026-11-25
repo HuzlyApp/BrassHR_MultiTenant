@@ -39,6 +39,7 @@ describe("schedule form feedback", () => {
     } }));
     render(<SchedulePageClient />);
     expect(await screen.findByRole("link", { name: "Test Worker", exact: true })).toHaveAttribute("href", "/admin_recruiter/workers/candidate-a/profile");
+    expect(screen.getByRole("status")).toHaveTextContent("9 scheduled hours");
   });
   it("shows unassigned shifts and applies the dashboard open-only filter", async () => {
     mocks.params = new URLSearchParams("open=1");
@@ -52,6 +53,8 @@ describe("schedule form feedback", () => {
     expect(await screen.findByText("Open coverage")).toBeInTheDocument();
     expect(screen.queryByText("Assigned coverage")).not.toBeInTheDocument();
     expect(screen.getByText("Open shifts", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 shifts in this range");
+    expect(screen.getByRole("status")).toHaveTextContent("9 scheduled hours");
     expect(screen.getByRole("checkbox", { name: "Open shifts only" })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: "Open shifts only" }));
     expect(mocks.router.replace).toHaveBeenCalledWith("/admin_recruiter/calendar/shifts?", { scroll: false });

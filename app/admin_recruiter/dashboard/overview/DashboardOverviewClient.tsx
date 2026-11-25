@@ -36,6 +36,7 @@ type DashboardOverviewData = {
   userName: string;
   selectedDate: string;
   selectedDateLabel: string;
+  scheduledShiftCount?: number | null;
   stats?: {
     activeWorkers: StatMetric;
     newCandidates: StatMetric;
@@ -455,6 +456,11 @@ export default function DashboardOverviewClient() {
         <p className="relative text-[12px] font-semibold leading-4 text-[color:var(--brand-primary)]">
           Keep your shifts filled
         </p>
+        {typeof data?.scheduledShiftCount === "number" ? (
+          <p className="relative text-xs text-white">
+            {data.scheduledShiftCount} scheduled shifts · {data.selectedDateLabel}
+          </p>
+        ) : null}
         <div className="relative flex flex-col gap-2">
           <h2 className="text-[20px] font-semibold leading-7 text-white!">Get the right people on shift.</h2>
           <p className="max-w-[438px] text-[12px] leading-4 text-white">

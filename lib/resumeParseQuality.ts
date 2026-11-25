@@ -98,8 +98,20 @@ export function normalizeParsedResume(raw: unknown): NormalizedParsedResume {
     job_role: s(o.job_role ?? o.jobRole ?? o.job_title ?? o.JobRole),
     ...(typeof o.summary === "string" ? { summary: s(o.summary) } : {}),
     ...(Array.isArray(o.skills) ? { skills: o.skills.filter((item): item is string => typeof item === "string").map(item => item.trim()).filter(Boolean) } : {}),
-    ...(Array.isArray(o.experience) ? { experience: ResumeSchema.shape.experience.safeParse(o.experience).data ?? [] } : {}),
-    ...(Array.isArray(o.education) ? { education: ResumeSchema.shape.education.safeParse(o.education).data ?? [] } : {}),
+    ...(Array.isArray(o.experience) ? { experience: o.experience.flatMap(item => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      return ResumeSchema.shape.experience.safeParse([{
+        ...item, start_date: item.start_date ?? null, end_date: item.end_date ?? null,
+        location: item.location ?? null, description: item.description ?? null,
+      }]).data ?? [];
+    }) } : {}),
+    ...(Array.isArray(o.education) ? { education: o.education.flatMap(item => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      return ResumeSchema.shape.education.safeParse([{
+        ...item, field: item.field ?? null, start_date: item.start_date ?? null,
+        end_date: item.end_date ?? null, gpa: item.gpa ?? null,
+      }]).data ?? [];
+    }) } : {}),
   }
 }
 

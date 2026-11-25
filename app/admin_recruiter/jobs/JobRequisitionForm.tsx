@@ -205,10 +205,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   ]);
 
   useEffect(() => {
-    void fetch("/api/admin/job-options", { cache: "no-store" })
+    void fetch("/api/admin/job-options", { cache: "no-store", signal: AbortSignal.timeout(15_000) })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load options");
+        if (!Array.isArray(payload.professions) || !Array.isArray(payload.specialties)) {
+          throw new Error("Job options are incomplete. Please reload this page and try again.");
+        }
         setOptions(payload);
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load options"));
@@ -224,7 +227,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   useEffect(() => {
     if (jobId) return;
     setReferenceJobsLoading(true);
-    void fetch("/api/admin/jobs?fields=reference", { cache: "no-store" })
+    void fetch("/api/admin/jobs?fields=reference", { cache: "no-store", signal: AbortSignal.timeout(15_000) })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load jobs");

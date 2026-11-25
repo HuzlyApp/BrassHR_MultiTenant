@@ -42,6 +42,7 @@ import {
   formatEmployeeShiftOverlapMessage,
   formatShiftRange,
   shiftsOverlap,
+  shiftIntervalMinutes,
   parseEmployeeScheduleShiftInput,
   calendarViewRange,
   matchesScheduleEmployeeFilters,
@@ -447,6 +448,11 @@ export default function SchedulePageClient() {
     return rows;
   }, [filteredEmployees, filteredShifts]);
 
+  const scheduledHours = useMemo(() => filteredShifts.reduce((minutes, shift) => {
+    const interval = shiftIntervalMinutes({ ...shift, workDate: shift.workDate.slice(0, 10) });
+    return minutes + (interval ? interval.end - interval.start : 0);
+  }, 0) / 60, [filteredShifts]);
+
   const shiftGrid = useMemo(() => {
     const grid = new Map<string, EmployeeScheduleShift[]>();
     for (const shift of filteredShifts) {
@@ -841,7 +847,7 @@ export default function SchedulePageClient() {
         }} />
         Open shifts only
       </label>
-      <p role="status" className="mb-2 text-xs text-[#64748B]">{filteredShifts.length} shifts in this range · {filteredEmployees.length} employees</p>
+      <p role="status" className="mb-2 text-xs text-[#64748B]">{filteredShifts.length} shifts in this range · {filteredEmployees.length} employees · {scheduledHours.toLocaleString("en-US", { maximumFractionDigits: 2 })} scheduled hours</p>
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">

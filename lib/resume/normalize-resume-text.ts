@@ -351,6 +351,26 @@ function pickRelevantLines(allLines: string[], maxLines: number): string[] {
 }
 
 /** Regex pre-extraction for obvious contact fields before Grok. */
+function extractExplicitProfileSections(text: string): Pick<NormalizedParsedResume, "summary" | "skills"> {
+  const summary: string[] = []
+  const skills: string[] = []
+  let section: "summary" | "skills" | null = null
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim().replace(BULLET_LINE_RE, "")
+    const heading = line.match(/^(professional\s+summary|summary|objective|profile|technical\s+skills|core\s+skills|skills)(?:\s*:\s*(.*)|\s*)$/i)
+    if (heading) {
+      section = /skills/i.test(heading[1]) ? "skills" : "summary"
+      const inline = heading[2]?.trim()
+      if (inline) (section === "skills" ? skills : summary).push(inline)
+    } else if (/^(?:(?:professional|work|employment)\s+)?(?:experience|history|education|certifications?|references|projects|languages|achievements|awards)\s*:?$/i.test(line)) {
+      section = null
+    } else if (line && section) {
+      (section === "skills" ? skills : summary).push(line)
+    }
+  }
+  return { summary: summary.join(" "), skills: [...new Set(skills.flatMap(line => line.split(/[,;|•]/)).map(item => item.trim()).filter(Boolean))] }
+}
+
 export function preExtractResumeFields(
   text: string,
   opts?: ResumeFieldExtractOptions,
@@ -397,6 +417,7 @@ export function preExtractResumeFields(
     lastNameFromFileName(opts?.fileName ?? "", first_name)
 
   return dropSoftwareModuleLocation({
+    ...extractExplicitProfileSections(trimmed),
     first_name,
     last_name,
     email,

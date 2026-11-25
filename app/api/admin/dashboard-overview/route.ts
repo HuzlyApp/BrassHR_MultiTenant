@@ -266,6 +266,7 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
       newCandidatesPrevious,
       jobsRes,
       licensesRes,
+      scheduledShiftCountRes,
     ] = await Promise.all([
       supabase
         .from("users")
@@ -334,6 +335,8 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
         .lte("expires_at", credentialCutoff)
         .order("expires_at", { ascending: true })
         .limit(10),
+      supabase.from("employee_schedule_shifts").select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId).eq("work_date", selectedDate),
     ]);
 
     if (jobsRes.error) console.warn("[admin/dashboard-overview] job_requisitions", jobsRes.error.message);
@@ -555,6 +558,7 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
       userName: profileName,
       selectedDate,
       selectedDateLabel: formatWeekdayDate(selectedDate),
+      scheduledShiftCount: scheduledShiftCountRes.error ? null : scheduledShiftCountRes.count,
       schedule: {
         meetings,
         interviews,

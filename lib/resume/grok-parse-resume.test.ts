@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { __setGrokClientForTests, grokParseResume } from "@/lib/resume/grok-parse-resume"
 
 describe("grokParseResume", () => {
+  it("keeps explicit resume sections when AI omits them", async () => {
+    const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] });
+    __setGrokClientForTests({ chat: { completions: { create } } } as never);
+    const result = await grokParseResume("Jane Doe\njane@example.com\nSummary\nExperienced ICU nurse.\nSkills\nICU, First aid\nEducation\nUniversity");
+    expect(result.normalized.summary).toBe("Experienced ICU nurse.");
+    expect(result.normalized.skills).toEqual(["ICU", "First aid"]);
+  });
+
   beforeEach(() => {
     __setGrokClientForTests(null)
   })
