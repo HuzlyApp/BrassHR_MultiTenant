@@ -268,8 +268,10 @@ export default function HireJourneyClient({
           },
         };
       });
+      invalidateStaffDetailCache(workerProfileApiUrl(workerId));
+      dispatchCandidatePipelineRefresh(workerId, next);
     },
-    []
+    [workerId]
   );
   const postHireVisible = Boolean(view?.postHireVisible);
   const postHireBlock = view?.postHire ?? null;

@@ -1788,6 +1788,8 @@ export default function JobApplicationsPage() {
     setListSort(EMPTY_APPLICATION_LIST_SORT);
     setPage(1);
     setSelectedIds(new Set());
+    setLoading(true);
+    setApplicationsRefreshNonce((value) => value + 1);
   }, [handleSaveEditFilters]);
 
   const statusTabs = useMemo(() => {
@@ -2086,6 +2088,9 @@ export default function JobApplicationsPage() {
     : uniqueFilteredRows.length;
   const totalPages = Math.max(1, Math.ceil(resultTotal / pageSize));
   const currentPage = Math.min(page, totalPages);
+  useEffect(() => {
+    if (!loading && page > totalPages) setPage(totalPages);
+  }, [loading, page, totalPages]);
   const pageStart = resultTotal === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const displayRows = useMemo(() => {
     if (listMeta.paged && !hasClientFilters) {
@@ -2265,7 +2270,8 @@ export default function JobApplicationsPage() {
       const deletedIds = new Set<string>(
         Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : []
       );
-      setRows((current) => current.filter((row) => !deletedIds.has(row.id)));
+      setLoading(true);
+      setMetricsLoading(true);
       setPage(1);
       setApplicationsRefreshNonce((current) => current + 1);
       setSelectedIds((current) => {
@@ -3739,12 +3745,14 @@ export default function JobApplicationsPage() {
         {/* Footer pagination — ellipsis pattern for large page counts (1 … 3 4 5 … N) */}
         <div className="flex flex-col gap-3 rounded-b-2xl border-t border-[#E2E8F0] bg-white px-3 py-3.5 pb-6 sm:px-5 sm:pb-3.5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
-            <p className="min-w-0 text-xs font-medium text-[#64748B]">
+            <p className="min-w-0 text-xs font-medium text-[#64748B]" aria-busy={loading}>
+              {loading || page > totalPages ? "Refreshing applicants…" : <>
               Showing{" "}
               <span className="font-semibold text-[#0F172A]">
                 {resultTotal === 0 ? "0" : `${pageStart}–${pageEnd}`}
               </span>{" "}
               of <span className="font-semibold text-[#0F172A]">{displayTotal}</span> results
+              </>}
             </p>
             <div className="shrink-0 lg:hidden">
               <ListPaginationShowLabel
@@ -4068,7 +4076,12 @@ export default function JobApplicationsPage() {
           id: option.id,
           title: option.public_title?.trim() || "Untitled job",
         }))}
-        onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
+        onSuccess={() => {
+          setLoading(true);
+          setMetricsLoading(true);
+          setPage(1);
+          setApplicationsRefreshNonce((value) => value + 1);
+        }}
       />
 
       <ImportCandidatesModal

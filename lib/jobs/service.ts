@@ -916,6 +916,16 @@ export async function transitionJobStatus(
       .maybeSingle();
     if (jobRowError) throw jobRowError;
     if (jobRow) {
+      const fieldErrors = validatePublishableJob(
+        jobRowToInput(jobRow as Record<string, unknown>),
+        jobRow.workflow_id ? String(jobRow.workflow_id) : null
+      );
+      if (Object.keys(fieldErrors).length > 0) {
+        throw new JobValidationError("Complete the required fields before publishing.", fieldErrors);
+      }
+      if (jobRequiresWorkflow(jobRowToInput(jobRow as Record<string, unknown>)) && jobRow.workflow_id) {
+        await resolvePublishedFlowForJobWorkflow(supabase, tenantId, String(jobRow.workflow_id));
+      }
       await evaluateJobServiceArea(
         supabase,
         tenantId,
@@ -1213,14 +1223,8 @@ export async function publishExistingJob(
     );
   }
 
-  const result = await saveJobRequisition(
-    supabase,
-    tenantId,
-    actorUserId,
-    jobRowToInput(row as Record<string, unknown>),
-    { jobId, publish: true }
-  );
-  return result.job;
+  // A status change must preserve the workflow already assigned to this job.
+  return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "open");
 }
 
 /**

@@ -690,7 +690,6 @@ export default function FacilitiesPage() {
             void loadFacilities().then(() => {
               if (facilityId) setSelectedFacilityId(facilityId);
             });
-            toast.success("Facility created successfully.");
           }}
         />
       ) : null}

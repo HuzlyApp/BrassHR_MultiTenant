@@ -19,6 +19,8 @@ describe("per-hire workflow type selection", () => {
     render(<Control workerId="candidate-a" />);
     fireEvent.click(screen.getByRole("button", { name: "Update assigned workflow" }));
     expect(await screen.findByText("Payroll type: W2")).toBeInTheDocument();
+    expect(screen.getByText(/This application keeps its assigned workflow when the job changes/)).toBeInTheDocument();
+    expect(screen.getByText("Assigned to this application")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: /Contractor flow.*1099/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(mocks.fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);

@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
+import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import { formatStoredJobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
   formatPaySummary,
@@ -29,6 +30,7 @@ type Props = {
   companyName: string;
   brandStyle: CSSProperties;
   brandVars?: CSSProperties;
+  screeningQuestions?: JobScreeningQuestionInput[];
 };
 
 export function JobPostPreviewModal({
@@ -39,6 +41,7 @@ export function JobPostPreviewModal({
   companyName,
   brandStyle,
   brandVars,
+  screeningQuestions = [],
 }: Props) {
   const isMsp = job.sourceType === "MSP";
   const title =
@@ -162,6 +165,16 @@ export function JobPostPreviewModal({
                   className="job-preview-description mt-0"
                   emptyLabel="No description added yet."
                 />
+                {screeningQuestions.length > 0 ? (
+                  <section className="mt-6">
+                    <h3 className="text-sm font-semibold text-[#1D2739]">Screening questions</h3>
+                    <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-[#667085]">
+                      {screeningQuestions.map((question, index) => (
+                        <li key={index}>{question.question}{question.isRequired ? " (Required)" : ""}</li>
+                      ))}
+                    </ol>
+                  </section>
+                ) : null}
                 {ui.selectedBenefits.length ? (
                   <section className="job-preview-description mt-6">
                     <h3 className="m-0 text-sm font-semibold leading-6 text-[#1D2739]">Benefits</h3>

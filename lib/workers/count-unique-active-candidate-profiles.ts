@@ -22,6 +22,16 @@ type WorkerIdentityRow = {
 
 const PAGE_SIZE = 1000;
 
+/** Same population as the Applicants list, including closed applications. */
+export async function countApplicantListProfiles(supabase: SupabaseClient, tenantId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("staff_application_list_page", { p_tenant_id: tenantId, p_job_id: null, p_limit: 1, p_offset: 0 });
+  if (error) throw error;
+  const payload = typeof data === "string" ? JSON.parse(data) : data;
+  const total = Number(payload?.total);
+  if (!Number.isFinite(total) || total < 0) throw new Error("Applicant totals are unavailable");
+  return total;
+}
+
 function isPipelineBaseStatus(status: string): boolean {
   if (!status) return true;
   return (ACTIVE_CANDIDATE_PIPELINE_STATUSES as readonly string[]).includes(status);
