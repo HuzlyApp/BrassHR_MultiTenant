@@ -123,13 +123,11 @@ export async function GET(req: Request) {
     branding = brandingFromTenantRow(row, resolvedSlug);
   }
 
-  const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
-  // Prefer the dedicated favicon; fall back to the company logo when unset.
-  const iconSrc = normalizeBrandingImageSrc(
-    branding.faviconUrl || branding.logoUrl,
-    fallback,
-    { allowBlob: true }
-  );
+  const fallback = DEFAULT_FAVICON;
+  // Prefer the dedicated favicon only — do not reuse the company logo as the tab icon.
+  const iconSrc = normalizeBrandingImageSrc(branding.faviconUrl, fallback, {
+    allowBlob: true,
+  });
 
   const resolved =
     (await resolveIconResponse(iconSrc, req.url)) ??

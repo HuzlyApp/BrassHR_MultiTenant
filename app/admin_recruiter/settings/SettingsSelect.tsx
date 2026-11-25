@@ -59,7 +59,7 @@ export default function SettingsSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({ visibility: "hidden" });
-  const [brandPrimary, setBrandPrimary] = useState("#BC8B41");
+  const [brandSecondary, setBrandSecondary] = useState("#012352");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -67,18 +67,18 @@ export default function SettingsSelect({
   const selected = options.find((option) => option.value === value);
   const label = displayLabel ?? selected?.label ?? "";
 
-  const resolveBrandPrimary = useCallback(() => {
+  const resolveBrandSecondary = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger || typeof window === "undefined") return;
-    const valueFromTrigger = getComputedStyle(trigger).getPropertyValue("--brand-primary").trim();
+    const valueFromTrigger = getComputedStyle(trigger).getPropertyValue("--brand-secondary").trim();
     if (valueFromTrigger) {
-      setBrandPrimary(valueFromTrigger);
+      setBrandSecondary(valueFromTrigger);
       return;
     }
     const valueFromRoot = getComputedStyle(document.documentElement)
-      .getPropertyValue("--brand-primary")
+      .getPropertyValue("--brand-secondary")
       .trim();
-    if (valueFromRoot) setBrandPrimary(valueFromRoot);
+    if (valueFromRoot) setBrandSecondary(valueFromRoot);
   }, []);
 
   const filteredOptions = useMemo(() => {
@@ -129,10 +129,14 @@ export default function SettingsSelect({
   }, [dropUp]);
 
   useLayoutEffect(() => {
+    resolveBrandSecondary();
+  }, [resolveBrandSecondary]);
+
+  useLayoutEffect(() => {
     if (!open) return;
-    resolveBrandPrimary();
+    resolveBrandSecondary();
     updatePosition();
-  }, [open, updatePosition, filteredOptions.length, searchable, resolveBrandPrimary]);
+  }, [open, updatePosition, filteredOptions.length, searchable, resolveBrandSecondary]);
 
   useEffect(() => {
     if (!open) {
@@ -203,7 +207,7 @@ export default function SettingsSelect({
                 ...menuStyle,
                 overscrollBehavior: "contain",
                 // Portaled to body — copy tenant brand token so selected styles resolve.
-                ["--brand-primary" as string]: brandPrimary,
+                ["--brand-secondary" as string]: brandSecondary,
               } as CSSProperties
             }
             className="pointer-events-auto z-[300] flex flex-col overflow-hidden rounded-[8px] border border-[#CBD5E1] bg-white shadow-lg"
@@ -222,7 +226,7 @@ export default function SettingsSelect({
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder={searchPlaceholder}
                     aria-label={searchPlaceholder}
-                    className="h-9 w-full rounded-[8px] border border-[#E2E8F0] bg-white py-0 pl-8 pr-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)]"
+                    className="h-9 w-full rounded-[8px] border border-[#E2E8F0] bg-white py-0 pl-8 pr-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-secondary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-secondary)_16%,transparent)]"
                   />
                 </div>
               </div>
@@ -256,9 +260,9 @@ export default function SettingsSelect({
                         style={
                           isSelected
                             ? {
-                                color: brandPrimary,
-                                backgroundColor: `color-mix(in srgb, ${brandPrimary} 12%, white)`,
-                                borderLeftColor: brandPrimary,
+                                color: brandSecondary,
+                                backgroundColor: `color-mix(in srgb, ${brandSecondary} 12%, white)`,
+                                borderLeftColor: brandSecondary,
                               }
                             : undefined
                         }
@@ -292,7 +296,7 @@ export default function SettingsSelect({
         aria-controls={listId}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-[8px] border border-[#CBD5E1] bg-white px-3 pr-3 text-left font-normal text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9] disabled:opacity-70 ${heightClass} ${triggerClassName ?? ""}`}
+        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-[8px] border border-[#CBD5E1] bg-white px-3 pr-3 text-left font-normal text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-secondary)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_16%,transparent)] disabled:cursor-not-allowed disabled:bg-[#F1F5F9] disabled:opacity-70 ${heightClass} ${triggerClassName ?? ""}`}
       >
         <span className={`min-w-0 flex-1 truncate ${label ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>
           {label || placeholder}

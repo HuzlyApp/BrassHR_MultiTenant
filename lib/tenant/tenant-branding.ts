@@ -354,10 +354,8 @@ export function brandingFromTenantRow(
   const company = row.name?.trim() || fb.companyName;
   const primaryHex = row.primary_color?.trim() || fb.primaryHex;
   const logoUrl = normalizeBrandingImageSrc(row.logo_url, fb.logoUrl, { allowBlob: true });
-  const hasCustomLogo = Boolean(row.logo_url?.trim());
   const isPlatformBranding = row.slug?.trim().toLowerCase() === PLATFORM_DEFAULT_TENANT_SLUG;
-  const faviconFallback =
-    isPlatformBranding || !hasCustomLogo ? BRAAS_PLATFORM_FAVICON : logoUrl;
+  // Keep favicon independent from company logo so uploading a logo does not change the tab icon.
   const typography = brandingTypographyDefaults(primaryHex);
   return {
     id: row.id,
@@ -368,7 +366,7 @@ export function brandingFromTenantRow(
     signupLogoUrl: normalizeBrandingImageSrc(row.signup_logo_url, logoUrl, { allowBlob: true }),
     faviconUrl: isPlatformBranding
       ? BRAAS_PLATFORM_FAVICON
-      : normalizeBrandingImageSrc(row.favicon_url, faviconFallback, { allowBlob: true }),
+      : normalizeBrandingImageSrc(row.favicon_url, BRAAS_PLATFORM_FAVICON, { allowBlob: true }),
     headline: row.welcome_headline?.trim() || `Welcome to ${company}`,
     subtitle: row.welcome_subtitle?.trim() || fb.subtitle,
     signupHeadline: row.signup_headline?.trim() || row.welcome_headline?.trim() || `Welcome to ${company}`,

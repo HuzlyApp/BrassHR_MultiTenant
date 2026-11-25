@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import toast from "react-hot-toast";
+import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
@@ -32,14 +34,64 @@ export function LogoStepPanel({
   const [tagline, setTagline] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
+  const [savedLogoUrl, setSavedLogoUrl] = useState("");
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
   const [faviconPreview, setFaviconPreview] = useState("");
+  const [savedFaviconUrl, setSavedFaviconUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/admin/branding", { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          branding?: {
+            logoUrl?: string | null;
+            faviconUrl?: string | null;
+            headline?: string | null;
+            subtitle?: string | null;
+            companyName?: string | null;
+          };
+        };
+        if (!response.ok || cancelled) return;
+        const branding = payload.branding;
+        if (!branding) return;
+        const logoUrl = String(branding.logoUrl ?? "").trim();
+        const faviconUrl = String(branding.faviconUrl ?? "").trim();
+        if (logoUrl) {
+          setSavedLogoUrl(logoUrl);
+          setLogoPreview(logoUrl);
+        }
+        // Only hydrate a real tenant favicon — never mirror logo or platform default.
+        const isPlatformFavicon =
+          faviconUrl === BRAAS_PLATFORM_FAVICON ||
+          faviconUrl.endsWith("brassHR favicon 2.svg");
+        if (faviconUrl && faviconUrl !== logoUrl && !isPlatformFavicon) {
+          setSavedFaviconUrl(faviconUrl);
+          setFaviconPreview(faviconUrl);
+        }
+        if (branding.headline?.trim() && branding.headline.trim() !== `Welcome to ${branding.companyName ?? ""}`.trim()) {
+          setLogoName(branding.headline.trim());
+        }
+        if (branding.subtitle?.trim()) setTagline(branding.subtitle.trim());
+      } catch {
+        // Keep empty local state if branding cannot be loaded.
+      } finally {
+        if (!cancelled) setLoadingSaved(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeFile = tab === "logo" ? logoFile : faviconFile;
   const activePreview = tab === "logo" ? logoPreview : faviconPreview;
+  const hasSavedActive = tab === "logo" ? Boolean(savedLogoUrl) : Boolean(savedFaviconUrl);
 
   const applyFile = (file: File | null) => {
     if (!file) return;
@@ -47,8 +99,8 @@ export function LogoStepPanel({
       setError("Only support png, jpg files");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Max 10 MB files are allowed");
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Max 2 MB files are allowed");
       return;
     }
     setError(null);
@@ -70,14 +122,22 @@ export function LogoStepPanel({
   const clearActive = () => {
     if (tab === "logo") {
       setLogoFile(null);
-      setLogoPreview("");
+      setLogoPreview(savedLogoUrl);
     } else {
       setFaviconFile(null);
-      setFaviconPreview("");
+      setFaviconPreview(savedFaviconUrl);
     }
   };
 
   const handleContinue = async () => {
+    const hasAnyUpload = Boolean(logoFile || faviconFile);
+    const hasAnySaved = Boolean(savedLogoUrl || savedFaviconUrl);
+    const hasText = Boolean(logoName.trim() || tagline.trim());
+    if (!hasAnyUpload && !hasAnySaved && !hasText) {
+      setError("Upload a logo or favicon, or use Skip to continue without one.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -86,14 +146,26 @@ export function LogoStepPanel({
         form.append("field", "logo");
         form.append("file", logoFile);
         const response = await fetch("/api/admin/branding/logo", { method: "POST", body: form });
-        if (!response.ok) throw new Error("Could not upload your logo.");
+        const data = (await response.json().catch(() => ({}))) as { error?: string; logoUrl?: string };
+        if (!response.ok) throw new Error(data.error || "Could not upload your logo.");
+        if (data.logoUrl) {
+          setSavedLogoUrl(data.logoUrl);
+          setLogoPreview(data.logoUrl);
+          setLogoFile(null);
+        }
       }
       if (faviconFile) {
         const form = new FormData();
         form.append("field", "favicon");
         form.append("file", faviconFile);
         const response = await fetch("/api/admin/branding/logo", { method: "POST", body: form });
-        if (!response.ok) throw new Error("Could not upload your favicon.");
+        const data = (await response.json().catch(() => ({}))) as { error?: string; logoUrl?: string };
+        if (!response.ok) throw new Error(data.error || "Could not upload your favicon.");
+        if (data.logoUrl) {
+          setSavedFaviconUrl(data.logoUrl);
+          setFaviconPreview(data.logoUrl);
+          setFaviconFile(null);
+        }
       }
       if (logoName.trim() || tagline.trim()) {
         const response = await fetch("/api/admin/branding", {
@@ -106,6 +178,7 @@ export function LogoStepPanel({
         });
         if (!response.ok) throw new Error("Could not save your company branding.");
       }
+      toast.success(hasAnyUpload ? "Branding images saved." : "Branding details saved.");
       onComplete();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save your company branding.");
@@ -154,7 +227,7 @@ export function LogoStepPanel({
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
               {tab === "logo"
                 ? "Customize your company logo."
-                : "Upload a square icon for browser tabs."}
+                : "Upload a square icon for browser tabs. This is separate from your company logo."}
             </p>
           </div>
 
@@ -225,7 +298,7 @@ export function LogoStepPanel({
                 className="mt-3 w-full text-center text-[10px] font-normal leading-[15px] text-[#6B7280]"
                 style={interStyle}
               >
-                Max 10 MB files are allowed
+                Max 2 MB files are allowed
               </p>
               <input
                 ref={inputRef}
@@ -243,35 +316,42 @@ export function LogoStepPanel({
                 {error}
               </p>
             ) : null}
+            {loadingSaved ? (
+              <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
+                Loading saved branding…
+              </p>
+            ) : null}
           </div>
 
-          {activeFile && activePreview ? (
+          {activePreview ? (
             <div className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] bg-white p-3.5">
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={activePreview}
                 alt=""
                 width={30}
                 height={30}
                 className="size-[30px] rounded object-cover"
-                unoptimized
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] font-normal leading-4 text-black" style={interStyle}>
-                  {activeFile.name}
+                  {activeFile?.name || (tab === "logo" ? "Saved company logo" : "Saved favicon")}
                 </p>
                 <p className="text-[10px] font-normal leading-[15px] text-[#6B7280]" style={interStyle}>
-                  {formatBytes(activeFile.size)}
+                  {activeFile ? formatBytes(activeFile.size) : hasSavedActive ? "Saved" : "Selected"}
                 </p>
               </div>
-              <button type="button" onClick={clearActive} aria-label="Remove file">
-                <Image
-                  src="/icons/braas-HR/launch-pad/delete-outline.svg"
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="size-[18px]"
-                />
-              </button>
+              {activeFile ? (
+                <button type="button" onClick={clearActive} aria-label="Remove file">
+                  <Image
+                    src="/icons/braas-HR/launch-pad/delete-outline.svg"
+                    alt=""
+                    width={18}
+                    height={18}
+                    className="size-[18px]"
+                  />
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
