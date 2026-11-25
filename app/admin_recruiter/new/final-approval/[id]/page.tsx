@@ -13,6 +13,7 @@ import {
   type CandidatePipelineProfilePayload,
 } from "@/lib/admin/candidate-pipeline-stepper";
 import { buildFinalApprovalViewModel } from "@/lib/admin/final-approval";
+import { isTerminalApplicationStatus } from "@/lib/onboarding/workflow-phase";
 
 type ProfilePayload = CandidatePipelineProfilePayload & {
   worker?: {
@@ -125,6 +126,7 @@ export default function NewApplicantFinalApprovalPage() {
 
   const workerStatus = profile?.worker?.status ?? checklist?.worker?.status ?? null;
   const decisionMade = isFinalApprovalDecisionMade(workerStatus);
+  const closedApplication = isTerminalApplicationStatus(workerStatus) || ["closed", "closed_application", "disapproved", "cancelled"].includes((workerStatus ?? "").trim().toLowerCase().replace(/\s+/g, "_"));
   const applicantReady = useMemo(
     () => isApplicantReadyForFinalApproval(profile ?? {}, checklist ?? {}),
     [profile, checklist]
@@ -173,6 +175,12 @@ export default function NewApplicantFinalApprovalPage() {
           <CandidateDetailLoader label="Loading final approval..." />
         ) : redirectingAfterApproval ? (
           <CandidateDetailLoader label="Opening onboarded applicant..." />
+        ) : closedApplication ? (
+          <section className="rounded-xl border border-[#E5E7EB] bg-white p-6" role="status">
+            <h1 className="text-lg font-semibold">This application is closed</h1>
+            <p className="mt-2 text-sm text-[#475569]">Reopen the application from its profile before requesting final approval. No worker has been created.</p>
+            <Link className="mt-4 inline-flex font-semibold underline" href={`/admin_recruiter/new/profile/${encodeURIComponent(applicantId ?? "")}`}>Back to applicant profile</Link>
+          </section>
         ) : showNotReadyPanel ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
             <p className="font-semibold">Final approval is not ready yet.</p>

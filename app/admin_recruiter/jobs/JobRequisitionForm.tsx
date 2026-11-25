@@ -640,6 +640,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     try {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
+        signal: AbortSignal.timeout(20_000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
@@ -722,10 +723,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             : `Job updated. Re-analyzing ${reanalysisCount} candidates against the new description.`
         );
       }
+      if (reassigned === 0 && !(Number.isFinite(reanalysisCount) && reanalysisCount > 0)) {
+        toast.success(payload.serviceAreaWarning ? "Draft saved. Review the service area before publishing." : action === "publish" ? "Job saved and published successfully." : "Job draft saved successfully.");
+      }
       router.push("/admin_recruiter/jobs");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to save job");
+      setMessage(error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")
+        ? "Saving took too long. Check the Jobs list before trying again, because the server may have saved this job."
+        : error instanceof Error ? error.message : "Failed to save job");
     } finally {
       setSaving(false);
     }

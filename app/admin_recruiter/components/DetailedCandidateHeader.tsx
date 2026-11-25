@@ -283,7 +283,7 @@ export default function DetailedCandidateHeader({
             </p>
           </div>
           <div className="mt-6 flex items-center justify-between gap-3 text-sm">
-            <span className="font-semibold text-[#012352]">{percent}% Completed</span>
+            <span className="font-semibold text-[#012352]">{progressPercent == null ? "Progress available on Profile" : `${percent}% Completed`}</span>
             <span className="text-[#6B7280]">{progressDate?.trim() || "—"}</span>
           </div>
         </div>

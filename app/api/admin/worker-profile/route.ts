@@ -122,7 +122,8 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(url, key)
     const selectedTenantId = await resolveStaffTenantId(supabase, auth)
     if (!selectedTenantId) return NextResponse.json({ error: "Select a company first." }, { status: 400 })
-    const resumeOnly = req.nextUrl.searchParams.get("view") === "resume"
+    const compactHeader = req.nextUrl.searchParams.get("view") === "header"
+    const resumeOnly = compactHeader || req.nextUrl.searchParams.get("view") === "resume"
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
@@ -256,6 +257,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (resumeOnly) {
+      const summary = compactHeader ? await (await import("@/lib/jobs/application-statuses/attach-worker-application-status")).getApplicationStatusSummaryForWorker(supabase, { tenantId: selectedTenantId, workerId }) : null
       void writeActivityLog({ actorUserId: auth.devBypass ? null : auth.userId, tenantId: selectedTenantId, action: "worker.profile.view", entityType: "worker", entityId: workerId, metadata: { route: "GET /api/admin/worker-profile", view: "resume" }, request: req })
       return NextResponse.json({
         worker: {
@@ -264,10 +266,15 @@ export async function GET(req: NextRequest) {
           email: asTrimmedString(w.email), phone: asTrimmedString(w.phone),
           city: asTrimmedString(w.city), state: asTrimmedString(w.state),
           job_role: asTrimmedString(w.job_role), status: asTrimmedString(w.status),
+          created_at: asTrimmedString(w.created_at), updated_at: asTrimmedString(w.updated_at),
           status_label: asTrimmedString(w.status) ? formatPipelineStatusLabel(String(w.status)) : null,
           profile_photo_url: await resolveWorkerProfilePhotoUrl(supabase, asTrimmedString(w.profile_photo)),
         },
         requirements: { resume_path: resumePathCanonical, resume_url: resumeUrl },
+        job_id: summary?.sourceJobId ?? null,
+        job_title: summary?.jobTitle ?? null,
+        job_requisition_id: summary?.jobRequisitionId ?? null,
+        application_applied_at: summary?.appliedAt ?? null,
       }, { headers: { "Cache-Control": "private, no-store" } })
     }
 

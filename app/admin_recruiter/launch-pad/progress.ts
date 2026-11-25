@@ -90,11 +90,11 @@ export function isLaunchPadFullyComplete(tenantId?: string): boolean {
 
 /** Reconcile the browser cache with the authenticated tenant's server-owned progress. */
 export async function syncLaunchPadProgress(tenantId: string, stepId?: LaunchPadStepId): Promise<LaunchPadProgress> {
-  const response = await fetch("/api/admin/launch-pad/progress", stepId ? {
+  const response = await fetch("/api/admin/launch-pad/progress", { ...(stepId ? {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stepId }),
-  } : { cache: "no-store" });
+  } : { cache: "no-store" as const }), signal: AbortSignal.timeout(15_000) });
   const data = await response.json() as { tenantId?: string; progress?: LaunchPadProgress; error?: string };
   if (!response.ok || data.tenantId !== tenantId || !data.progress) {
     throw new Error(data.error ?? "Could not load Launch Pad progress. Please try again.");
