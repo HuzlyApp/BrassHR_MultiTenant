@@ -440,15 +440,16 @@ export default function BrandingSettingsPanel({
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>("login");
-  const [mainTab, setMainTab] = useState<BrandingMainTab>(initialMainTab);
+  const mainTabFromUrl: BrandingMainTab = searchParams.get("tab") === "hiring-journey" ? "hiring-journey" : initialMainTab;
+  const [mainTab, setMainTab] = useState<BrandingMainTab>(mainTabFromUrl);
   const [subTab, setSubTab] = useState<BrandingSubTab>(() => {
     const fromQuery = searchParams.get("section");
     return isBrandingSubTab(fromQuery) ? fromQuery : "logo";
   });
 
   useEffect(() => {
-    setMainTab(initialMainTab);
-  }, [initialMainTab]);
+    setMainTab(mainTabFromUrl);
+  }, [mainTabFromUrl]);
 
   function syncTabQuery(nextMain: BrandingMainTab, nextSub: BrandingSubTab) {
     const params = new URLSearchParams(searchParams.toString());

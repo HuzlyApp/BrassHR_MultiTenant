@@ -247,8 +247,8 @@ export function AdminRecruiterHeader({
     ? trustedHeader ? headerDisplayName?.trim() || null : null
     : accountName;
   const displayRole = trustedHeader
-    ? headerRoleLabel || "Staff"
-    : "Staff";
+    ? headerRoleLabel || "Role unavailable"
+    : headerDataError ? "Role unavailable" : "Loading role…";
   const profilePhoto = profile?.avatar_url ?? null;
   /** Profile label should not stay on Loading… when only notifications fail. */
   const profileNameLoading = accountLoading && !displayName;

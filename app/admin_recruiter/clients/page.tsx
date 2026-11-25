@@ -1,5 +1,7 @@
 "use client";
 
+import { validateClientCompanyName } from "@/lib/clients/validation";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -291,10 +293,8 @@ export default function ClientsPage() {
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompanyName.trim() || newCompanyName.trim().length > 120) {
-      setCreateError(!newCompanyName.trim() ? "Company name is required." : "Company name must be 120 characters or fewer.");
-      return;
-    }
+    const nameError = validateClientCompanyName(newCompanyName);
+    if (nameError) { setCreateError(nameError); return; }
     setCreateError(null);
 
     setSaving(true);
@@ -365,10 +365,10 @@ export default function ClientsPage() {
           <div>
             <div className="text-xs font-medium text-[#64748B]">Active clients</div>
             <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {metrics.activeClients}
+              {loading ? "—" : metrics.activeClients}
             </div>
             <div className="mt-0.5 text-[11px] text-[#94A3B8]">
-              {metrics.facilitiesCount} facilities
+              {loading ? "—" : metrics.facilitiesCount} facilities
               {metrics.directHireCount > 0 ? ` • ${metrics.directHireCount} direct hire` : ""}
             </div>
           </div>
@@ -382,10 +382,10 @@ export default function ClientsPage() {
           <div>
             <div className="text-xs font-medium text-[#64748B]">Open orders</div>
             <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {metrics.openOrders}
+              {loading ? "—" : metrics.openOrders}
             </div>
             <div className="mt-0.5 text-[11px] text-[#94A3B8]">
-              {metrics.unfilledThisWeek} unfilled this week
+              {loading ? "—" : metrics.unfilledThisWeek} unfilled this week
             </div>
           </div>
         </div>
@@ -398,7 +398,7 @@ export default function ClientsPage() {
           <div>
             <div className="text-xs font-medium text-[#64748B]">On assignment</div>
             <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {metrics.onAssignment}
+              {loading ? "—" : metrics.onAssignment}
             </div>
             <div className="mt-0.5 text-[11px] text-[#94A3B8]">W2 + EOR</div>
           </div>
@@ -412,7 +412,7 @@ export default function ClientsPage() {
           <div>
             <div className="text-xs font-medium text-[#64748B]">Direct-hire opens</div>
             <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {metrics.directHireOpens}
+              {loading ? "—" : metrics.directHireOpens}
             </div>
             <div className="mt-0.5 text-[11px] text-[#94A3B8]">Client will employ them</div>
           </div>
@@ -490,7 +490,7 @@ export default function ClientsPage() {
                 sortedClients.map((row, idx) => (
                   <tr key={row.id || idx} className="transition-colors hover:bg-[#F8FAFC]/70">
                     <td className="px-6 py-4 font-medium text-sm text-[#BC8B41] hover:underline cursor-pointer">
-                      <Link href={`/admin_recruiter/clients/${row.id}`}>
+                      <Link href={`/admin_recruiter/clients/${row.id}`} className="block max-w-64 truncate" title={row.company_name}>
                         {row.company_name}
                       </Link>
                     </td>
@@ -520,8 +520,10 @@ export default function ClientsPage() {
         {/* Pagination Footer */}
         <div className="flex flex-col gap-4 border-t border-[#E2E8F0] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs text-[#64748B]">
+            {loading ? "Loading clients…" : <>
             Showing <span className="font-semibold text-[#0F172A]">{sortedClients.length}</span> of{" "}
             <span className="font-semibold text-[#0F172A]">{totalResults}</span> results
+            </>}
           </div>
 
           <div className="flex items-center gap-3">

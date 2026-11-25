@@ -1185,6 +1185,7 @@ export async function buildEmployeeDetailPayload(
 
 export function employeesToCsv(rows: EmployeePerformanceRow[]): string {
   const headers = [
+    "Employee ID",
     "Employee",
     "Email",
     "Department",
@@ -1202,6 +1203,7 @@ export function employeesToCsv(rows: EmployeePerformanceRow[]): string {
   const lines = [headers.join(",")];
   for (const row of rows) {
     const cells = [
+      row.employeeId,
       row.name,
       row.email,
       row.departmentName ?? "",

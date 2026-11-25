@@ -54,3 +54,10 @@ describe("grokParseResume", () => {
   });
 
 })
+
+it("bounds interactive parsing without retrying the provider", async () => {
+  const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] });
+  __setGrokClientForTests({ chat: { completions: { create } } } as never);
+  await grokParseResume("Jane Doe\njane@example.com", { timeoutMs: 8000 });
+  expect(create).toHaveBeenCalledWith(expect.any(Object), { timeout: 8000, maxRetries: 0 });
+});

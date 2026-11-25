@@ -6,6 +6,7 @@ import {
   bulkDeleteJobRequisitions,
   listInternalJobs,
   listJobPickerOptions,
+  listJobReferenceOptions,
   openJobRequisition,
   parseBulkDeleteIds,
   publishExistingJob,
@@ -61,6 +62,9 @@ export async function GET(req: NextRequest) {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
+    if (req.nextUrl.searchParams.get("fields") === "reference") {
+      return NextResponse.json({ jobs: await listJobReferenceOptions(supabase, tenantId) });
+    }
     if (req.nextUrl.searchParams.get("fields") === "picker") {
       const jobs = await listJobPickerOptions(supabase, tenantId);
       return NextResponse.json({ jobs });
@@ -197,6 +201,7 @@ export async function POST(req: NextRequest) {
     const result = await saveJobRequisition(supabase, tenantId, auth.userId, parsed.data.job, {
       jobId: jobId || undefined,
       publish: parsed.data.action === "publish",
+      expectedUpdatedAt: parsed.data.expectedUpdatedAt,
       confirmRoutingChange: rawRecord.confirmRoutingChange === true,
       confirmWorkflowChange: rawRecord.confirmWorkflowChange === true,
       updateExistingApplicantsWorkflow: rawRecord.updateExistingApplicantsWorkflow === true,

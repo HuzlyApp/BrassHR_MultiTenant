@@ -16,7 +16,7 @@ describe("worker directory states", () => {
     render(<WorkersPage />);
     await screen.findByText("Onboarding Person");
     fireEvent.click(screen.getByRole("button", { name: "Show archived workers" }));
-    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledWith("/api/admin/employment-workers?tab=all&archived=1", { cache: "no-store" }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledWith("/api/admin/employment-workers?directoryRole=worker&tab=all&archived=1", { cache: "no-store" }));
     expect(screen.getByRole("button", { name: "Show current workers" })).toHaveAttribute("aria-pressed", "true");
   });
 

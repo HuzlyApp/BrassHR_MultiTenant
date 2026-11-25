@@ -33,7 +33,7 @@ const HAS_LETTER_RE = new RegExp("\\p{L}", "u");
 const EMOJI_RE = new RegExp("\\p{Extended_Pictographic}", "u");
 const EMAIL_RE = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 const URL_TOKEN_RE = /https?|www|linkedin|\.com|\.net|\.org/i;
-const PHONE_RE = /\d{3,}|\(\s*\d{3}\s*\)|\+\s*\d/;
+const PHONE_RE = /\d{7,}|\(\s*\d{3}\s*\)|\+\s*\d/;
 
 const NAME_INPUT_DISALLOWED_RE = new RegExp(
   "[^\\p{L}\\p{M} '\\-.,\\u00B7\\u2018\\u2019\\u02BB\\u02BC\\u2010-\\u2015]",
@@ -77,7 +77,7 @@ export function validatePersonName(
   if (EMAIL_RE.test(value)) return fail(`${label} cannot include an email address.`);
   if (URL_TOKEN_RE.test(value)) return fail(`${label} cannot include a website or LinkedIn link.`);
   const digitCount = (value.match(/\d/g) ?? []).length;
-  if (PHONE_RE.test(value) || digitCount > 4) {
+  if (PHONE_RE.test(value) || digitCount >= 7) {
     return fail(`${label} cannot include a phone number.`);
   }
   if (digitCount > 0) return fail(`${label} cannot include numbers.`);

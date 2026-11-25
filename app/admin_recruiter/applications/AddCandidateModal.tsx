@@ -89,7 +89,7 @@ function workLocationFromJob(job: JobLocationSource): {
 }
 
 const PARSE_FAILED_FALLBACK =
-  "Resume parsing failed. Please upload a valid resume or fill in the required fields manually.";
+  "Resume parsing failed. A readable resume file or pasted resume text is required. You can correct the extracted fields below before adding the candidate.";
 const MIN_PASTED_RESUME_LENGTH = 80;
 
 export type AddCandidateJobOption = {
@@ -298,6 +298,7 @@ export default function AddCandidateModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ignore responses from parses the recruiter has already superseded. */
   const parseRequestRef = useRef(0);
+  const parseAbortRef = useRef<AbortController | null>(null);
   const modalBodyRef = useRef<HTMLDivElement>(null);
   const workLocationAlertRef = useRef<HTMLParagraphElement>(null);
   /** Last worksite loaded from the job, restored for each new candidate. */
@@ -305,6 +306,8 @@ export default function AddCandidateModal({
 
   const resetParse = useCallback(() => {
     parseRequestRef.current += 1;
+    parseAbortRef.current?.abort();
+    parseAbortRef.current = null;
     setParseState("idle");
     setParsePreview(null);
     setNameReview(null);
@@ -511,6 +514,9 @@ export default function AddCandidateModal({
     async (source: { file?: File | null; text?: string; title?: string }) => {
       const requestId = parseRequestRef.current + 1;
       parseRequestRef.current = requestId;
+      parseAbortRef.current?.abort();
+      const controller = new AbortController();
+      parseAbortRef.current = controller;
       setParseState("parsing");
       setParsePreview(null);
       setNameReview(null);
@@ -532,6 +538,7 @@ export default function AddCandidateModal({
         const response = await fetch("/api/admin/add-candidate-from-resume/parse", {
           method: "POST",
           credentials: "include",
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
           body: form,
         });
         const payload = (await response.json().catch(() => ({}))) as {
@@ -565,7 +572,7 @@ export default function AddCandidateModal({
         const hasIdentity = Boolean(
           preview?.firstName?.trim() && preview?.lastName?.trim() && preview?.email?.trim()
         );
-        if (response.ok && hasIdentity) {
+        if (response.ok && hasIdentity && payload.qualityOk !== false) {
           setParseState("parsed");
           return;
         }
@@ -1149,7 +1156,7 @@ export default function AddCandidateModal({
                         }}
                         disabled={uploading}
                       >
-                        Clear and type manually
+                        Clear extracted names
                       </button>
                     </div>
                   ) : null}
@@ -1392,7 +1399,7 @@ export default function AddCandidateModal({
           setErrorOpen(false);
           setErrorMessage("");
         }}
-        title="Upload failed"
+        title="Could not add candidate"
         message={errorMessage || "Failed to add candidate. Please try again."}
       />
     </>

@@ -208,14 +208,16 @@ async function authorizeStaffHttpAccessUncached(input: {
   if (godAdmin === "error") return forbidden("Permission data unavailable", "unavailable");
   if (godAdmin) return { ok: true };
 
-  const { data: profile, error: profileError } = await timeSpan("db-users-profile", () =>
-    supabase.from("users").select("tenant_id, role, is_active").eq("id", input.user.id).maybeSingle(),
-  );
+  const [{ data: profile, error: profileError }, resources] = await Promise.all([
+    timeSpan("db-users-profile", () =>
+      supabase.from("users").select("tenant_id, role, is_active").eq("id", input.user.id).maybeSingle(),
+    ),
+    loadResources(supabase),
+  ]);
   if (profileError) return forbidden("Permission data unavailable", "unavailable");
   const profileRow = profile as { tenant_id?: string | null; role?: string | null; is_active?: boolean | null } | null;
   if (profileRow?.is_active === false) return forbidden("This account has been disabled.");
 
-  const resources = await loadResources(supabase);
   if (!resources) return forbidden("Permission data unavailable", "unavailable");
 
   const classified = classifyLoaded(input.pathname, resources);

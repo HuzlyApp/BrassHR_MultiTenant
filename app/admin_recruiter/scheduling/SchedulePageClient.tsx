@@ -670,6 +670,7 @@ export default function SchedulePageClient() {
     setCreateShiftError(null);
     const isPastDate = newShiftDate < easternDateString(new Date());
     if (isPastDate && !window.confirm("This shift date is in the past. Create it anyway?")) return;
+    if (newShiftEndTime < newShiftStartTime && !window.confirm("This overnight shift ends on the following day. Create it anyway?")) return;
 
     const localConflict = findLoadedOverlap(
       newShiftWorkerId,
@@ -856,6 +857,7 @@ export default function SchedulePageClient() {
             type="button"
             onClick={() => {
               setNewShiftDate(startDateStr);
+              setNewShiftWorkerId("");
               setCreateShiftError(null);
               setAddShiftOpen(true);
             }}

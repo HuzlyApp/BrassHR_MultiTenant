@@ -22,6 +22,10 @@ export function markRedisUnavailable(): void {
   redisCircuitState.unavailableUntil = Date.now() + DEFAULT_REDIS_COOLDOWN_MS;
 }
 
+export function __resetRedisCircuitForTests(): void {
+  redisCircuitState.unavailableUntil = 0;
+}
+
 export function withRedisTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   const ms = getRedisTimeoutMs();
   let timer: ReturnType<typeof setTimeout> | undefined;

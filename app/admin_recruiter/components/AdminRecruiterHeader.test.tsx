@@ -31,7 +31,7 @@ describe("shared recruiter header loading", () => {
     Object.assign(state.account, { user: { id: "hr" }, profile: { first_name: "Member", role: "hr" }, loading: false });
     Object.assign(state.header, { userId: "admin", roleLabel: "Admin", isLoading: false });
     render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);
-    expect(screen.queryByText("Admin")).toBeNull(); expect(screen.getByText("Staff")).toBeInTheDocument();
+    expect(screen.queryByText("Admin")).toBeNull(); expect(screen.getByText("Loading role…")).toBeInTheDocument();
   });
   it("shows a skeleton without a fabricated name, role or avatar", () => {
     render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);
@@ -40,4 +40,12 @@ describe("shared recruiter header loading", () => {
     expect(screen.queryByText("Account Owner")).toBeNull();
     expect(screen.queryByText("A")).toBeNull();
   });
+});
+
+it("does not flash Staff while the current user's tenant role is loading", () => {
+  Object.assign(state.account, { user: { id: "admin" }, profile: { first_name: "Admin", role: "admin" }, loading: false });
+  Object.assign(state.header, { userId: null, roleLabel: null, isLoading: true });
+  render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);
+  expect(screen.queryByText("Staff")).not.toBeInTheDocument();
+  expect(screen.getByText("Loading role…")).toBeInTheDocument();
 });

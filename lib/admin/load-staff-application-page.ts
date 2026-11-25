@@ -282,26 +282,31 @@ export async function loadStaffApplicationPage(
   const sort = params.get("sort")?.trim() || "evaluation";
   const sortDir = params.get("sortDir") === "asc" ? "asc" : "desc";
 
+  const emptyPage = {
+    paged: true,
+    idsOnly,
+    applications: [],
+    ids: [],
+    total: 0,
+    unanalyzedCount: 0,
+    scopeUnanalyzedCount: 0,
+    analyzedCount: 0,
+    multiJobApplicantCount: 0,
+    buckets: [],
+    locations: [],
+    workflows: [],
+    stages: [],
+  };
+  const search = params.get("q")?.trim() ?? "";
+  // Punctuation-only text must not normalize into an unfiltered list.
+  if (!scopeOnly && search && !/[\p{L}\p{N}]/u.test(search)) return emptyPage;
+
   let workerIds: string[] | null = null;
   if (skills.length) {
     const scopeIds = await workerIdsInScope(supabase, tenantId, isUuid(jobId) ? jobId : "");
     workerIds = [...(await filterWorkerIdsMatchingSkills(supabase, tenantId, scopeIds, skills))];
     if (workerIds.length === 0) {
-      return {
-        paged: true,
-        idsOnly,
-        applications: [],
-        ids: [],
-        total: 0,
-        unanalyzedCount: 0,
-        scopeUnanalyzedCount: 0,
-        analyzedCount: 0,
-        multiJobApplicantCount: 0,
-        buckets: [],
-        locations: [],
-        workflows: [],
-        stages: [],
-      };
+      return emptyPage;
     }
   }
 

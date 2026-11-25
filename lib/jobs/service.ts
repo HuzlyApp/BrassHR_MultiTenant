@@ -42,6 +42,7 @@ import {
   isLiveJobRequisitionStatus,
   isOpenJobRequisitionStatus,
   normalizeJobRequisitionStatus,
+  jobLifecycleForSave,
 } from "@/lib/jobs/job-status";
 import { normalizeJobFormLocationForStorage } from "@/lib/location/city-state";
 import { evaluateJobServiceArea, requireApplyWorkLocation } from "@/lib/service-area/jobs";
@@ -564,6 +565,7 @@ export async function saveJobRequisition(
   options: {
     jobId?: string;
     publish: boolean;
+    expectedUpdatedAt?: string;
     /** @deprecated Prefer confirmWorkflowChange — kept for older clients. */
     confirmRoutingChange?: boolean;
     screeningQuestions?: JobScreeningQuestionInput[];
@@ -583,7 +585,7 @@ export async function saveJobRequisition(
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
       .select(
-        "status, workflow_id, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
+        "status, updated_at, published_at, closed_at, archived_at, workflow_id, workflow_assignment_mode, public_title, public_description, qualifications, responsibilities, special_requirements, required_credentials, years_of_experience, years_experience_required, location, specialty"
       )
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
@@ -595,6 +597,10 @@ export async function saveJobRequisition(
       }
     }
     existingJobForMatchInvalidation = existingJob as Record<string, unknown> | null;
+    if (options.expectedUpdatedAt &&
+      Date.parse(String(existingJob?.updated_at ?? "")) !== Date.parse(options.expectedUpdatedAt)) {
+      throw new JobValidationError("This job was changed in another tab or by another user. Reload the job before saving your changes.", {}, "JOB_CONFLICT");
+    }
     previousWorkflowId = existingJob?.workflow_id ? String(existingJob.workflow_id) : null;
   }
 
@@ -679,16 +685,15 @@ export async function saveJobRequisition(
   const publicJobToken = options.publish
     ? await resolvePublicJobTokenForPublish(supabase, tenantId, options.jobId)
     : undefined;
+  const lifecycle = jobLifecycleForSave(existingJobForMatchInvalidation, options.publish, now);
   const patch = {
     ...jobRow,
     workflow_id: match?.workflowId ?? null,
     workflow_mapping_id: assignmentMode === "automatic" ? match?.mappingId ?? null : null,
     workflow_assignment_mode: assignmentMode,
     workflow_assignment_error: match ? null : assignmentError,
-    status: options.publish ? ("open" as const) : ("draft" as const),
-    published_at: options.publish ? now : null,
-    closed_at: null,
-    archived_at: null,
+    ...lifecycle,
+    updated_at: now,
     updated_by: actorUserId,
     service_area_status: serviceArea.status,
     ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
@@ -698,13 +703,13 @@ export async function saveJobRequisition(
     "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)";
 
   if (options.jobId) {
-    let { data, error } = await supabase
+    let updateQuery = supabase
       .from("job_requisitions")
       .update(patch)
       .eq("id", options.jobId)
-      .eq("tenant_id", tenantId)
-      .select(selectCols)
-      .single();
+      .eq("tenant_id", tenantId);
+    if (options.expectedUpdatedAt) updateQuery = updateQuery.eq("updated_at", options.expectedUpdatedAt);
+    let { data, error } = await updateQuery.select(selectCols).maybeSingle();
 
     if (error) {
       const message = String(error.message ?? "").toLowerCase();
@@ -716,25 +721,24 @@ export async function saveJobRequisition(
         const legacyPatch = {
           ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
           workflow_id: match?.workflowId ?? null,
-          status: options.publish ? ("open" as const) : ("draft" as const),
-          published_at: options.publish ? now : null,
-          closed_at: null,
-          archived_at: null,
+          ...lifecycle,
+          updated_at: now,
           updated_by: actorUserId,
           ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
         };
-        const retry = await supabase
+        let retryQuery = supabase
           .from("job_requisitions")
           .update(legacyPatch)
           .eq("id", options.jobId)
-          .eq("tenant_id", tenantId)
-          .select(selectCols)
-          .single();
+          .eq("tenant_id", tenantId);
+        if (options.expectedUpdatedAt) retryQuery = retryQuery.eq("updated_at", options.expectedUpdatedAt);
+        const retry = await retryQuery.select(selectCols).maybeSingle();
         data = retry.data;
         error = retry.error;
       }
     }
     if (error) throwJobWriteError(error);
+    if (!data) throw new JobValidationError("This job was changed or removed. Reload the job before saving your changes.", {}, "JOB_CONFLICT");
     const savedJobId = String(data.id);
 
     let matchReanalysisScheduled = 0;
@@ -1044,6 +1048,14 @@ function jobPickerTitle(row: {
 }
 
 /** Id, display title, status, and MSP client name. No descriptions or list metrics. */
+export async function listJobReferenceOptions(supabase: DbClient, tenantId: string) {
+  const { data, error } = await supabase.from("job_requisitions")
+    .select("id, public_title, source_job_title, location, facility, facility_name, status, source_type, placement_type, employment_type, internal_requisition_number, created_at, published_at")
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function listJobPickerOptions(
   supabase: DbClient,
   tenantId: string

@@ -51,3 +51,12 @@ describe("role name validation", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("built-in role labels", () => {
+  it("identifies a system role without calling it custom", async () => {
+    mocks.fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ roles: [{ roleKey: "recruiter", label: "Recruiter", isSystem: true, isAdmin: false, permissions: [] }], resources: [] }) });
+    render(<QueryClientProvider client={new QueryClient()}><RoleEditorClient mode="edit" roleKey="recruiter" /></QueryClientProvider>);
+    expect(await screen.findByRole("heading", { name: "Edit Built-in Role" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit Custom Role" })).not.toBeInTheDocument();
+  });
+});

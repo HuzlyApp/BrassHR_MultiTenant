@@ -58,7 +58,7 @@ export default function ClientDetailPage() {
         </div> : null}
       </div>
       {editing ? <form className="space-y-3 rounded-xl border bg-white p-4" onSubmit={(event) => { event.preventDefault(); void update("edit"); }}>
-        <label className="block text-sm">Company name<input className="mt-1 block w-full rounded border px-3 py-2" required maxLength={200} value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="block text-sm">Company name<input className="mt-1 block w-full rounded border px-3 py-2" required maxLength={120} minLength={2} value={name} onChange={(event) => setName(event.target.value)} /></label>
         <button type="submit" disabled={busy} className="rounded border px-3 py-2">{busy ? "Saving…" : "Save client"}</button>
         <button type="button" disabled={busy} className="ml-3 underline" onClick={() => { setName(client.company_name); setEditing(false); }}>Cancel</button>
       </form> : null}

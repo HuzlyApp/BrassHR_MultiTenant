@@ -689,9 +689,11 @@ export default function PersonalTab() {
 
     setFirstNameError(!firstName.trim() ? "First name is required." : null);
     setLastNameError(!lastName.trim() ? "Last name is required." : null);
-    setBirthdateError(!birthdate.trim() ? "Birthdate is required." : null);
-    setJobTitleError(canEditProfessionalFields && !jobTitle.trim() ? "Job title is required." : null);
-    if (!firstName.trim() || !lastName.trim() || !birthdate.trim() || (canEditProfessionalFields && !jobTitle.trim())) {
+    const missingBirthdate = Boolean(resolvedFields.birthdate.trim()) && !birthdate.trim();
+    const missingJobTitle = canEditProfessionalFields && Boolean(resolvedFields.jobTitle.trim()) && !jobTitle.trim();
+    setBirthdateError(missingBirthdate ? "Birthdate is required." : null);
+    setJobTitleError(missingJobTitle ? "Job title is required." : null);
+    if (!firstName.trim() || !lastName.trim() || missingBirthdate || missingJobTitle) {
       setSaving(false);
       return;
     }
@@ -895,6 +897,7 @@ export default function PersonalTab() {
               type="text"
               value={firstName}
               onChange={(e) => { setFirstName(e.target.value); setFirstNameError(null); }}
+              onBlur={() => setFirstNameError(!firstName.trim() ? "First name is required." : null)}
               maxLength={PERSON_NAME_MAX_LENGTH}
               className={`${FIELD}${firstNameError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               required
@@ -911,6 +914,7 @@ export default function PersonalTab() {
               type="text"
               value={lastName}
               onChange={(e) => { setLastName(e.target.value); setLastNameError(null); }}
+              onBlur={() => setLastNameError(!lastName.trim() ? "Last name is required." : null)}
               maxLength={PERSON_NAME_MAX_LENGTH}
               className={`${FIELD}${lastNameError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               required
@@ -1005,7 +1009,7 @@ export default function PersonalTab() {
             {phoneError ? <p className="mt-1 text-xs text-[#B91C1C]">{phoneError}</p> : null}
           </div>
           <label className="block">
-            <FieldLabel>Birthdate</FieldLabel>
+            <FieldLabel>Birthdate{resolvedFields.birthdate.trim() ? <RequiredMark /> : null}</FieldLabel>
             <input
               type="date"
               aria-invalid={Boolean(birthdateError)}
@@ -1038,7 +1042,7 @@ export default function PersonalTab() {
             </p>
           ) : null}
           <label className="block">
-            <FieldLabel>Job Title</FieldLabel>
+            <FieldLabel>Job Title{canEditProfessionalFields && resolvedFields.jobTitle.trim() ? <RequiredMark /> : null}</FieldLabel>
             <input
               type="text"
               value={jobTitle}
