@@ -65,7 +65,8 @@ import {
 } from "@/lib/jobs/job-requisition-form-draft";
 import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
-import { validateJobCompensationFields, jobTitleValidationError } from "@/lib/jobs/validation";
+import { validateJobCompensationFields, jobTitleValidationError, jobApplicationDeadlineError } from "@/lib/jobs/validation";
+import { locationFromFreeText } from "@/lib/service-area/normalize";
 import { useJobFormStep } from "./use-job-form-step";
 
 const initialJob: JobRequisitionInput = {
@@ -145,7 +146,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   useLayoutEffect(() => {
     draftClearedRef.current = false;
-    const draft = readJobRequisitionFormDraft(jobId ?? null);
+    // Existing jobs reload the saved revision, rather than silently restoring unsaved edits.
+    const draft = jobId ? null : readJobRequisitionFormDraft(null);
     if (draft) {
       skipJobLoadRef.current = Boolean(jobId);
       setBaseUpdatedAt(draft.baseUpdatedAt ?? null);
@@ -166,7 +168,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [jobId, restoreStep]);
 
   useLayoutEffect(() => {
-    if (!draftHydrated || saving || draftClearedRef.current) return;
+    if (jobId || !draftHydrated || saving || draftClearedRef.current) return;
     writeJobRequisitionFormDraft({
       jobId: jobId ?? null,
       baseUpdatedAt,
@@ -511,13 +513,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const isRemote = isRemoteJobLocationType(current.jobLocationType ?? current.schedule);
 
     const location = current.location?.trim() || current.facility?.trim() || "";
+    const deadlineError = jobApplicationDeadlineError(current.applicationDeadline);
+    if (deadlineError) errors.applicationDeadline = deadlineError;
     if (isRemote) {
       if (ui.remoteStatesScope === "restrict" && !current.remoteAllowedStates?.length) {
         errors.remoteAllowedStates =
           "Select at least one state, or switch back to All States.";
       }
-    } else if (!location) {
-      errors.location = "Location is required.";
+    } else if (!locationFromFreeText(location, current.postalCode).state) {
+      errors.location = "Choose a worksite city and state from the suggestions.";
     }
 
     if (!current.shiftType?.trim()) {
@@ -722,6 +726,22 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       }
       draftClearedRef.current = true;
       clearJobRequisitionFormDraft();
+      if (!jobId) {
+        setPersistedJobId(undefined);
+        setBaseUpdatedAt(null);
+        setOriginalStatus("draft");
+        setJob(initialJob);
+        setUi(defaultJobFormUiState());
+        setMspSourcedByClient(null);
+        setMspPlacementType(null);
+        setReferenceJobId(null);
+        setAssignmentMode("automatic");
+        setOverrideWorkflowId(null);
+        setWorkflow(null);
+        setTermsAccepted(false);
+        setScreeningQuestions([]);
+        setStep("setup");
+      }
       invalidateJobsListCache();
       setWorkflowChangeModal(null);
       setConfirmRoutingChange(false);
@@ -1278,6 +1298,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         job={buildPayloadJob()}
+        screeningQuestions={screeningQuestions}
         ui={ui}
         companyName={branding.companyName}
         brandStyle={brandStyle}

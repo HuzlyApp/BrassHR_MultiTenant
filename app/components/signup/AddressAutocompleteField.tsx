@@ -92,10 +92,8 @@ export default function AddressAutocompleteField({
       : `${onboardingInputClass} outline-none transition placeholder:text-[#94a3b8] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`
 
   const handleBlur = () => {
-    window.setTimeout(() => {
-      onCloseSuggestions?.()
-      onBlur?.()
-    }, 150)
+    onCloseSuggestions?.()
+    onBlur?.()
   }
 
   return (

@@ -151,7 +151,7 @@ export default function DetailedCandidateHeader({
           className={outlineBtn}
           title={
             !hasApplication
-              ? "Available after the candidate has a job application"
+              ? loading ? "Loading candidate application…" : "Available after the candidate has a job application"
               : onMessageClick
                 ? undefined
                 : "Open profile to message"

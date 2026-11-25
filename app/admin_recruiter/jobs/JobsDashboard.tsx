@@ -52,7 +52,7 @@ const JOBS_LISTING_HREF = "/admin_recruiter/jobs?view=all";
 const JOBS_NEW_HREF = "/admin_recruiter/jobs/new";
 const JOBS_OPEN_HREF = `${JOBS_LISTING_HREF}&tab=open`;
 const APPLICATIONS_HREF = "/admin_recruiter/applications";
-const CANDIDATES_HREF = "/admin_recruiter/candidates";
+const CANDIDATES_HREF = "/admin_recruiter/applications";
 
 const JOBS_VIEW_ALL_BUTTON_CLASS =
   "inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-primary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_30%,transparent)] sm:w-auto";
@@ -200,7 +200,7 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
       icon: { src: `${JOBS_ICONS}/kpi-bag.svg`, bg: "#DFEBFF", leafWidth: 30, leafHeight: 30 },
     },
     {
-      label: "Active Candidate Profiles",
+      label: "Total Applicants",
       value: totalCandidates,
       href: CANDIDATES_HREF,
       icon: {

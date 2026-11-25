@@ -1,6 +1,17 @@
 /**
  * Turn audit/activity action keys (e.g. worker.profile.view) into readable labels.
  */
+export function collapseRepeatedProfileViews<T extends { action: string | null; created_at: string | null }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (humanizeActivityAction(row.action) !== "Viewed profile" || !row.created_at) return true;
+    const minute = row.created_at.slice(0, 16);
+    if (seen.has(minute)) return false;
+    seen.add(minute);
+    return true;
+  });
+}
+
 export function humanizeActivityAction(action: string | null | undefined): string {
   const raw = String(action ?? "").trim();
   if (!raw) return "Activity";

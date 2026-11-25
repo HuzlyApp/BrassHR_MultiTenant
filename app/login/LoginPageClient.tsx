@@ -984,6 +984,14 @@ function LoginPageContent() {
     });
   };
 
+  if (searchParams.get("error") === "forbidden") {
+    return <main role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-100 px-4 text-center text-sm text-slate-600">
+      <h1 className="text-lg font-semibold text-slate-900">Access denied</h1>
+      <p>Your account does not have platform administrator access. Your current session is still active.</p>
+      <Link href="/admin_recruiter/dashboard" className="underline">Return to your dashboard</Link>
+    </main>;
+  }
+
   if (!brandLoaded || !brand) {
     return <LoginLoadingShell brand={serverBranding} />;
   }

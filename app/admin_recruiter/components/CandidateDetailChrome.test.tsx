@@ -12,6 +12,14 @@ vi.mock("./CandidateCommunicationDialog", () => ({ default: () => null }));
 import CandidateDetailChrome from "./CandidateDetailChrome";
 afterEach(cleanup);
 describe("persistent candidate header", () => {
+  it("shows a saved status immediately while the background refresh is pending", async () => {
+    mocks.load.mockResolvedValueOnce({ ok: true, payload: { worker: { first_name: "Ana", status_label: "In Process" } } });
+    render(<CandidateDetailChrome>Profile</CandidateDetailChrome>);
+    await screen.findByText("In Process");
+    mocks.load.mockImplementationOnce(() => new Promise(() => {}));
+    act(() => dispatchCandidatePipelineRefresh(workerId, { statusName: "Follow Up", statusId: "follow" }));
+    expect(screen.getByText("Follow Up")).toBeInTheDocument();
+  });
   it("shows the applied job identifier when there is no external MSP requisition number", async () => {
     mocks.load.mockResolvedValueOnce({ ok: true, payload: { worker: { first_name: "QA" }, job_requisition_id: "applied-job-a" } });
     render(<CandidateDetailChrome>Profile</CandidateDetailChrome>);

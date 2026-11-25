@@ -318,9 +318,9 @@ export async function POST(req: NextRequest) {
             ? String(body.zipCode || body.zip_code).trim()
             : null,
         w2_capable: Boolean(body.w2Capable ?? body.w2_capable ?? true),
-        verification_status: "verified",
-        onboarding_status: "completed",
-        onboarding_completed_at: new Date().toISOString(),
+        verification_status: "pending",
+        onboarding_status: "pending",
+        onboarding_completed_at: null,
       })
       .select("id, company_name, address, city, state, zip_code, created_at")
       .single();

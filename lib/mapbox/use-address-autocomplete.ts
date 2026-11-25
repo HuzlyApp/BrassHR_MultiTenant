@@ -30,6 +30,7 @@ export function useAddressAutocomplete(
   const [isAddressVerified, setIsAddressVerified] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const requestIdRef = useRef(0)
+  const focusedRef = useRef(false)
   const verifiedAddressRef = useRef("")
 
   const resetVerification = useCallback(() => {
@@ -40,6 +41,8 @@ export function useAddressAutocomplete(
   const selectSuggestion = useCallback((suggestion: AddressSuggestion) => {
     const street = suggestion.components.address1.trim()
     setIsAddressVerified(true)
+    ++requestIdRef.current
+    setIsLoading(false)
     verifiedAddressRef.current = street
     setSuggestions([])
     setSearchError(null)
@@ -48,16 +51,19 @@ export function useAddressAutocomplete(
   }, [])
 
   const closeSuggestions = useCallback(() => {
+    focusedRef.current = false
     setIsOpen(false)
   }, [])
 
   const openSuggestions = useCallback(() => {
+    focusedRef.current = true
     if (suggestions.length > 0) {
       setIsOpen(true)
     }
   }, [suggestions.length])
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current
     const trimmed = address1.trim()
     if (!shouldRequestAddressAutocomplete(trimmed)) {
       setSuggestions([])
@@ -70,7 +76,9 @@ export function useAddressAutocomplete(
       return
     }
 
-    if (isAddressVerified && trimmed === verifiedAddressRef.current) {
+    if (trimmed === verifiedAddressRef.current) {
+      setIsLoading(false)
+      setIsOpen(false)
       return
     }
 
@@ -78,15 +86,17 @@ export function useAddressAutocomplete(
       resetVerification()
     }
 
-    const requestId = ++requestIdRef.current
+    const controller = new AbortController()
     setIsLoading(true)
     setSearchError(null)
 
+    const deadline = window.setTimeout(() => controller.abort(), 6000)
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const res = await fetch("/api/address/autocomplete", {
             method: "POST",
+            signal: controller.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               address1: trimmed,
@@ -106,9 +116,10 @@ export function useAddressAutocomplete(
           }
 
           const payload = (await res.json()) as { suggestions?: AddressSuggestion[] }
+          if (requestId !== requestIdRef.current) return
           const nextSuggestions = Array.isArray(payload.suggestions) ? payload.suggestions : []
           setSuggestions(nextSuggestions)
-          setIsOpen(nextSuggestions.length > 0)
+          setIsOpen(focusedRef.current && nextSuggestions.length > 0)
           setSearchError(
             nextSuggestions.length === 0 ? ADDRESS_AUTOCOMPLETE_EMPTY_MESSAGE : null
           )
@@ -118,6 +129,7 @@ export function useAddressAutocomplete(
           setIsOpen(false)
           setSearchError(ADDRESS_AUTOCOMPLETE_ERROR_MESSAGE)
         } finally {
+          window.clearTimeout(deadline)
           if (requestId === requestIdRef.current) {
             setIsLoading(false)
           }
@@ -125,7 +137,12 @@ export function useAddressAutocomplete(
       })()
     }, debounceMs)
 
-    return () => window.clearTimeout(timer)
+    return () => {
+      ++requestIdRef.current
+      window.clearTimeout(timer)
+      window.clearTimeout(deadline)
+      controller.abort()
+    }
   }, [address1, locality.city, locality.state, locality.zipCode, debounceMs, isAddressVerified, resetVerification])
 
   return {
