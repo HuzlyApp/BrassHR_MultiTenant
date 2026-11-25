@@ -4,8 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Search, ChevronDown, Check, LayoutList, SlidersHorizontal, RefreshCw } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
+  JobsViewToggle,
+  type JobsListingView,
+} from "@/app/admin_recruiter/jobs/JobsViewToggle";
+import {
   BRAAS_PRIMARY,
-  BRAAS_SECONDARY,
   readableTextOnBrand,
 } from "@/lib/tenant/tenant-branding";
 
@@ -27,7 +30,12 @@ export type WorkersFilterBarProps = {
   onOpenColumns?: () => void;
   onOpenFilters?: () => void;
   activeFilterCount?: number;
+  viewMode?: JobsListingView;
+  onViewModeChange?: (next: JobsListingView) => void;
 };
+
+const FILTER_CHIP_CLASS =
+  "inline-flex h-8 w-full max-w-none items-center justify-between gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] cursor-pointer sm:w-auto sm:justify-start";
 
 export function WorkersFilterBar({
   searchQuery,
@@ -47,10 +55,11 @@ export function WorkersFilterBar({
   onOpenColumns,
   onOpenFilters,
   activeFilterCount = 0,
+  viewMode = "list",
+  onViewModeChange,
 }: WorkersFilterBarProps) {
   const branding = useTenantBranding();
   const primaryColor = branding.primaryHex || BRAAS_PRIMARY;
-  const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
   const textOnPrimary = readableTextOnBrand(primaryColor);
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -71,11 +80,11 @@ export function WorkersFilterBar({
   }, []);
 
   return (
-    <div className="flex flex-col gap-3.5">
-      <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-        {/* Search input box with branding Search button */}
-        <div className="flex max-w-[480px] flex-1 items-center rounded-lg border border-[#E5E7EB] bg-white p-1 shadow-2xs">
-          <div className="relative flex flex-1 items-center pl-3">
+    <div className="flex min-w-0 flex-col gap-3.5">
+      <div className="flex min-w-0 flex-col justify-between gap-3 lg:flex-row lg:items-center">
+        {/* Search — stacks button under input on phones; desktop row unchanged */}
+        <div className="flex w-full max-w-[480px] flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-white p-1.5 shadow-2xs sm:flex-row sm:items-center sm:gap-0 sm:p-1">
+          <div className="relative flex min-w-0 flex-1 items-center pl-3">
             <Search className="h-4 w-4 shrink-0 text-[#94A3B8]" />
             <input
               type="text"
@@ -85,7 +94,7 @@ export function WorkersFilterBar({
                 if (e.key === "Enter") onSearch();
               }}
               placeholder="Search worker"
-              className="w-full bg-transparent px-3 py-1.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none"
+              className="w-full min-w-0 bg-transparent px-3 py-1.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none"
             />
           </div>
 
@@ -97,16 +106,15 @@ export function WorkersFilterBar({
               backgroundColor: primaryColor,
               color: textOnPrimary,
             }}
-            className="h-8 shrink-0 rounded-lg px-4 text-xs font-semibold leading-4 shadow-xs transition hover:brightness-95 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+            className="h-9 w-full shrink-0 rounded-lg px-4 text-xs font-semibold leading-4 shadow-xs transition hover:brightness-95 active:scale-[0.98] disabled:opacity-60 cursor-pointer sm:h-8 sm:w-auto"
           >
             {searching ? "Searching…" : "Search"}
           </button>
         </div>
 
-        {/* Filter Dropdowns on the right */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Role Dropdown */}
-          <div className="relative" data-filter-dropdown>
+        {/* Filter chips — 2-col on phones; wrap row from sm+ (desktop look unchanged) */}
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
+          <div className="relative min-w-0" data-filter-dropdown>
             <button
               type="button"
               onClick={() => {
@@ -114,13 +122,13 @@ export function WorkersFilterBar({
                 setClientMenuOpen(false);
                 setStatusMenuOpen(false);
               }}
-              className="inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] cursor-pointer"
+              className={`${FILTER_CHIP_CLASS} sm:max-w-[220px]`}
             >
               <span className="truncate">Role • {roleFilter || "All IT"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
             </button>
             {roleMenuOpen && (
-              <div className="absolute right-0 z-30 mt-1.5 max-h-64 w-60 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg">
+              <div className="absolute left-0 right-0 z-30 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-60">
                 {roleOptions.map((opt) => {
                   const isAll = opt === "All" || opt === "All IT";
                   const isSelected = roleFilter ? roleFilter === opt : isAll;
@@ -145,8 +153,7 @@ export function WorkersFilterBar({
             )}
           </div>
 
-          {/* Client Dropdown */}
-          <div className="relative" data-filter-dropdown>
+          <div className="relative min-w-0" data-filter-dropdown>
             <button
               type="button"
               onClick={() => {
@@ -154,13 +161,13 @@ export function WorkersFilterBar({
                 setRoleMenuOpen(false);
                 setStatusMenuOpen(false);
               }}
-              className="inline-flex h-8 max-w-[200px] items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] cursor-pointer"
+              className={`${FILTER_CHIP_CLASS} sm:max-w-[200px]`}
             >
               <span className="truncate">Client • {clientFilter || "All"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
             </button>
             {clientMenuOpen && (
-              <div className="absolute right-0 z-30 mt-1.5 max-h-64 w-52 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg">
+              <div className="absolute left-0 right-0 z-30 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-52">
                 {clientOptions.map((opt) => {
                   const isAll = opt === "All";
                   const isSelected = clientFilter ? clientFilter === opt : isAll;
@@ -185,8 +192,7 @@ export function WorkersFilterBar({
             )}
           </div>
 
-          {/* Status Dropdown */}
-          <div className="relative" data-filter-dropdown>
+          <div className="relative min-w-0 col-span-2 sm:col-span-1" data-filter-dropdown>
             <button
               type="button"
               onClick={() => {
@@ -194,13 +200,13 @@ export function WorkersFilterBar({
                 setRoleMenuOpen(false);
                 setClientMenuOpen(false);
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] cursor-pointer"
+              className={FILTER_CHIP_CLASS}
             >
-              <span>Status • {statusFilter || "All"}</span>
+              <span className="truncate">Status • {statusFilter || "All"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
             </button>
             {statusMenuOpen && (
-              <div className="absolute right-0 z-30 mt-1.5 w-44 rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg">
+              <div className="absolute left-0 right-0 z-30 mt-1.5 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-44">
                 {statusOptions.map((opt) => {
                   const isAll = opt === "All";
                   const isSelected = statusFilter ? statusFilter === opt : isAll;
@@ -227,48 +233,53 @@ export function WorkersFilterBar({
         </div>
       </div>
 
-      {/* View & tools toggle buttons (matching Figma icons under search) */}
-      <div className="flex items-center gap-2">
-        {onOpenColumns && (
-          <button
-            type="button"
-            onClick={onOpenColumns}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
-            title="Edit Columns"
-          >
-            <LayoutList className="h-4 w-4" />
-          </button>
-        )}
-        {onOpenFilters && (
-          <button
-            type="button"
-            onClick={onOpenFilters}
-            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
-            title="All Filters"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            {activeFilterCount > 0 && (
-              <span
-                style={{ backgroundColor: primaryColor }}
-                className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-xs"
-              >
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        )}
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
-            title="Refresh"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        )}
+      {/* Tools left; list/grid toggle on the right (user-marked area) */}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenColumns && (
+            <button
+              type="button"
+              onClick={onOpenColumns}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
+              title="Edit Columns"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+          )}
+          {onOpenFilters && (
+            <button
+              type="button"
+              onClick={onOpenFilters}
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
+              title="All Filters"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {activeFilterCount > 0 && (
+                <span
+                  style={{ backgroundColor: primaryColor }}
+                  className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-xs"
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs hover:bg-[#F8FAFC] cursor-pointer transition"
+              title="Refresh"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {onViewModeChange ? (
+          <JobsViewToggle value={viewMode} onChange={onViewModeChange} />
+        ) : null}
       </div>
     </div>
   );
 }
-

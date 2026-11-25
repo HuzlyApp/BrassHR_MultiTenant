@@ -106,7 +106,7 @@ export function ListPaginationControls({
         className={`${SURFACE} gap-1 px-2.5`}
       >
         <ChevronLeft className="h-4 w-4" />
-        <span className="hidden min-[480px]:inline">Previous</span>
+        <span className="hidden sm:inline">Previous</span>
       </button>
 
       {pageItems.map((item, index) => {
@@ -145,7 +145,7 @@ export function ListPaginationControls({
         disabled={safePage >= safeTotal}
         className={`${SURFACE} gap-1 px-2.5`}
       >
-        <span className="hidden min-[480px]:inline">Next</span>
+        <span className="hidden sm:inline">Next</span>
         <ChevronRight className="h-4 w-4" />
       </button>
     </div>
