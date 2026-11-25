@@ -43,16 +43,13 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Choose a resume file to upload." }, { status: 400 });
     }
-    if (!jobApplicationId) {
-      return NextResponse.json({ error: "Select a job before uploading your resume." }, { status: 400 });
-    }
 
     const result = await uploadWorkerResumeForApplicant(
       auth.supabase,
       auth.applicant,
       auth.user.id,
       file,
-      jobApplicationId
+      jobApplicationId || null
     );
 
     const [resumes, appliedJobs] = await Promise.all([
