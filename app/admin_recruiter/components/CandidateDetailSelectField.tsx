@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
+import CandidateDetailFieldEditModal from "./CandidateDetailFieldEditModal";
+import {
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "./candidate-detail-field-layout";
+import { useCompactViewport } from "@/app/admin_recruiter/hooks/useCompactViewport";
 
 export type SelectOption = {
   value: string;
@@ -36,11 +42,14 @@ export default function CandidateDetailSelectField({
   saving = false,
   onSave,
 }: CandidateDetailSelectFieldProps) {
+  const compact = useCompactViewport();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editValue);
   const [localSaving, setLocalSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const busy = saving || localSaving;
+  const showInlineEditor = editing && !compact;
+  const showModalEditor = editing && compact;
 
   useEffect(() => {
     if (!editing) setDraft(editValue);
@@ -79,33 +88,35 @@ export default function CandidateDetailSelectField({
     }
   }
 
+  const selectControl = (
+    <select
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        if (saveError) setSaveError(null);
+      }}
+      disabled={busy || optionsLoading}
+      className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
+        saveError ? "border-red-400" : "border-[#D1D5DB]"
+      }`}
+    >
+      <option value="">{optionsLoading ? "Loading…" : placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+
   return (
     <>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
-        {label}
-      </div>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
-        {editing ? (
+      <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>{label}</div>
+      <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
+        {showInlineEditor ? (
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  if (saveError) setSaveError(null);
-                }}
-                disabled={busy || optionsLoading}
-                className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              >
-                <option value="">{optionsLoading ? "Loading…" : placeholder}</option>
-                {options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              {selectControl}
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
@@ -146,6 +157,21 @@ export default function CandidateDetailSelectField({
           </div>
         )}
       </div>
+
+      <CandidateDetailFieldEditModal
+        open={showModalEditor}
+        title={isMissing ? `Add ${label}` : `Edit ${label}`}
+        busy={busy}
+        error={saveError}
+        onClose={cancelEditor}
+        onSave={() => void handleSave()}
+      >
+        <label className="mb-2 block text-sm font-medium text-[#374151]">{label}</label>
+        {selectControl}
+        {!optionsLoading && options.length === 0 ? (
+          <p className="mt-2 text-sm text-[#6B7280]">{emptyMessage}</p>
+        ) : null}
+      </CandidateDetailFieldEditModal>
     </>
   );
 }

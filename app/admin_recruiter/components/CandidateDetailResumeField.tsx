@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import {
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "./candidate-detail-field-layout";
 
 type CandidateDetailResumeFieldProps = {
   label: string;
@@ -15,10 +19,8 @@ export default function CandidateDetailResumeField({
 }: CandidateDetailResumeFieldProps) {
   return (
     <>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
-        {label}
-      </div>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
+      <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>{label}</div>
+      <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
         {attached ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-[var(--brand-primary)]">Attached</span>

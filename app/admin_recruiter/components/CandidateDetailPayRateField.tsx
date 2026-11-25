@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
+import CandidateDetailFieldEditModal from "./CandidateDetailFieldEditModal";
+import {
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "./candidate-detail-field-layout";
+import { useCompactViewport } from "@/app/admin_recruiter/hooks/useCompactViewport";
 import {
   WORKER_PAY_RATE_PERIODS,
   formatWorkerPayRateDisplay,
@@ -27,6 +33,7 @@ export default function CandidateDetailPayRateField({
   saving = false,
   onSave,
 }: CandidateDetailPayRateFieldProps) {
+  const compact = useCompactViewport();
   const [editing, setEditing] = useState(false);
   const [draftAmount, setDraftAmount] = useState(amount ?? "");
   const [draftPeriod, setDraftPeriod] = useState<WorkerPayRatePeriod>(
@@ -36,6 +43,8 @@ export default function CandidateDetailPayRateField({
   const [saveError, setSaveError] = useState<string | null>(null);
   const busy = saving || localSaving;
   const displayValue = formatWorkerPayRateDisplay(amount, period);
+  const showInlineEditor = editing && !compact;
+  const showModalEditor = editing && compact;
 
   useEffect(() => {
     if (!editing) {
@@ -79,48 +88,54 @@ export default function CandidateDetailPayRateField({
     }
   }
 
+  const periodSelect = (
+    <select
+      value={draftPeriod}
+      onChange={(e) => {
+        setDraftPeriod(normalizeWorkerPayRatePeriod(e.target.value));
+        if (saveError) setSaveError(null);
+      }}
+      disabled={busy}
+      aria-label="Pay rate period"
+      className={`min-h-10 w-full min-w-[140px] rounded-lg border bg-white px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] sm:w-40 ${
+        saveError ? "border-red-400" : "border-[#D1D5DB]"
+      }`}
+    >
+      {WORKER_PAY_RATE_PERIODS.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+
+  const amountInput = (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draftAmount}
+      onChange={(e) => {
+        setDraftAmount(filterCandidateFieldInput("hourly_rate", e.target.value));
+        if (saveError) setSaveError(null);
+      }}
+      placeholder="25.00"
+      disabled={busy}
+      aria-label="Pay rate amount"
+      className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
+        saveError ? "border-red-400" : "border-[#D1D5DB]"
+      }`}
+    />
+  );
+
   return (
     <>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
-        Pay Rate
-      </div>
-      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
-        {editing ? (
+      <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>Pay Rate</div>
+      <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
+        {showInlineEditor ? (
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={draftPeriod}
-                onChange={(e) => {
-                  setDraftPeriod(normalizeWorkerPayRatePeriod(e.target.value));
-                  if (saveError) setSaveError(null);
-                }}
-                disabled={busy}
-                aria-label="Pay rate period"
-                className={`min-h-10 w-full min-w-[140px] rounded-lg border bg-white px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] sm:w-40 ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              >
-                {WORKER_PAY_RATE_PERIODS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={draftAmount}
-                onChange={(e) => {
-                  setDraftAmount(filterCandidateFieldInput("hourly_rate", e.target.value));
-                  if (saveError) setSaveError(null);
-                }}
-                placeholder="25.00"
-                disabled={busy}
-                aria-label="Pay rate amount"
-                className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
-                  saveError ? "border-red-400" : "border-[#D1D5DB]"
-                }`}
-              />
+              {periodSelect}
+              {amountInput}
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
@@ -158,6 +173,21 @@ export default function CandidateDetailPayRateField({
           </div>
         )}
       </div>
+
+      <CandidateDetailFieldEditModal
+        open={showModalEditor}
+        title={isMissing ? "Add Pay Rate" : "Edit Pay Rate"}
+        busy={busy}
+        error={saveError}
+        onClose={cancelEditor}
+        onSave={() => void handleSave()}
+      >
+        <label className="mb-2 block text-sm font-medium text-[#374151]">Pay Rate</label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {periodSelect}
+          {amountInput}
+        </div>
+      </CandidateDetailFieldEditModal>
     </>
   );
 }

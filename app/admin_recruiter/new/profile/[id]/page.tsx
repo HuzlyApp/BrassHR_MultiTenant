@@ -31,6 +31,11 @@ import CandidateDetailReferenceField, {
   type ReferenceFormValue,
 } from "../../../components/CandidateDetailReferenceField";
 import {
+  CANDIDATE_DETAIL_FIELDS_GRID_CLASS,
+  CANDIDATE_DETAIL_LABEL_CELL_CLASS,
+  CANDIDATE_DETAIL_VALUE_CELL_CLASS,
+} from "../../../components/candidate-detail-field-layout";
+import {
   formatReferenceDisplay,
   isMissingCandidateValue,
   isPlaceholderPhone,
@@ -996,7 +1001,7 @@ export default function NewApplicantProfilePage() {
                       <h2 className={PROFILE_CARD_TITLE_CLASS}>Applicant Details</h2>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2">
+                    <div className={CANDIDATE_DETAIL_FIELDS_GRID_CLASS}>
                       <CandidateDetailEditableField
                         label="First Name"
                         displayValue={w?.first_name ?? "—"}
@@ -1102,10 +1107,10 @@ export default function NewApplicantProfilePage() {
                         onSave={(value) => saveWorkerField("ssn_last_four", value)}
                       />
                       <div className="contents">
-                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
+                        <div className={CANDIDATE_DETAIL_LABEL_CELL_CLASS}>
                           Work Status
                         </div>
-                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#111827] sm:px-5">
+                        <div className={CANDIDATE_DETAIL_VALUE_CELL_CLASS}>
                           <CandidateApplicationStatusControl
                             workerId={applicantId}
                             fallbackStatus={w?.status_label}
@@ -1213,7 +1218,7 @@ export default function NewApplicantProfilePage() {
                     <div className={PROFILE_CARD_HEADER_CLASS}>
                       <h2 className={PROFILE_CARD_TITLE_CLASS}>References</h2>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2">
+                    <div className={CANDIDATE_DETAIL_FIELDS_GRID_CLASS}>
                       <CandidateDetailReferenceField
                         label="Reference 1 (Name, Email, Phone, Relationship)"
                         displayValue={formatReferenceDisplay(data?.references?.[0])}
