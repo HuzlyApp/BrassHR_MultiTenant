@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { adminAddCandidateFromResume } from "@/lib/jobs/admin-add-candidate-from-resume";
@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const result = await adminAddCandidateFromResume(supabase, {
+      schedulePortalEmail: (task) => after(task),
       portalEmailOrigin: resolveApplicantEmailAppOrigin(req),
       tenantId,
       jobRequisitionId,

@@ -63,6 +63,20 @@ describe("place autocomplete request lifecycle", () => {
     expect(result.current.isVerified).toBe(false)
   })
 
+  it("ends a stalled search even when the transport ignores abort, and ignores late data", async () => {
+    let resolve!: (response: Response) => void
+    vi.mocked(fetch).mockImplementation(() => new Promise(r => { resolve = r }))
+    const { result } = renderHook(() => usePlaceAutocomplete("Dallas"))
+    act(() => result.current.openSuggestions())
+    await tick(6000)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.searchError).toBeTruthy()
+    await act(async () => resolve(Response.json({ suggestions: [suggestion] })))
+    expect(result.current.suggestions).toEqual([])
+    expect(result.current.isOpen).toBe(false)
+    expect(result.current.searchError).toBeTruthy()
+  })
+
   it("ends a stalled search with a recoverable error after six seconds", async () => {
     vi.mocked(fetch).mockImplementation((_url, init) => new Promise((_resolve, reject) => {
       init!.signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))

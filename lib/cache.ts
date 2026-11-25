@@ -262,7 +262,7 @@ export async function setCache<T>(
     memorySet(key, serialized, ttlSeconds);
     const adapter = await getAdapter();
     if (!adapter) return true;
-    await adapter.set(key, serialized, ttlSeconds);
+    await withRedisTimeout(adapter.set(key, serialized, ttlSeconds), "set");
     return true;
   } catch (error) {
     logCache("set-error", { key, error });
@@ -285,7 +285,7 @@ export async function deleteCache(key: string): Promise<void> {
     const adapter = await getAdapter();
     memoryCache.delete(key);
     if (!adapter) return;
-    await adapter.delete(key);
+    await withRedisTimeout(adapter.delete(key), "delete");
   } catch (error) {
     logCache("delete-error", { key, error });
     markRedisUnavailable();
@@ -297,7 +297,7 @@ export async function deleteByPattern(pattern: string): Promise<void> {
     const adapter = await getAdapter();
     memoryDeleteByPattern(pattern);
     if (!adapter?.deleteByPattern) return;
-    await adapter.deleteByPattern(pattern);
+    await withRedisTimeout(adapter.deleteByPattern(pattern), "delete-pattern");
   } catch (error) {
     logCache("delete-pattern-error", { pattern, error });
     markRedisUnavailable();

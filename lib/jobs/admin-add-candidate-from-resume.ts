@@ -42,6 +42,8 @@ const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024
 
 export type AdminAddCandidateFromResumeInput = {
   portalEmailOrigin?: string | null;
+  /** Route handlers use Next after() so email delivery does not delay a saved candidate. */
+  schedulePortalEmail?: (task: () => Promise<void>) => void;
   tenantId: string;
   jobRequisitionId: string;
   staffUserId?: string | null;
@@ -61,7 +63,7 @@ export type AdminAddCandidateFromResumeInput = {
 };
 
 export type AdminAddCandidateFromResumeResult = {
-  portalEmail: PortalEmailResult;
+  portalEmail: PortalEmailResult | { sent: false; queued: true };
   applicationId: string;
   applicantProfileId: string;
   jobTitle: string;
@@ -594,9 +596,17 @@ export async function adminAddCandidateFromResume(
     });
   }
 
-  const portalEmail = await sendApplicantPortalAccessEmail(supabase, {
-    tenantId: input.tenantId, workerId, origin: input.portalEmailOrigin,
-  });
+  const emailInput = { tenantId: input.tenantId, workerId, origin: input.portalEmailOrigin };
+  let portalEmail: AdminAddCandidateFromResumeResult["portalEmail"];
+  if (input.schedulePortalEmail) {
+    input.schedulePortalEmail(async () => {
+      const delivery = await sendApplicantPortalAccessEmail(supabase, emailInput);
+      if (!delivery.sent) console.warn("[admin-add-candidate-from-resume] portal email failed", delivery.error);
+    });
+    portalEmail = { sent: false, queued: true };
+  } else {
+    portalEmail = await sendApplicantPortalAccessEmail(supabase, emailInput);
+  }
   let autoQuickMatch: AutoQuickMatchResult | null = null;
   if (applicationId) {
     // The candidate is saved; AI matching runs after the response via Next after().

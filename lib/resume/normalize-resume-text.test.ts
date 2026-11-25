@@ -19,6 +19,13 @@ across MM, SD, FI/CO, ABAP, BW, and SAP Ariba in a healthcare enterprise environ
 `.trim()
 
 describe("preExtractResumeFields", () => {
+  it("retains explicit summary and skills without consuming later employment or education", () => {
+    const result = preExtractResumeFields("Jane Doe\njane@example.com\nProfessional Summary\nRegistered nurse with ICU experience.\nSkills: ICU, First aid\n• Patient care\nWork Experience\nClinic A\nEducation\nUniversity");
+    expect(result.summary).toBe("Registered nurse with ICU experience.");
+    expect(result.skills).toEqual(["ICU", "First aid", "Patient care"]);
+    expect(preExtractResumeFields("Jane Doe\njane@example.com\nClinic A").skills).toEqual([]);
+  });
+
   it("captures email and phone from resume text", () => {
     const text = `
 Jane Doe

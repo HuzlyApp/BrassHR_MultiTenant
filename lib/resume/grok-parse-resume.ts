@@ -37,6 +37,8 @@ function mergeParsedFields(
 
   return {
     ...fromGrok,
+    summary: fromGrok.summary?.trim() || pre.summary || "",
+    skills: fromGrok.skills?.length ? fromGrok.skills : pre.skills ?? [],
     first_name: pick(fromGrok.first_name, pre.first_name),
     last_name: pick(fromGrok.last_name, pre.last_name),
     email: pick(fromGrok.email, pre.email),

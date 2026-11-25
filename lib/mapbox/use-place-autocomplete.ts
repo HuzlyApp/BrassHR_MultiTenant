@@ -92,7 +92,15 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
     setIsLoading(true)
     setSearchError(null)
 
-    const deadline = window.setTimeout(() => controller.abort(), 6000)
+    const deadline = window.setTimeout(() => {
+      if (requestId !== requestIdRef.current) return
+      ++requestIdRef.current
+      controller.abort()
+      setIsLoading(false)
+      setSuggestions([])
+      setIsOpen(false)
+      setSearchError(PLACE_AUTOCOMPLETE_ERROR_MESSAGE)
+    }, 6000)
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
