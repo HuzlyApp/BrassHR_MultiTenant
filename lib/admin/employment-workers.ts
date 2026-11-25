@@ -1,5 +1,8 @@
 export type EmploymentWorkerTab = "new" | "all" | "w2" | "1099";
 
+/** Workers list vs Managers list bucket on public.workers.directory_role */
+export type EmploymentDirectoryRole = "worker" | "manager";
+
 export type EmploymentWorkerRecord = {
   id: string;
   candidate_id: string;
@@ -35,7 +38,14 @@ export type EmploymentWorkerRecord = {
   hours_per_week?: string | null;
   overtime_rate?: string | null;
   hired_date?: string | null;
+  directory_role?: EmploymentDirectoryRole | null;
 };
+
+export function parseEmploymentDirectoryRole(
+  value: string | null | undefined
+): EmploymentDirectoryRole {
+  return (value ?? "").trim().toLowerCase() === "manager" ? "manager" : "worker";
+}
 
 export function parseEmploymentWorkerTab(value: string | null | undefined): EmploymentWorkerTab {
   const tab = (value ?? "").trim().toLowerCase();

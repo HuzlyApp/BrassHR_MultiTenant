@@ -431,7 +431,9 @@ export default function DepartmentsPanel() {
     <section className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold leading-7 tracking-tight text-[#101828]">Departments</h1>
+          <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#101828]">
+            Departments
+          </h1>
           <p className="mt-1 text-sm leading-5 text-[#6B7280]">Manage your departments</p>
         </div>
         <button

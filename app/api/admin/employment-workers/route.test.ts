@@ -18,6 +18,13 @@ describe("single-worker directory details", () => {
     expect(mocks.calls).toContainEqual(["workers", "tenant_id", "tenant-a"]);
     expect(mocks.calls).toContainEqual(["workers", "candidate_id", id]);
     expect(mocks.calls).toContainEqual(["workers", "archived_at", null]);
+    expect(mocks.calls).toContainEqual(["workers", "directory_role", "worker"]);
+  });
+  it("filters managers directory by directory_role", async () => {
+    expect(
+      (await GET(new NextRequest("https://example.test/api/admin/employment-workers?directoryRole=manager"))).status
+    ).toBe(200);
+    expect(mocks.calls).toContainEqual(["workers", "directory_role", "manager"]);
   });
   it("rejects malformed candidate IDs", async () => {
     expect((await GET(new NextRequest("https://example.test/api/admin/employment-workers?candidateId=invalid"))).status).toBe(400);

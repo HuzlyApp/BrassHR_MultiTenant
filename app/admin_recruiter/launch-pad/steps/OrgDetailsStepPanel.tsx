@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import SettingsSelect from "@/app/admin_recruiter/settings/SettingsSelect";
 import { COMPANY_SIZE_OPTIONS } from "@/app/tenant-onboarding/constants";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
+
+const EMPLOYEE_COUNT_OPTIONS = COMPANY_SIZE_OPTIONS.map((size) => ({
+  value: size,
+  label: size,
+}));
 
 export function OrgDetailsStepPanel({
   onBack,
@@ -29,21 +36,23 @@ export function OrgDetailsStepPanel({
   }, [organization?.id, organization?.address_line_1, organization?.ein, organization?.company_size]);
 
   const handleContinue = async () => {
+    const trimmedAddress = address.trim();
+    const trimmedEin = ein.trim();
+    if (!trimmedAddress || !trimmedEin || !companySize) {
+      setError("Address, EIN, and employee count are required. Use Skip if you want to finish this later.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
-      const hasValues = Boolean(address.trim() || ein.trim() || companySize);
-      if (!hasValues) {
-        onComplete();
-        return;
-      }
       const res = await fetch("/api/admin/launch-pad/organization", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: address.trim() || undefined,
-          ein: ein.trim() || undefined,
-          companySize: companySize || undefined,
+          address: trimmedAddress,
+          ein: trimmedEin,
+          companySize,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -55,6 +64,7 @@ export function OrgDetailsStepPanel({
         return;
       }
       await refresh();
+      toast.success("Organization details saved.");
       onComplete();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save organization details.");
@@ -72,18 +82,19 @@ export function OrgDetailsStepPanel({
               Organization Details
             </h2>
             <p className="text-[12px] font-normal leading-4 text-[#6B7280]" style={interStyle}>
-              Full address, EIN, employee count. Optional.
+              Full address, EIN, employee count. Use Skip if you want to finish this later.
             </p>
           </div>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-normal leading-4 text-black" style={interStyle}>
-              Address
+              Address <span className="text-[#DC2626]">*</span>
             </span>
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Street address"
+              required
               className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#012352]"
               style={interStyle}
             />
@@ -91,38 +102,36 @@ export function OrgDetailsStepPanel({
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-normal leading-4 text-black" style={interStyle}>
-              EIN
+              EIN <span className="text-[#DC2626]">*</span>
             </span>
             <input
               value={ein}
               onChange={(e) => setEin(e.target.value)}
               placeholder="XX-XXXXXXX"
+              required
               className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#012352]"
               style={interStyle}
             />
           </label>
 
-          <label className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-[12px] font-normal leading-4 text-black" style={interStyle}>
-              Employee count
+              Employee count <span className="text-[#DC2626]">*</span>
             </span>
-            <select
+            <SettingsSelect
+              aria-label="Employee count"
               value={companySize}
-              onChange={(e) => setCompanySize(e.target.value)}
-              className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#012352]"
-              style={interStyle}
-            >
-              <option value="">Select size</option>
-              {COMPANY_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={EMPLOYEE_COUNT_OPTIONS}
+              onChange={setCompanySize}
+              placeholder="Select size"
+              size="sm"
+              className="w-full"
+              triggerClassName="h-9 w-full justify-between rounded-lg border border-[#E5E7EB] bg-white px-3 pr-3 text-[14px] text-black hover:bg-white focus-visible:border-[color:var(--brand-secondary)] focus-visible:outline-none"
+            />
+          </div>
 
           {error ? (
-            <p className="text-[12px] text-[#DC2626]" style={interStyle}>
+            <p role="alert" className="text-[12px] text-[#DC2626]" style={interStyle}>
               {error}
             </p>
           ) : null}

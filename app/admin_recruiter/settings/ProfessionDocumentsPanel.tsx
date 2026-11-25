@@ -1663,8 +1663,10 @@ export default function ProfessionDocumentsPanel({
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Professions</h1>
-          <p className="mt-1 text-sm text-[#64748B]">
+          <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
+            Professions
+          </h1>
+          <p className="mt-1 text-sm leading-5 text-[#64748B]">
             Organize job industry and manage their positions.
           </p>
         </div>

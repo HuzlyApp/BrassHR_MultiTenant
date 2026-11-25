@@ -375,10 +375,10 @@ export default function AssessmentListClient() {
   return (
     <section className="space-y-5">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
           Assessment
         </h1>
-        <p className="mt-1 max-w-3xl text-xs leading-4 text-[#6B7280]">
+        <p className="mt-1 max-w-3xl text-sm leading-5 text-[#6B7280]">
           Evaluate candidates&apos; skills, knowledge, qualifications, and job readiness through
           structured tests and performance-based evaluations.
         </p>

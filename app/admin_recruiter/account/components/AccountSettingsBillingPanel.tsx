@@ -134,7 +134,7 @@ export default function AccountSettingsBillingPanel() {
           <section>
             <h3 className="mb-4 text-base font-semibold text-[#1E3A5F]">Billing Information</h3>
 
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-6">
                 <div>
                   <div className="text-sm text-[#6B7280]">Customer</div>
@@ -203,7 +203,7 @@ export default function AccountSettingsBillingPanel() {
               <p className="mt-0.5 text-sm" style={{ color: COLORS.textLabels }}>
                 Contact support for your billing cycle and seat allocation.
               </p>
-              <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+              <dl className="mt-4 grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
                 <div><dt className="text-[#6B7280]">Billing cycle</dt><dd className="mt-1 text-[#1E3A5F]">Not configured</dd></div>
                 <div><dt className="text-[#6B7280]">Seats</dt><dd className="mt-1 text-[#1E3A5F]">Not configured</dd></div>
               </dl>

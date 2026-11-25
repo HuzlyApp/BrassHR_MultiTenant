@@ -872,7 +872,7 @@ export default function BrandingSettingsPanel({
       {saveMessage ? <p role="status" className="text-sm text-teal-700">{saveMessage}</p> : null}
 
       <div>
-        <h1 className="text-xl font-semibold leading-7 text-black">Branding</h1>
+        <h1 className="text-lg font-semibold leading-6 text-black">Branding</h1>
         <p className="text-xs font-normal leading-4 text-[#6B7280]">Customize your branding.</p>
       </div>
 
@@ -1099,7 +1099,7 @@ export default function BrandingSettingsPanel({
                 <div className="flex min-w-0 flex-col gap-[30px]">
                   <div className="flex flex-col gap-[14px]">
                     <p className="text-sm font-semibold leading-5 text-black">Quick Presets</p>
-                    <div className="grid gap-5 sm:grid-cols-2">
+                    <div className="grid gap-5 md:grid-cols-2">
                       {BRAND_COLOR_PRESETS.map((preset) => {
                         const active = isPresetActive(preset, primaryHex, secondaryHex, accentHex);
                         return (
@@ -1201,7 +1201,7 @@ export default function BrandingSettingsPanel({
               </div>
             </div>
           ) : null}
-          <div className="flex w-full flex-col-reverse gap-3 border-t border-[#E5E7EB] pt-6 sm:flex-row sm:justify-end">
+          <div className="flex w-full flex-col-reverse items-stretch gap-3 border-t border-[#E5E7EB] pt-6 min-[500px]:items-end sm:flex-row sm:justify-end">
             <button
               type="button"
               data-branding-ignore-edit=""

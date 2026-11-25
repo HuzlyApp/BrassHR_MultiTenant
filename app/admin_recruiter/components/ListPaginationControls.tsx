@@ -7,10 +7,10 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 const SURFACE =
-  "box-border inline-flex h-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-center text-sm leading-none tabular-nums text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+  "box-border inline-flex h-8 min-h-8 min-w-8 cursor-pointer items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-center text-sm leading-none tabular-nums text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 
 const PAGE_SIZE_SELECT_BOX_CLASS =
-  "relative inline-flex h-8 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] focus-within:border-[#CBD5E1]";
+  "relative inline-flex h-8 min-w-[3.5rem] cursor-pointer items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] focus-within:border-[#CBD5E1]";
 
 const PAGE_SIZE_SELECT_TRIGGER_CLASS =
   "flex h-8 w-full min-w-[3.5rem] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-6 text-center text-sm leading-none tabular-nums text-[#334155] outline-none focus:outline-none focus:ring-0";
@@ -106,7 +106,7 @@ export function ListPaginationControls({
         className={`${SURFACE} gap-1 px-2.5`}
       >
         <ChevronLeft className="h-4 w-4" />
-        <span className="hidden min-[480px]:inline">Previous</span>
+        <span className="hidden sm:inline">Previous</span>
       </button>
 
       {pageItems.map((item, index) => {
@@ -145,7 +145,7 @@ export function ListPaginationControls({
         disabled={safePage >= safeTotal}
         className={`${SURFACE} gap-1 px-2.5`}
       >
-        <span className="hidden min-[480px]:inline">Next</span>
+        <span className="hidden sm:inline">Next</span>
         <ChevronRight className="h-4 w-4" />
       </button>
     </div>

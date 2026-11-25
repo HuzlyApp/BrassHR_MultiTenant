@@ -185,7 +185,7 @@ export default function HireJourneyThemePanel({
   if (!draft || !previewTheme) return null;
 
   const fieldsGrid = (
-    <div className={embedded ? "grid gap-4 sm:grid-cols-2" : "mt-5 grid gap-4 sm:grid-cols-2"}>
+    <div className={embedded ? "grid gap-4 md:grid-cols-2" : "mt-5 grid gap-4 md:grid-cols-2"}>
       {FIELDS.map((field) => (
         <div key={field.key}>
           <BrandingColorField
@@ -236,7 +236,7 @@ export default function HireJourneyThemePanel({
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
         </div>
       ) : null}
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse items-stretch gap-3 min-[500px]:items-end sm:flex-row sm:justify-end">
         {embedded ? (
           <button
             type="button"
@@ -259,7 +259,7 @@ export default function HireJourneyThemePanel({
               setMessage(null);
               setError(null);
             }}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-5 text-sm font-medium text-[#012352] disabled:opacity-60"
+            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-5 text-sm font-medium text-[#012352] disabled:opacity-60 min-[500px]:w-auto"
           >
             Cancel
           </button>
@@ -268,7 +268,7 @@ export default function HireJourneyThemePanel({
           type="button"
           disabled={saving}
           onClick={() => void save(false)}
-          className="inline-flex h-10 items-center justify-center rounded-lg bg-[#012352] px-5 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#012352] px-5 text-sm font-semibold text-white disabled:opacity-60 min-[500px]:w-auto"
         >
           {saving ? "Saving…" : embedded ? "Save Changes" : "Save hiring journey colors"}
         </button>

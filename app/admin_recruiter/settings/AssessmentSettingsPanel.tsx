@@ -789,7 +789,7 @@ export default function AssessmentSettingsPanel({
           </Link>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-[28px] font-semibold leading-tight tracking-tight text-[#0F172A]">
+              <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
                 {professionName || "Profession assessment"}
               </h1>
               {statusBadge}
@@ -808,7 +808,7 @@ export default function AssessmentSettingsPanel({
                 </div>
                 {professionIsActive ? activeStatusChip : inactiveStatusChip}
               </div>
-              <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              <div className="mt-5 grid gap-x-8 gap-y-4 md:grid-cols-2">
                 <div>
                   <p className="text-xs font-medium text-[#94A3B8]">Profession Name</p>
                   <p className="mt-1 text-sm font-medium text-[#0F172A]">{professionName || "—"}</p>
@@ -1010,8 +1010,8 @@ export default function AssessmentSettingsPanel({
             <div
               className={
                 fullPage
-                  ? "mt-4 grid gap-4 sm:grid-cols-2"
-                  : "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                  ? "mt-4 grid gap-4 md:grid-cols-2"
+                  : "grid gap-3 md:grid-cols-2 lg:grid-cols-3"
               }
             >
               <div className="space-y-3">
@@ -1308,7 +1308,7 @@ export default function AssessmentSettingsPanel({
 
                 {expanded ? (
                   <div className="space-y-3 border-t border-[#E2E8F0] bg-white px-3 py-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2">
                       <label className="block space-y-1">
                         <span className="text-xs font-semibold text-[#64748B]">Category name</span>
                         <input

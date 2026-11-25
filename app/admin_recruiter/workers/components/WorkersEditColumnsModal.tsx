@@ -136,12 +136,12 @@ export function WorkersEditColumnsModal({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <Dialog.Content
           style={brandVars}
-          className="fixed left-1/2 top-1/2 z-50 flex h-[min(650px,calc(100vh-2rem))] w-[min(940px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed inset-x-0 bottom-0 top-auto z-50 flex h-[94dvh] max-h-[94dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(650px,calc(100vh-2rem))] sm:max-h-[calc(100vh-2rem)] sm:w-[min(940px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
-            <Dialog.Title className="text-xl font-bold text-[#111827]">
+          <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] px-4 py-4 sm:px-6">
+            <Dialog.Title className="truncate text-xl font-bold text-[#111827]">
               Edit Columns
             </Dialog.Title>
             <Dialog.Close
@@ -153,7 +153,7 @@ export function WorkersEditColumnsModal({
           </div>
 
           {/* Main 2-column Body */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-hidden p-6 md:grid-cols-2">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto overflow-x-hidden p-4 sm:gap-8 sm:overflow-hidden sm:p-6 md:grid-cols-2">
             {/* Left: Choose display columns */}
             <div className="flex min-h-0 flex-col">
               <h3 className="shrink-0 text-sm font-semibold text-[#111827]">
@@ -305,7 +305,7 @@ export function WorkersEditColumnsModal({
           </div>
 
           {/* Footer */}
-          <div className="flex shrink-0 items-center justify-between border-t border-[#E5E7EB] px-6 py-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#E5E7EB] px-4 py-4 sm:gap-3 sm:px-6">
             <button
               type="button"
               onClick={resetToDefault}

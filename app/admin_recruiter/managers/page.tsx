@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
-import {
-  CANDIDATES_FILTER_CONTROL_CLASS,
-  CANDIDATES_FILTER_LABEL_CLASS,
-  CANDIDATES_PAGE_SUBTITLE_STYLE,
-} from "@/app/admin_recruiter/candidates/candidates-typography";
-import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
-import { Columns2, Plus, Search, RefreshCw, Filter } from "lucide-react";
+import {
+  ListPaginationControls,
+  ListPaginationShowLabel,
+} from "@/app/admin_recruiter/components/ListPaginationControls";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import {
+  employmentWorkerStatusLabel,
+  type EmploymentWorkerRecord,
+} from "@/lib/admin/employment-workers";
+import {
+  BRAAS_PRIMARY,
+  BRAAS_SECONDARY,
+  readableTextOnBrand,
+} from "@/lib/tenant/tenant-branding";
+import { Calendar, Check, ChevronDown, LayoutList, RefreshCw, Search } from "lucide-react";
+import { ManagersMetricsCards } from "./ManagersMetricsCards";
 import {
   DEFAULT_MANAGER_COLUMNS,
   MANAGER_COLUMN_OPTIONS,
@@ -20,6 +28,26 @@ import {
 } from "./manager-columns";
 import { renderManagerListCell, type ManagerListRow } from "./render-manager-list-cell";
 
+function mapApiWorkerToManagerRow(
+  w: Partial<EmploymentWorkerRecord> & { department_id?: string | null }
+): ManagerListRow {
+  const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed Manager";
+  const jobRole = (w.job_role || "").trim();
+  return {
+    id: String(w.id),
+    name,
+    email: w.email?.trim() || "",
+    role: jobRole && jobRole.toLowerCase() !== "manager" ? jobRole : "Manager",
+    department: (w.department || "").trim() || "—",
+    location: (w.location || "").trim() || "—",
+    status: employmentWorkerStatusLabel(w.status),
+    createdAt: w.created_at ?? w.converted_at ?? null,
+    profilePhotoUrl: w.profile_photo_url ?? null,
+    phone: w.phone?.trim() || "—",
+    reference: String(w.candidate_id || w.id || "—"),
+  };
+}
+
 type ManagerTab = "all" | "active" | "inactive";
 
 const MANAGER_TABS: Array<{ id: ManagerTab; label: string }> = [
@@ -28,52 +56,118 @@ const MANAGER_TABS: Array<{ id: ManagerTab; label: string }> = [
   { id: "inactive", label: "Inactive" },
 ];
 
-function managerTabLabel(tab: ManagerTab): string {
-  switch (tab) {
-    case "active":
-      return "active managers";
-    case "inactive":
-      return "inactive managers";
-    default:
-      return "managers";
-  }
-}
+const FILTER_CHIP_CLASS =
+  "inline-flex h-8 w-full max-w-none cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-medium leading-4 text-[#334155] transition hover:bg-[#F8FAFC] sm:w-auto sm:justify-start";
 
 function formatDateShort(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { timeZone: "America/New_York", 
+  return d.toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
 }
 
+function matchesManagerTab(status: string, tab: ManagerTab): boolean {
+  if (tab === "all") return true;
+  const normalized = status.trim().toLowerCase();
+  if (tab === "active") return normalized === "active";
+  return normalized === "inactive" || normalized === "terminated" || normalized === "archived";
+}
+
 export default function ManagersPage() {
-  const [managers] = useState<ManagerListRow[]>([]);
+  const branding = useTenantBranding();
+  const primaryColor = branding.primaryHex || BRAAS_PRIMARY;
+  const secondaryColor = branding.secondaryHex || BRAAS_SECONDARY || "#012352";
+  const textOnPrimary = readableTextOnBrand(primaryColor);
+
+  const [managers, setManagers] = useState<ManagerListRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
   const [managerTab, setManagerTab] = useState<ManagerTab>("all");
-  const [showFilterRows, setShowFilterRows] = useState(true);
   const [roleFilter, setRoleFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [departmentMenuOpen, setDepartmentMenuOpen] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<ManagerColumnId[]>(DEFAULT_MANAGER_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const loadManagers = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const response = await fetch(
+        "/api/admin/employment-workers?directoryRole=manager&tab=all",
+        { cache: "no-store" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          (payload as { error?: string }).error || "Could not load managers."
+        );
+      }
+      const rows = Array.isArray((payload as { workers?: unknown }).workers)
+        ? ((payload as { workers: Partial<EmploymentWorkerRecord>[] }).workers)
+        : [];
+      setManagers(rows.map(mapApiWorkerToManagerRow));
+    } catch (error) {
+      setManagers([]);
+      setLoadError(error instanceof Error ? error.message : "Could not load managers.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setListColumnOrder(loadManagerColumnOrder());
   }, []);
 
+  useEffect(() => {
+    void loadManagers();
+  }, [loadManagers]);
+
+  useEffect(() => {
+    function handleGlobalClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest?.("[data-filter-dropdown]")) {
+        setRoleMenuOpen(false);
+        setDepartmentMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleGlobalClick);
+    return () => document.removeEventListener("mousedown", handleGlobalClick);
+  }, []);
+
   const handleRefresh = () => {
-    setLoading(true);
-    window.setTimeout(() => setLoading(false), 400);
+    void loadManagers();
   };
 
+  const handleSearch = () => {
+    setAppliedQuery(query);
+    setCurrentPage(1);
+  };
+
+  const metricsCounts = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    for (const m of managers) {
+      if (matchesManagerTab(m.status, "active")) active += 1;
+      else if (matchesManagerTab(m.status, "inactive")) inactive += 1;
+    }
+    return { total: managers.length, active, inactive };
+  }, [managers]);
+
   const filtered = useMemo(() => {
-    let out = managers;
-    const q = query.trim().toLowerCase();
+    let out = managers.filter((m) => matchesManagerTab(m.status, managerTab));
+    const q = appliedQuery.trim().toLowerCase();
     if (q) {
       out = out.filter((m) => {
         return (
@@ -97,7 +191,7 @@ export default function ManagersPage() {
       });
     }
     return out;
-  }, [managers, query, roleFilter, departmentFilter, dateFilter]);
+  }, [managers, appliedQuery, roleFilter, departmentFilter, dateFilter, managerTab]);
 
   const roleOptions = useMemo(() => {
     const s = new Set<string>();
@@ -115,202 +209,307 @@ export default function ManagersPage() {
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [managers]);
 
-  function managerTabClass(active: boolean): string {
-    return active
-      ? "border-b-2 border-(--brand-primary) pb-3 text-(--brand-primary)"
-      : "border-b-2 border-transparent pb-3 text-[#667085] transition-colors hover:text-(--brand-primary)";
-  }
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStart = totalItems === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(safeCurrentPage * pageSize, totalItems);
+  const paginatedManagers = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, pageSize, safeCurrentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [managerTab, roleFilter, departmentFilter, dateFilter, appliedQuery]);
+
+  const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_MANAGER_COLUMNS;
 
   return (
-    <div className="px-5 pb-8 pt-5 lg:px-8">
-      <div className="mb-4 flex items-center gap-6 overflow-x-auto border-b border-[#E5E7EB] pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {MANAGER_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setManagerTab(tab.id)}
-            className={`shrink-0 whitespace-nowrap text-sm font-medium ${managerTabClass(managerTab === tab.id)}`}
-            aria-current={managerTab === tab.id ? "page" : undefined}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="box-border flex w-full min-w-0 max-w-full flex-col gap-5 overflow-x-hidden px-4 pb-8 pt-[30px] sm:px-5 lg:px-8">
+      <div className="min-w-0">
+        <h1 className="text-[20px] font-semibold leading-7 text-black">Managers</h1>
+        <p className="text-xs leading-4 text-[#374151]">
+          People promoted from Workers appear here
+        </p>
       </div>
 
-      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <CandidatesPageHeader title="Managers" subtitle="Manage managers in one place" />
+      {loadError ? (
+        <p role="alert" className="text-sm text-red-700">
+          {loadError}
+        </p>
+      ) : null}
 
-        <div
-          className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
-            showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
-          }`}
-        >
-          <div className="flex h-[52px] w-full shrink-0 items-center gap-3 border-b border-[#E5E7EB] px-[14px]">
-            <div className="flex h-8 w-full min-w-0 max-w-[360px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
-              <Search className="mr-2 h-4 w-4 shrink-0 text-[#94A3B8]" />
+      <div className="flex items-center gap-6 overflow-x-auto border-b border-[#E5E7EB] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {MANAGER_TABS.map((tab) => {
+          const active = managerTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setManagerTab(tab.id)}
+              className={`shrink-0 cursor-pointer whitespace-nowrap border-b-2 pb-3 text-sm font-medium transition-colors ${
+                active
+                  ? "border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
+                  : "border-transparent text-[#667085] hover:text-[color:var(--brand-primary)]"
+              }`}
+              aria-current={active ? "page" : undefined}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <ManagersMetricsCards counts={metricsCounts} loading={loading} />
+
+      <div className="flex min-w-0 flex-col gap-3.5">
+        <div className="flex min-w-0 flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div className="flex w-full max-w-[480px] flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-white p-1.5 shadow-2xs sm:flex-row sm:items-center sm:gap-0 sm:p-1">
+            <div className="relative flex min-w-0 flex-1 items-center pl-3">
+              <Search className="h-4 w-4 shrink-0 text-[#94A3B8]" />
               <input
-                type="search"
+                type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSearch();
+                }}
                 placeholder="Search managers"
-                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                className="w-full min-w-0 bg-transparent px-3 py-1.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none"
               />
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowFilterRows((v) => !v)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Filter className="h-4 w-4 shrink-0" />
-                Filters
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditColumnsOpen(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Columns2 className="h-4 w-4 shrink-0" />
-                Columns
-              </button>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                Create Manager
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSearch}
+              style={{ backgroundColor: primaryColor, color: textOnPrimary }}
+              className="h-9 w-full shrink-0 cursor-pointer rounded-lg px-4 text-xs font-semibold leading-4 shadow-xs transition hover:brightness-95 active:scale-[0.98] sm:h-8 sm:w-auto"
+            >
+              Search
+            </button>
           </div>
 
-          {showFilterRows ? (
-            <div className="flex h-[52px] w-full shrink-0 items-center gap-3 px-[14px]">
-              <div className="flex min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <BrandedSvgIcon
-                  src="/icons/admin-recruiter/candidates/filtered.svg.svg"
-                  className="h-4 w-4 shrink-0"
-                  color="var(--brand-primary)"
-                />
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Role
-                  </span>
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                  >
-                    <option value="">All</option>
-                    {roleOptions.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Department
-                  </span>
-                  <select
-                    value={departmentFilter}
-                    onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                  >
-                    <option value="">All</option>
-                    {departmentOptions.map((dep) => (
-                      <option key={dep} value={dep}>
-                        {dep}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Created Date
-                  </span>
-                  <input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} min-w-[132px] scheme-light`}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                  />
-                </label>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex w-full items-center gap-3 px-[14px] py-3">
-          <div className="text-xs leading-4 text-[#5e7371]">
-            Total: <span className="font-semibold text-[#203130]">{loading ? "—" : filtered.length}</span> {managerTabLabel(managerTab)}
-          </div>
-        </div>
-
-        <div className="bg-white px-[14px] py-4">
-          {loading ? null : filtered.length === 0 ? (
-            <div className="flex min-h-[280px] flex-col items-center justify-center py-16 text-center">
-              <p className="text-base font-medium text-[#475569]">No data found</p>
-            </div>
-          ) : (
-            (() => {
-              const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_MANAGER_COLUMNS;
-              return (
-                <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
-                  <div className="overflow-auto">
-                    <table className="min-w-[760px] w-full border-collapse">
-                      <thead className="bg-[#F3F4F6]">
-                        <tr className="border-b border-[#E5E7EB]">
-                          {cols.map((colId) => (
-                            <th
-                              key={colId}
-                              className={`bg-[#F3F4F6] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 last:pr-6 ${
-                                colId === "name" ? "text-left" : "text-center"
-                              } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
-                            >
-                              {managerColumnLabel(colId)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((m) => (
-                          <tr key={m.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                            {cols.map((colId) => (
-                              <td
-                                key={colId}
-                                className={`px-4 py-4 align-middle first:pl-6 last:pr-6 ${
-                                  colId === "name" ? "text-left" : "text-center"
-                                } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
-                              >
-                                {renderManagerListCell(colId, m, formatDateShort)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
+            <div className="relative min-w-0" data-filter-dropdown>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoleMenuOpen(!roleMenuOpen);
+                  setDepartmentMenuOpen(false);
+                }}
+                className={`${FILTER_CHIP_CLASS} sm:max-w-[220px]`}
+                aria-haspopup="listbox"
+                aria-expanded={roleMenuOpen}
+              >
+                <span className="truncate">Role • {roleFilter || "All"}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
+              </button>
+              {roleMenuOpen && (
+                <div className="absolute left-0 right-0 z-30 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-60">
+                  {["All", ...roleOptions].map((opt) => {
+                    const isAll = opt === "All";
+                    const isSelected = roleFilter ? roleFilter === opt : isAll;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          setRoleFilter(isAll ? "" : opt);
+                          setRoleMenuOpen(false);
+                        }}
+                        className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-left text-xs text-[#334155] hover:bg-[#F8FAFC]"
+                      >
+                        <span className="truncate pr-2">{opt}</span>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 shrink-0" style={{ color: primaryColor }} />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })()
-          )}
+              )}
+            </div>
+
+            <div className="relative min-w-0" data-filter-dropdown>
+              <button
+                type="button"
+                onClick={() => {
+                  setDepartmentMenuOpen(!departmentMenuOpen);
+                  setRoleMenuOpen(false);
+                }}
+                className={`${FILTER_CHIP_CLASS} sm:max-w-[200px]`}
+                aria-haspopup="listbox"
+                aria-expanded={departmentMenuOpen}
+              >
+                <span className="truncate">Department • {departmentFilter || "All"}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
+              </button>
+              {departmentMenuOpen && (
+                <div className="absolute left-0 right-0 z-30 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-52">
+                  {["All", ...departmentOptions].map((opt) => {
+                    const isAll = opt === "All";
+                    const isSelected = departmentFilter ? departmentFilter === opt : isAll;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          setDepartmentFilter(isAll ? "" : opt);
+                          setDepartmentMenuOpen(false);
+                        }}
+                        className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-left text-xs text-[#334155] hover:bg-[#F8FAFC]"
+                      >
+                        <span className="truncate pr-2">{opt}</span>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 shrink-0" style={{ color: primaryColor }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <label className="relative col-span-2 min-w-0 sm:col-span-1">
+              <span className="sr-only">Created Date</span>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className={`${FILTER_CHIP_CLASS} scheme-light pr-9 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2.5 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0`}
+              />
+              <Calendar
+                className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748B]"
+                aria-hidden
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setEditColumnsOpen(true)}
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
+            title="Edit Columns"
+          >
+            <LayoutList className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] shadow-2xs transition hover:bg-[#F8FAFC]"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-2xs">
+        <div className="-mx-px overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <table
+            aria-busy={loading}
+            className="w-full min-w-[760px] border-collapse text-left text-sm xl:min-w-full"
+          >
+            <thead className="border-b border-[#E2E8F0] bg-white">
+              <tr>
+                {cols.map((colId) => (
+                  <th
+                    key={colId}
+                    className={`px-3.5 py-3 text-xs font-semibold uppercase tracking-wider text-[#475569] whitespace-nowrap ${
+                      colId === "profile" ? "text-right pr-4" : ""
+                    } ${colId === "createdDate" ? "min-w-[140px]" : ""}`}
+                  >
+                    {managerColumnLabel(colId)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F1F5F9]">
+              {loading ? (
+                <tr>
+                  <td colSpan={cols.length} className="px-4 py-8">
+                    <div role="status" aria-label="Loading managers" className="space-y-4">
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <div key={index} className="h-8 animate-pulse rounded bg-slate-200" />
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedManagers.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={cols.length}
+                    className="py-16 text-center text-sm text-[#64748B]"
+                  >
+                    No managers found matching your filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedManagers.map((m) => (
+                  <tr key={m.id} className="transition-colors hover:bg-[#F8FAFC]">
+                    {cols.map((colId) => (
+                      <td
+                        key={colId}
+                        className={`px-3.5 py-3.5 align-middle whitespace-nowrap ${
+                          colId === "profile" ? "text-right pr-4" : ""
+                        } ${colId === "createdDate" ? "min-w-[140px]" : ""}`}
+                      >
+                        {renderManagerListCell(colId, m, formatDateShort)}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-white px-3 py-3.5 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+            <p className="min-w-0 text-xs font-medium text-[#64748B]">
+              Showing{" "}
+              <span className="font-semibold text-[#0F172A]">
+                {totalItems === 0 ? "0" : `${pageStart}–${pageEnd}`}
+              </span>{" "}
+              of <span className="font-semibold text-[#0F172A]">{totalItems}</span> results
+            </p>
+            <div className="shrink-0 lg:hidden">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={[10, 25, 50, 100]}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+            <div className="hidden shrink-0 lg:block">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={[10, 25, 50, 100]}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+            <div className="flex w-full min-w-0 justify-center overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] sm:w-auto sm:justify-end sm:overflow-visible">
+              <ListPaginationControls
+                currentPage={safeCurrentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                activeStyle={{
+                  backgroundColor: secondaryColor,
+                  borderColor: secondaryColor,
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

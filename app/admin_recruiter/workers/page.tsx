@@ -25,6 +25,8 @@ import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
 import { type WorkerListRow } from "./figma-demo-data";
 import { WorkersMetricsCards } from "./WorkersMetricsCards";
 import { WorkersFilterBar } from "./WorkersFilterBar";
+import { WorkerGridCard } from "./WorkerGridCard";
+import { WorkersBulkSelectionSnackbar } from "./WorkersBulkSelectionSnackbar";
 import {
   FacilitiesModal,
   ChangeManagerModal,
@@ -45,6 +47,27 @@ import {
   type WorkersExtendedFilterValues,
 } from "./components/EditWorkersFiltersModal";
 import AdvancedSearchModal from "@/app/admin_recruiter/components/AdvancedSearchModal";
+import type { JobsListingView } from "@/app/admin_recruiter/jobs/JobsViewToggle";
+
+const WORKERS_VIEW_STORAGE_KEY = "adminRecruiterWorkersView";
+
+function loadWorkersListingView(): JobsListingView {
+  if (typeof window === "undefined") return "list";
+  try {
+    const raw = window.localStorage.getItem(WORKERS_VIEW_STORAGE_KEY);
+    return raw === "grid" ? "grid" : "list";
+  } catch {
+    return "list";
+  }
+}
+
+function saveWorkersListingView(view: JobsListingView) {
+  try {
+    window.localStorage.setItem(WORKERS_VIEW_STORAGE_KEY, view);
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
 
@@ -165,6 +188,16 @@ export default function WorkersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [listColumnOrder, setListColumnOrder] = useState<WorkerColumnId[]>(DEFAULT_WORKER_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<JobsListingView>("list");
+
+  useEffect(() => {
+    setViewMode(loadWorkersListingView());
+  }, []);
+
+  function handleViewModeChange(next: JobsListingView) {
+    setViewMode(next);
+    saveWorkersListingView(next);
+  }
 
   // Filters Modal
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
@@ -187,6 +220,8 @@ export default function WorkersPage() {
   // Modals & Menu Portal
   const [activeWorkerForModal, setActiveWorkerForModal] = useState<WorkerListRow | null>(null);
   const [activeModalType, setActiveModalType] = useState<"facilities" | "manager" | "history" | "message" | null>(null);
+  const [roleChangeBusy, setRoleChangeBusy] = useState(false);
+  const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
   const [actionsMenuState, setActionsMenuState] = useState<{
     worker: WorkerListRow;
     anchor: HTMLElement;
@@ -227,7 +262,7 @@ export default function WorkersPage() {
         }
       }
 
-      const res = await fetch(`/api/admin/employment-workers?tab=all${showArchived ? "&archived=1" : ""}`, {
+      const res = await fetch(`/api/admin/employment-workers?directoryRole=worker&tab=all${showArchived ? "&archived=1" : ""}`, {
         cache: "no-store",
       });
       const data = await res.json();
@@ -626,7 +661,10 @@ export default function WorkersPage() {
     });
   };
 
-  // Row Action handler
+  function selectedWorkersList() {
+    return workers.filter((w) => selectedIds.has(w.id));
+  }
+
   async function archiveWorker(worker: WorkerListRow) {
     if (!canEdit || archiveBusy || !window.confirm(`${showArchived ? "Restore" : "Archive"} ${worker.name}? Employment records and history will be preserved.`)) return;
     setArchiveBusy(true);
@@ -639,6 +677,49 @@ export default function WorkersPage() {
       await loadWorkers();
     } catch (error) { setArchiveError(error instanceof Error ? error.message : "Could not update worker archive."); }
     finally { setArchiveBusy(false); }
+  }
+
+  async function bulkArchiveSelected() {
+    const selected = selectedWorkersList();
+    if (!canEdit || archiveBusy || selected.length === 0) return;
+    const actionLabel = showArchived ? "Restore" : "Archive";
+    if (
+      !window.confirm(
+        `${actionLabel} ${selected.length} worker${selected.length === 1 ? "" : "s"}? Employment records and history will be preserved.`
+      )
+    ) {
+      return;
+    }
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      const action = showArchived ? "restore" : "archive";
+      for (const worker of selected) {
+        const response = await fetch(
+          `/api/admin/employment-workers/${encodeURIComponent(worker.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action }),
+          }
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            (payload as { error?: string }).error ||
+              `Could not ${action} ${worker.name}.`
+          );
+        }
+      }
+      setSelectedIds(new Set());
+      await loadWorkers();
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error ? error.message : "Could not update worker archive."
+      );
+    } finally {
+      setArchiveBusy(false);
+    }
   }
 
   const handleRowAction = (
@@ -655,25 +736,57 @@ export default function WorkersPage() {
     setActiveModalType(action);
   };
 
-  // Manager update handler
-  const handleSaveManager = (workerId: string, newManager: string) => {
-    setWorkers((prev) =>
-      prev.map((w) => (w.id === workerId ? { ...w, manager: newManager } : w))
-    );
+  const handleSaveDirectoryRole = async (
+    workerId: string,
+    role: "worker" | "manager"
+  ) => {
+    setRoleChangeBusy(true);
+    setRoleChangeError(null);
+    try {
+      const response = await fetch(`/api/admin/employment-workers/${encodeURIComponent(workerId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change_directory_role", directoryRole: role }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          (payload as { error?: string }).error || "Could not update the worker role."
+        );
+      }
+      if (role === "manager") {
+        setWorkers((prev) => prev.filter((w) => w.id !== workerId));
+        setSelectedIds((prev) => {
+          if (!prev.has(workerId)) return prev;
+          const next = new Set(prev);
+          next.delete(workerId);
+          return next;
+        });
+      }
+      setActiveModalType(null);
+      setActiveWorkerForModal(null);
+      await loadWorkers();
+    } catch (error) {
+      setRoleChangeError(
+        error instanceof Error ? error.message : "Could not update the worker role."
+      );
+    } finally {
+      setRoleChangeBusy(false);
+    }
   };
 
   return (
-    <div className="box-border flex w-full min-w-0 max-w-full flex-col gap-5 px-4 pb-8 pt-[30px] sm:px-5 lg:px-8">
+    <div className="box-border flex w-full min-w-0 max-w-full flex-col gap-5 overflow-x-hidden px-4 pb-8 pt-[30px] sm:px-5 lg:px-8">
       {/* Page Title & Subtitle */}
-      <div>
-        <h1 className="text-[20px] font-semibold leading-7 text-black whitespace-nowrap">Workers</h1>
+      <div className="min-w-0">
+        <h1 className="text-[20px] font-semibold leading-7 text-black">Workers</h1>
         <p className="text-xs leading-4 text-[#374151]">
-          One directory. Filter by role instead of a separate Managers module
+          Employment workers directory. Promote someone to Manager to move them to the Managers list.
         </p>
       </div>
 
       {/* 4 Metric Stat Cards */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <button type="button" disabled={archiveBusy} aria-pressed={showArchived} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" onClick={() => { setShowArchived((value) => !value); setSelectedIds(new Set()); setCurrentPage(1); }}>{showArchived ? "Show current workers" : "Show archived workers"}</button>
         {archiveError ? <p role="alert" className="text-sm text-red-700">{archiveError}</p> : null}
       </div>
@@ -698,192 +811,223 @@ export default function WorkersPage() {
         onOpenColumns={() => setEditColumnsOpen(true)}
         onOpenFilters={() => setEditFiltersOpen(true)}
         activeFilterCount={countActiveWorkersFilters(extendedFilters)}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
       />
 
-      {/* Workers Table Container */}
-      <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-2xs">
-        <div className="overflow-x-auto">
-          <table aria-busy={loading} className="w-full min-w-[1020px] border-collapse text-left text-sm xl:min-w-full">
-            <thead className="border-b border-[#E2E8F0] bg-white">
-              <tr>
-                <th className="w-12 px-4 py-3.5 text-center whitespace-nowrap cursor-pointer">
-                  <ListTableCheckbox
-                    checked={allVisibleSelected}
-                    indeterminate={someVisibleSelected}
-                    disabled={paginatedWorkers.length === 0}
-                    onChange={toggleSelectAll}
-                    aria-label="Select all workers on this page"
+      {/* Workers list/grid container */}
+      <div className="min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-2xs">
+        <WorkersBulkSelectionSnackbar
+          selectedCount={selectedIds.size}
+          archivedView={showArchived}
+          archiveBusy={archiveBusy}
+          canEdit={canEdit}
+          onArchive={() => void bulkArchiveSelected()}
+          onExportCsv={() => exportWorkersCsv(selectedWorkersList())}
+          onExportXls={() => exportWorkersXls(selectedWorkersList())}
+          onClear={() => setSelectedIds(new Set())}
+        />
+        {viewMode === "grid" ? (
+          <div className="p-3 sm:p-4" aria-busy={loading}>
+            {loading ? (
+              <div
+                role="status"
+                aria-label="Loading workers"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3"
+              >
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div key={index} className="h-44 animate-pulse rounded-lg bg-slate-200" />
+                ))}
+              </div>
+            ) : paginatedWorkers.length === 0 ? (
+              <div className="py-16 text-center text-sm text-[#64748B]">
+                No workers found matching your filters.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                {paginatedWorkers.map((w) => (
+                  <WorkerGridCard
+                    key={w.id}
+                    worker={w}
+                    selected={selectedIds.has(w.id)}
+                    onToggleSelect={() => toggleSelectRow(w.id)}
+                    onOpenActionsMenu={(worker, anchor) => {
+                      setActionsMenuState((prev) =>
+                        prev?.worker.id === worker.id ? null : { worker, anchor }
+                      );
+                    }}
+                    actionsMenuOpen={actionsMenuState?.worker.id === w.id}
                   />
-                </th>
-                {listColumnOrder.map((colId) => {
-                  const label = workerColumnLabel(colId);
-                  const isSortable = colId !== "profile";
-                  const isSorted = sortColumn === colId;
-
-                  let colMinWidth = "min-w-[130px]";
-                  if (colId === "name") colMinWidth = "min-w-[170px]";
-                  else if (colId === "contact") colMinWidth = "min-w-[190px]";
-                  else if (colId === "assignment") colMinWidth = "min-w-[200px]";
-                  else if (colId === "startDate") colMinWidth = "min-w-[185px]";
-                  else if (colId === "endDate") colMinWidth = "min-w-[175px]";
-                  else if (colId === "jobRole") colMinWidth = "min-w-[190px]";
-                  else if (colId === "payRate") colMinWidth = "min-w-[110px]";
-                  else if (colId === "billRate") colMinWidth = "min-w-[110px]";
-                  else if (colId === "overtimeRate") colMinWidth = "min-w-[125px]";
-                  else if (colId === "status") colMinWidth = "min-w-[100px]";
-                  else if (colId === "client") colMinWidth = "min-w-[130px]";
-                  else if (colId === "facilities") colMinWidth = "min-w-[180px]";
-                  else if (colId === "profile") colMinWidth = "min-w-[110px]";
-
-                  return (
-                    <th
-                      key={colId}
-                      onClick={() => isSortable && handleSort(colId)}
-                      className={`px-3.5 py-3 text-xs font-semibold uppercase tracking-wider text-[#475569] whitespace-nowrap select-none ${colMinWidth} ${
-                        isSortable ? "cursor-pointer hover:text-[#0F172A]" : ""
-                      } ${colId === "profile" ? "text-right pr-4" : ""}`}
-                    >
-                      <div className={`inline-flex items-center gap-1.5 whitespace-nowrap ${colId === "profile" ? "justify-end w-full" : ""}`}>
-                        <span className="whitespace-nowrap">{label}</span>
-                        {isSortable && (
-                          <span className="text-[#94A3B8] shrink-0">
-                            {isSorted ? (
-                              sortDirection === "asc" ? (
-                                <ArrowUp className="size-3.5 text-[#0F172A]" />
-                              ) : (
-                                <ArrowDown className="size-3.5 text-[#0F172A]" />
-                              )
-                            ) : (
-                              <ArrowUpDown className="size-3.5" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {loading ? <tr><td colSpan={listColumnOrder.length + 1} className="px-4 py-8"><div role="status" aria-label="Loading workers" className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-8 animate-pulse rounded bg-slate-200" />)}</div></td></tr> : paginatedWorkers.length === 0 ? (
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="-mx-px overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table aria-busy={loading} className="w-full min-w-[1020px] border-collapse text-left text-sm xl:min-w-full">
+              <thead className="border-b border-[#E2E8F0] bg-white">
                 <tr>
-                  <td
-                    colSpan={listColumnOrder.length + 1}
-                    className="py-16 text-center text-sm text-[#64748B] whitespace-nowrap"
-                  >
-                    No workers found matching your filters.
-                  </td>
+                  <th className="w-12 px-4 py-3.5 text-center whitespace-nowrap cursor-pointer">
+                    <ListTableCheckbox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected}
+                      disabled={paginatedWorkers.length === 0}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all workers on this page"
+                    />
+                  </th>
+                  {listColumnOrder.map((colId) => {
+                    const label = workerColumnLabel(colId);
+                    const isSortable = colId !== "profile";
+                    const isSorted = sortColumn === colId;
+
+                    let colMinWidth = "min-w-[130px]";
+                    if (colId === "name") colMinWidth = "min-w-[170px]";
+                    else if (colId === "contact") colMinWidth = "min-w-[190px]";
+                    else if (colId === "assignment") colMinWidth = "min-w-[200px]";
+                    else if (colId === "startDate") colMinWidth = "min-w-[185px]";
+                    else if (colId === "endDate") colMinWidth = "min-w-[175px]";
+                    else if (colId === "jobRole") colMinWidth = "min-w-[190px]";
+                    else if (colId === "payRate") colMinWidth = "min-w-[110px]";
+                    else if (colId === "billRate") colMinWidth = "min-w-[110px]";
+                    else if (colId === "overtimeRate") colMinWidth = "min-w-[125px]";
+                    else if (colId === "status") colMinWidth = "min-w-[100px]";
+                    else if (colId === "client") colMinWidth = "min-w-[130px]";
+                    else if (colId === "facilities") colMinWidth = "min-w-[180px]";
+                    else if (colId === "profile") colMinWidth = "min-w-[110px]";
+
+                    return (
+                      <th
+                        key={colId}
+                        onClick={() => isSortable && handleSort(colId)}
+                        className={`px-3.5 py-3 text-xs font-semibold uppercase tracking-wider text-[#475569] whitespace-nowrap select-none ${colMinWidth} ${
+                          isSortable ? "cursor-pointer hover:text-[#0F172A]" : ""
+                        } ${colId === "profile" ? "text-right pr-4" : ""}`}
+                      >
+                        <div className={`inline-flex items-center gap-1.5 whitespace-nowrap ${colId === "profile" ? "justify-end w-full" : ""}`}>
+                          <span className="whitespace-nowrap">{label}</span>
+                          {isSortable && (
+                            <span className="text-[#94A3B8] shrink-0">
+                              {isSorted ? (
+                                sortDirection === "asc" ? (
+                                  <ArrowUp className="size-3.5 text-[#0F172A]" />
+                                ) : (
+                                  <ArrowDown className="size-3.5 text-[#0F172A]" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="size-3.5" />
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
-              ) : (
-                paginatedWorkers.map((w) => {
-                  const isSelected = selectedIds.has(w.id);
-                  return (
-                    <tr
-                      key={w.id}
-                      className={`transition-colors hover:bg-[#F8FAFC] ${
-                        isSelected ? "bg-[#F8FAFC]" : ""
-                      }`}
+              </thead>
+
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {loading ? <tr><td colSpan={listColumnOrder.length + 1} className="px-4 py-8"><div role="status" aria-label="Loading workers" className="space-y-4">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-8 animate-pulse rounded bg-slate-200" />)}</div></td></tr> : paginatedWorkers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={listColumnOrder.length + 1}
+                      className="py-16 text-center text-sm text-[#64748B] whitespace-nowrap"
                     >
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleSelectRow(w.id); }}>
-                        <ListTableCheckbox
-                          checked={isSelected}
-                          onChange={() => toggleSelectRow(w.id)}
-                          aria-label={`Select ${w.name}`}
-                        />
-                      </td>
-
-                      {listColumnOrder.map((colId) => (
-                        <td
-                          key={colId}
-                          className={`px-3.5 py-3.5 align-middle whitespace-nowrap ${
-                            colId === "profile" ? "text-right pr-4" : ""
-                          }`}
-                        >
-                          {renderWorkerListCell(colId, w, formatDateShort, {
-                            onOpenActionsMenu: (worker, anchor) => {
-                              setActionsMenuState((prev) =>
-                                prev?.worker.id === worker.id ? null : { worker, anchor }
-                              );
-                            },
-                            openMenuWorkerId: actionsMenuState?.worker.id ?? null,
-                          })}
+                      No workers found matching your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedWorkers.map((w) => {
+                    const isSelected = selectedIds.has(w.id);
+                    return (
+                      <tr
+                        key={w.id}
+                        className={`transition-colors hover:bg-[#F8FAFC] ${
+                          isSelected ? "bg-[#F8FAFC]" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleSelectRow(w.id); }}>
+                          <ListTableCheckbox
+                            checked={isSelected}
+                            onChange={() => toggleSelectRow(w.id)}
+                            aria-label={`Select ${w.name}`}
+                          />
                         </td>
-                      ))}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
 
-        {/* Bottom Pagination Bar */}
-        <div className="flex flex-col gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-[#6B7280] whitespace-nowrap">
-            Showing {totalItems === 0 ? 0 : pageStart} to {pageEnd} of {totalItems} results
-          </p>
+                        {listColumnOrder.map((colId) => (
+                          <td
+                            key={colId}
+                            className={`px-3.5 py-3.5 align-middle whitespace-nowrap ${
+                              colId === "profile" ? "text-right pr-4" : ""
+                            }`}
+                          >
+                            {renderWorkerListCell(colId, w, formatDateShort, {
+                              onOpenActionsMenu: (worker, anchor) => {
+                                setActionsMenuState((prev) =>
+                                  prev?.worker.id === worker.id ? null : { worker, anchor }
+                                );
+                              },
+                              openMenuWorkerId: actionsMenuState?.worker.id ?? null,
+                            })}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-          <div className="flex items-center gap-3">
-            <ListPaginationShowLabel
-              pageSize={pageSize}
-              options={[10, 25, 50, 100]}
-              onPageSizeChange={(newSize) => {
-                setPageSize(newSize);
-                setCurrentPage(1);
-              }}
-            />
+        {/* Bottom Pagination — Applicants-style mobile layout */}
+        <div className="flex flex-col gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-white px-3 py-3.5 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+            <p className="min-w-0 text-xs font-medium text-[#64748B]">
+              Showing{" "}
+              <span className="font-semibold text-[#0F172A]">
+                {totalItems === 0 ? "0" : `${pageStart}–${pageEnd}`}
+              </span>{" "}
+              of <span className="font-semibold text-[#0F172A]">{totalItems}</span> results
+            </p>
+            <div className="shrink-0 lg:hidden">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={[10, 25, 50, 100]}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+          </div>
 
-            <ListPaginationControls
-              currentPage={safeCurrentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              activeStyle={{
-                backgroundColor: secondaryColor,
-                borderColor: secondaryColor,
-              }}
-            />
+          <div className="flex min-w-0 flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+            <div className="hidden shrink-0 lg:block">
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={[10, 25, 50, 100]}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+
+            <div className="flex w-full min-w-0 justify-center overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] sm:w-auto sm:justify-end sm:overflow-visible">
+              <ListPaginationControls
+                currentPage={safeCurrentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                activeStyle={{
+                  backgroundColor: secondaryColor,
+                  borderColor: secondaryColor,
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Floating Bulk Selection Action Bar */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[#E5E7EB] bg-white px-5 py-2.5 shadow-xl animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <span className="text-xs font-semibold text-[#0F172A] whitespace-nowrap">
-            {selectedIds.size} worker{selectedIds.size > 1 ? "s" : ""} selected
-          </span>
-          <div className="h-4 w-px bg-[#E2E8F0]" />
-          <button
-            type="button"
-            onClick={() => {
-              const selectedWorkers = workers.filter((w) => selectedIds.has(w.id));
-              exportWorkersCsv(selectedWorkers);
-            }}
-            className="text-xs font-semibold text-[#475569] hover:text-[#0F172A] cursor-pointer whitespace-nowrap"
-          >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const selectedWorkers = workers.filter((w) => selectedIds.has(w.id));
-              exportWorkersXls(selectedWorkers);
-            }}
-            className="text-xs font-semibold text-[#475569] hover:text-[#0F172A] cursor-pointer whitespace-nowrap"
-          >
-            Export XLS
-          </button>
-          <div className="h-4 w-px bg-[#E2E8F0]" />
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs font-medium text-[#94A3B8] hover:text-[#64748B] cursor-pointer whitespace-nowrap"
-          >
-            Deselect All
-          </button>
-        </div>
-      )}
 
       {/* Actions Dropdown Portal (Rendered to document.body, outside table scrollable area) */}
       {actionsMenuState ? (
@@ -905,8 +1049,14 @@ export default function WorkersPage() {
 
       <ChangeManagerModal
         worker={activeModalType === "manager" ? activeWorkerForModal : null}
-        onClose={() => setActiveModalType(null)}
-        onSaveManager={handleSaveManager}
+        onClose={() => {
+          if (roleChangeBusy) return;
+          setActiveModalType(null);
+          setRoleChangeError(null);
+        }}
+        onSaveDirectoryRole={handleSaveDirectoryRole}
+        saving={roleChangeBusy}
+        error={roleChangeError}
       />
 
       <StatusHistoryModal

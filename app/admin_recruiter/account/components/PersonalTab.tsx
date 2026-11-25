@@ -885,7 +885,7 @@ export default function PersonalTab() {
       </section>
 
       <SectionCard title="Personal Information">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
           <label className="block">
             <FieldLabel>
               First Name
@@ -1030,7 +1030,7 @@ export default function PersonalTab() {
       </SectionCard>
 
       <SectionCard title="Professional Information">
-        <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
           {!canEditProfessionalFields ? (
             <p className="sm:col-span-2 text-xs text-[#64748B]">
               Only HR, Recruiter, or Manager can update job title, department, employee ID, and
@@ -1209,19 +1209,19 @@ export default function PersonalTab() {
         </div>
       </SectionCard>
 
-      <div className="flex flex-col-reverse justify-end gap-2 pt-1 sm:flex-row">
+      <div className="flex flex-col-reverse items-stretch gap-2 pt-1 min-[500px]:items-end sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={resetFromResolved}
           disabled={saving}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-5 text-sm font-medium text-[#374151] hover:bg-[#F9FAFB] disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-5 text-sm font-medium text-[#374151] hover:bg-[#F9FAFB] disabled:opacity-60 min-[500px]:w-auto"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex h-10 items-center justify-center rounded-md px-5 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center rounded-md px-5 text-sm font-semibold text-white disabled:opacity-60 min-[500px]:w-auto"
           style={{ backgroundColor: "var(--brand-primary, #012352)" }}
         >
           {saving ? "Saving…" : "Save Changes"}

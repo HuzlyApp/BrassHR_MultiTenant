@@ -20,13 +20,16 @@ describe("worker directory states", () => {
     expect(screen.getByRole("button", { name: "Show current workers" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("exports selected workers as CSV and XLS", async () => {
+  it("exports selected workers as CSV and XLS from the bulk snackbar", async () => {
     render(<WorkersPage />);
     await screen.findByText("Onboarding Person");
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Onboarding Person" }));
-    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 worker selected");
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Download CSV" }));
     expect(exports.csv).toHaveBeenCalledWith([expect.objectContaining({ id: "new-worker", name: "Onboarding Person" })]);
-    fireEvent.click(screen.getByRole("button", { name: "Export XLS" }));
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Download XLS" }));
     expect(exports.xls).toHaveBeenCalledWith([expect.objectContaining({ id: "new-worker", name: "Onboarding Person" })]);
   });
   it("opens the existing advanced filters from All Filters", async () => {

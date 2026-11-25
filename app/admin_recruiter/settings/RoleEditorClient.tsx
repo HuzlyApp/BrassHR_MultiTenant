@@ -291,10 +291,10 @@ export default function RoleEditorClient({
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Back
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#0F172A]">
+        <h1 className="mt-3 text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
           {mode === "edit" ? "Edit Custom Role" : "Create Custom Role"}
         </h1>
-        <p className="mt-1 text-sm text-[#64748B]">
+        <p className="mt-1 text-sm leading-5 text-[#64748B]">
           {mode === "edit"
             ? "Update this custom role and set the permissions for each module."
             : "Create a new custom role and set the permissions for each module."}
