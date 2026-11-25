@@ -9,6 +9,7 @@ export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" |
 export type PersistWorkerResumeRecordOpts = {
   fileUrl: string;
   originalFileName?: string | null;
+  preserveOriginalFileName?: boolean;
   parsedData?: Record<string, unknown>;
   parsingStatus?: WorkerResumeParsingStatus;
   textLength?: number | null;
@@ -167,7 +168,7 @@ function buildResumeRow(
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
     storage_path: opts.fileUrl.trim(),
-    original_file_name: fileName,
+    original_file_name: opts.preserveOriginalFileName ? original : fileName,
     file_name: fileName,
     file_type: opts.fileType ?? null,
     file_size_bytes: opts.fileSizeBytes ?? null,

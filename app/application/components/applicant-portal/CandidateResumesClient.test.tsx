@@ -36,3 +36,20 @@ it("uploads a resume when the candidate has no applications", async () => {
   expect(body.get("file")).toBeInstanceOf(File);
   expect(body.has("jobApplicationId")).toBe(false);
 });
+
+it("shows a rename alert and does not upload a duplicate filename", async () => {
+  const fetchMock = vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ resumes: [{ id: "existing", originalFileName: "Resume.PDF", jobApplicationId: null }], appliedJobs: [], applications: [] }),
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  const { container } = render(<CandidateResumesClient />);
+  await screen.findByText("Resume.PDF");
+  fireEvent.click(screen.getByRole("button", { name: "Upload Resume" }));
+  fireEvent.change(container.querySelectorAll('input[type="file"]')[1], {
+    target: { files: [new File(["different contents"], "resume.pdf", { type: "application/pdf" })] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("rename the file"))).toBe(true);
+  expect(fetchMock.mock.calls).toHaveLength(2);
+});
