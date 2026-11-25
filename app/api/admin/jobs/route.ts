@@ -18,7 +18,7 @@ import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { countUniqueActiveCandidateProfiles } from "@/lib/workers/count-unique-active-candidate-profiles";
+import { countApplicantListProfiles } from "@/lib/workers/count-unique-active-candidate-profiles";
 import { TenantWaitlistedError } from "@/lib/service-area/errors";
 import { isServiceAreaValidationCode } from "@/lib/service-area/http";
 import { serviceAreaMessage } from "@/lib/service-area/copy";
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
       }),
       supabase.from("tenants").select("slug, subdomain").eq("id", tenantId).maybeSingle(),
-      countUniqueActiveCandidateProfiles(supabase, tenantId),
+      countApplicantListProfiles(supabase, tenantId),
     ]);
     if (tenantResult.error) throw tenantResult.error;
     const tenantSlug = String(tenantResult.data?.slug ?? tenantResult.data?.subdomain ?? "")

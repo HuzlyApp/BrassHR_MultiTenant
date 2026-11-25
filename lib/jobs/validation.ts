@@ -205,12 +205,26 @@ export function formatJobMutationFailure(error: z.ZodError): {
 
 export const jobStatusSchema = z.enum(JOB_STATUSES);
 
+export function jobApplicationDeadlineError(value: string | null | undefined): string | undefined {
+  if (!value) return;
+  const date = new Date(`${value}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const latest = new Date(today);
+  latest.setMonth(latest.getMonth() + 6);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(date.getTime())) return "Enter a valid application deadline.";
+  if (date < today) return "Application deadline cannot be in the past.";
+  if (date > latest) return "Application deadline must be within the next six months.";
+}
+
 export function validatePublishableJob(
   input: JobRequisitionInput,
   workflowId: string | null
 ): FieldErrors {
   const errors: FieldErrors = {};
   const isMsp = input.sourceType === "MSP";
+  const deadlineError = jobApplicationDeadlineError(input.applicationDeadline);
+  if (deadlineError) errors.applicationDeadline = deadlineError;
   const isMspEor = isMsp && input.placementType === "Recruit_and_EOR";
   const isMspRnr = isMsp && input.placementType === "Recruit_and_Release";
   const requiresWorkflow = jobRequiresWorkflow(input);

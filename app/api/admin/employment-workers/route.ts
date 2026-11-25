@@ -44,6 +44,7 @@ type WorkerListRow = {
 };
 
 type CandidateDirectoryProfile = {
+  job_role?: string | null;
   id: string; hourly_rate?: number | string | null; experience_years?: number | null;
   department_id?: string | null; specialty?: string | null; profession?: string | null;
 };
@@ -352,18 +353,16 @@ export async function GET(req: NextRequest) {
 
         // Dynamic Pay Rate:
         let payRate: string | null = null;
-        if (candidate?.hourly_rate) {
+        if (candidate?.hourly_rate != null && candidate.hourly_rate !== "") {
           payRate = `$${Number(candidate.hourly_rate)}/hr`;
-        } else if (jobReq?.pay_rate_min && jobReq?.pay_rate_max) {
+        } else if (jobReq?.pay_rate_min != null && jobReq?.pay_rate_max != null) {
           payRate =
             jobReq.pay_rate_min === jobReq.pay_rate_max
               ? `$${jobReq.pay_rate_min}/hr`
               : `$${jobReq.pay_rate_min}-$${jobReq.pay_rate_max}/hr`;
-        } else if (jobReq?.pay_rate_min) {
+        } else if (jobReq?.pay_rate_min != null) {
           payRate = `$${jobReq.pay_rate_min}/hr`;
-        } else if (jobReq?.bill_rate) {
-          payRate = `$${jobReq.bill_rate}/hr`;
-        } else if (snapshot.pay_rate) {
+        } else if (snapshot.pay_rate != null && snapshot.pay_rate !== "") {
           payRate = `$${snapshot.pay_rate}/hr`;
         } else {
           payRate = "—";
@@ -427,6 +426,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...normalized,
+          job_role: normalized.job_role || candidate?.job_role || jobReq?.public_title || (typeof snapshot.job_title === "string" ? snapshot.job_title : null),
           job_id: jobId,
           assignment_start_date: assignmentStartDate,
           assignment_end_date: assignmentEndDate,

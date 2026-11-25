@@ -41,6 +41,8 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
         suggestion.placeName
       ).trim()
       setIsVerified(true)
+      ++requestIdRef.current
+      setIsLoading(false)
       verifiedQueryRef.current = committed
       setSuggestions([])
       setSearchError(null)
@@ -73,7 +75,7 @@ export function usePlaceAutocomplete(query: string, options: Options = {}) {
     }
 
     // Skip re-search when the input matches what the user just selected.
-    if (isVerified && trimmed === verifiedQueryRef.current) {
+    if (trimmed === verifiedQueryRef.current) {
       setIsOpen(false)
       setSuggestions([])
       setIsLoading(false)

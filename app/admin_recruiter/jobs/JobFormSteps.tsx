@@ -649,12 +649,6 @@ export function JobFormStepRequisition({
                 value={job.applicationDeadline ?? ""}
                 onChange={(event) => {
                   const next = event.target.value || null;
-                  if (
-                    next &&
-                    (next < deadlineBounds.min || next > deadlineBounds.max)
-                  ) {
-                    return;
-                  }
                   onJobChange("applicationDeadline", next);
                 }}
               />
@@ -663,6 +657,7 @@ export function JobFormStepRequisition({
                 aria-hidden
               />
             </div>
+            <FieldError error={fieldErrors.applicationDeadline} />
           </PublicField>
         </div>
       </div>

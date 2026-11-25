@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import GodAdminSidebar from "@/app/components/godadmin/GodAdminSidebar";
@@ -34,7 +35,7 @@ export default function GodAdminShell({ children }: Props) {
 
       if (!res.ok || !payload.godAdmin) {
         setDenied(true);
-        router.replace("/signin?next=/godadmin/tenants");
+        if (res.status === 401) router.replace("/signin?next=/godadmin/tenants");
         return;
       }
 
@@ -48,8 +49,10 @@ export default function GodAdminShell({ children }: Props) {
 
   if (denied) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-600">
-        Redirecting…
+      <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-100 px-4 text-center text-sm text-slate-600">
+        <h1 className="text-lg font-semibold text-slate-900">Access denied</h1>
+        <p>This account does not have platform administrator access.</p>
+        <Link href="/admin_recruiter/dashboard" className="underline">Return to your dashboard</Link>
       </div>
     );
   }

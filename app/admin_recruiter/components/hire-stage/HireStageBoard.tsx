@@ -330,8 +330,8 @@ export function HireStageBoard({
                 onScheduleInterview={openSchedule}
                 onRefresh={onWorkflowChanged}
                 onStatusChanged={(next) => {
-                  if (next) onStatusChanged?.(next);
-                  void onWorkflowChanged?.();
+                  if (next && onStatusChanged) onStatusChanged(next);
+                  else void onWorkflowChanged?.();
                 }}
               />
             </div>

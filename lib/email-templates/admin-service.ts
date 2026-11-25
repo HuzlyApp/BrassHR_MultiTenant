@@ -84,10 +84,12 @@ function toAdminItem(
   templateKey: string,
   resolved: EmailTemplateRow,
   resolvedFrom: "tenant" | "global",
-  tenantRow: EmailTemplateRow | null
+  tenantRow: EmailTemplateRow | null,
+  globalTemplate?: EmailTemplateRow
 ): AdminEmailTemplateItem {
   const display = tenantRow ?? resolved;
   return {
+    ...(globalTemplate ? { defaults: { subject: globalTemplate.subject, body_html: globalTemplate.body_html, body_text: globalTemplate.body_text } } : {}),
     template_key: templateKey,
     name: display.name,
     locale: display.locale,
@@ -124,12 +126,12 @@ export async function listAdminEmailTemplates(
         templateKey: key,
         locale,
       });
-      items.push(toAdminItem(key, resolved.template, resolved.resolved_from, tenantRow));
+      items.push(toAdminItem(key, resolved.template, resolved.resolved_from, tenantRow, globalByKey.get(key)));
     } catch (e) {
       if (e instanceof EmailTemplateError && e.code === "NOT_FOUND") {
         const g = globalByKey.get(key);
         if (g) {
-          items.push(toAdminItem(key, g, "global", tenantRow));
+          items.push(toAdminItem(key, g, "global", tenantRow, g));
         }
         continue;
       }

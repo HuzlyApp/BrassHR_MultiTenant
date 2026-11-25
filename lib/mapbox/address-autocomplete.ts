@@ -1,4 +1,5 @@
 import type { AddressQueryParts, AddressSuggestion } from "@/lib/mapbox/address-validation-types"
+import { getStateCodeFromName } from "@/lib/us-state-names"
 import {
   parseMapboxFeatureToSuggestion,
   type MapboxGeocodeFeature,
@@ -44,11 +45,13 @@ function isStreetAddressFeature(feature: MapboxGeocodeFeature): boolean {
 }
 
 /** Parse Mapbox autocomplete features into ranked street-address suggestions. */
-export function parseAutocompleteFeatures(features: MapboxGeocodeFeature[]): AddressSuggestion[] {
+export function parseAutocompleteFeatures(features: MapboxGeocodeFeature[], state?: string): AddressSuggestion[] {
+  const stateCode = state?.trim() ? (getStateCodeFromName(state.trim()) ?? state.trim()).toUpperCase() : null
   return features
     .filter(isStreetAddressFeature)
     .map(parseMapboxFeatureToSuggestion)
     .filter((suggestion): suggestion is AddressSuggestion => suggestion !== null)
+    .filter((suggestion) => !stateCode || (getStateCodeFromName(suggestion.components.state) ?? suggestion.components.state).toUpperCase() === stateCode)
     .filter((suggestion) => Boolean(suggestion.components.address1.trim()))
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 5)
