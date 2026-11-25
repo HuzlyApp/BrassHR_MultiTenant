@@ -105,15 +105,16 @@ export function buildStaffActivationUrl(params: {
   hashedToken: string;
   tenantSlug?: string | null;
 }): string {
-  const resetUrl = new URL("/reset-password", params.appOrigin);
-  resetUrl.searchParams.set("token_hash", params.hashedToken);
-  resetUrl.searchParams.set("type", "recovery");
-  resetUrl.searchParams.set("return", "/admin");
+  // First-time invite activation uses /set-password (not forgot-password /reset-password).
+  const activationUrl = new URL("/set-password", params.appOrigin);
+  activationUrl.searchParams.set("token_hash", params.hashedToken);
+  activationUrl.searchParams.set("type", "recovery");
+  activationUrl.searchParams.set("return", "/admin");
   const tenant = params.tenantSlug?.trim().toLowerCase();
   if (tenant && tenant.length >= 2) {
-    resetUrl.searchParams.set("tenant", tenant);
+    activationUrl.searchParams.set("tenant", tenant);
   }
-  return resetUrl.toString();
+  return activationUrl.toString();
 }
 
 export function buildStaffSignInUrl(params: { appOrigin: string; tenantSlug?: string | null }): string {

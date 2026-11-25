@@ -268,13 +268,14 @@ describe("staff invite password setup", () => {
 });
 
 describe("staff activation URL", () => {
-  it("uses the app-hosted reset page and never includes a password", () => {
+  it("uses the app-hosted set-password page and never includes a password", () => {
     const url = buildStaffActivationUrl({
       appOrigin: "https://jobs.brasshr.com",
       hashedToken: "hashed-token-value",
       tenantSlug: "acme",
     });
-    expect(url).toContain("/reset-password");
+    expect(url).toContain("/set-password");
+    expect(url).not.toContain("/reset-password");
     expect(url).toContain("token_hash=hashed-token-value");
     expect(url).not.toMatch(/password=/i);
   });

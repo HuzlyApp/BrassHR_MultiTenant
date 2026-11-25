@@ -112,6 +112,7 @@ function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return true;
   if (pathname === "/forgot" || pathname.startsWith("/forgot/")) return true;
   if (pathname === "/reset-password" || pathname.startsWith("/reset-password/")) return true;
+  if (pathname === "/set-password" || pathname.startsWith("/set-password/")) return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/callback/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname.startsWith("/favicon")) return true;
