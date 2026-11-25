@@ -204,7 +204,12 @@ export function CandidateResumesClient() {
         title="Resumes"
         subtitle="Pick a different version for each job. Open applications keep the version you submitted."
         action={
-          <button type="button" className={CANDIDATE_BTN_NAVY} onClick={() => setUploadOpen(true)}>
+          <button type="button" className={CANDIDATE_BTN_NAVY} onClick={() => {
+            setError(null);
+            setFile(null);
+            setTitle("");
+            setUploadOpen(true);
+          }}>
             Upload Resume
           </button>
         }
@@ -347,7 +352,10 @@ export function CandidateResumesClient() {
                   type="file"
                   accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   className="sr-only"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    setFile(event.target.files?.[0] ?? null);
+                    setError(null);
+                  }}
                 />
               </div>
               <p className="text-xs text-[#6B7280]">Only support .docx or pdf files</p>
@@ -358,7 +366,10 @@ export function CandidateResumesClient() {
                     <p className="truncate text-xs font-semibold">{file.name}</p>
                     <p className="text-[10px] text-[#6B7280]">{(file.size / (1024 * 1024)).toFixed(1)}MB</p>
                   </div>
-                  <button type="button" aria-label="Remove file" onClick={() => setFile(null)}>
+                  <button type="button" aria-label="Remove file" onClick={() => {
+                    setFile(null);
+                    setError(null);
+                  }}>
                     <Trash2 className="h-4 w-4 text-[#64748B]" />
                   </button>
                 </div>
