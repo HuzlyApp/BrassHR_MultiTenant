@@ -37,7 +37,7 @@ it("uploads a resume when the candidate has no applications", async () => {
   expect(body.has("jobApplicationId")).toBe(false);
 });
 
-it("shows a rename alert and does not upload a duplicate filename", async () => {
+it("blocks a duplicate filename and clears the alert when changing files or reopening upload", async () => {
   const fetchMock = vi.fn(async () => ({
     ok: true,
     json: async () => ({ resumes: [{ id: "existing", originalFileName: "Resume.PDF", jobApplicationId: null }], appliedJobs: [], applications: [] }),
@@ -52,4 +52,21 @@ it("shows a rename alert and does not upload a duplicate filename", async () => 
   fireEvent.click(screen.getByRole("button", { name: "Submit" }));
   expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("rename the file"))).toBe(true);
   expect(fetchMock.mock.calls).toHaveLength(2);
+
+  fireEvent.change(container.querySelectorAll('input[type="file"]')[1], {
+    target: { files: [new File(["new contents"], "renamed.pdf", { type: "application/pdf" })] },
+  });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+  fireEvent.change(container.querySelectorAll('input[type="file"]')[1], {
+    target: { files: [new File(["duplicate"], "resume.pdf", { type: "application/pdf" })] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  expect(screen.getAllByRole("alert")).toHaveLength(2);
+  fireEvent.change(screen.getByPlaceholderText("Resume Title"), { target: { value: "Old attempt" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Upload Resume" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Remove file" })).not.toBeInTheDocument();
+  expect(screen.getByPlaceholderText("Resume Title")).toHaveValue("");
 });
