@@ -10,7 +10,7 @@ import type { NormalizedParsedResume } from "@/lib/resumeParseQuality";
 const RESUME_PARSE_CACHE_TTL_SECONDS = 30 * 60;
 
 /** Bump when parse post-processing changes so stale empty city/state caches are not reused. */
-const RESUME_PARSE_CACHE_VERSION = "v3-structured-identity";
+const RESUME_PARSE_CACHE_VERSION = "v4-preserved-sections";
 
 function resumeTextKey(text: string): string {
   return createHash("sha256").update(text).digest("hex");

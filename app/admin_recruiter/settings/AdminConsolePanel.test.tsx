@@ -126,6 +126,14 @@ describe("AdminConsolePanel resend invitation", () => {
     expect(screen.getByRole("menuitem", { name: "Resend invitation" })).toBeInTheDocument();
   });
 
+  it("labels invitation and last-login timestamps with their timezone", async () => {
+    render(<AdminConsolePanel />);
+    await screen.findByText("Grace Hopper");
+    expect(screen.getByText("8:00 PM EDT")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Recruiters" }));
+    expect(screen.getAllByText("8:00 PM EDT")).toHaveLength(3);
+  });
+
   it("disables the action trigger when a row has no available actions", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({
       users: [{ ...pendingAdmin, canResend: false, canRemove: false }],

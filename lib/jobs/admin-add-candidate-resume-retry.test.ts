@@ -178,6 +178,27 @@ describe("adminAddCandidateFromResume resume save", () => {
     expect(runAutoQuickMatchMock).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "tenant-1", jobApplicationId: "app-1" }));
   });
 
+  it("returns the saved candidate before portal delivery and queues the scoped email", async () => {
+    const { supabase, inserts } = createSupabase({ insertErrors: [] });
+    createAdminJobApplicationMock.mockResolvedValue({
+      application: { id: "app-1" }, applicantProfileId: "profile-1", jobTitle: "RN",
+    });
+    const tasks: Array<() => Promise<void>> = [];
+    const result = await adminAddCandidateFromResume(supabase as never, {
+      tenantId: "tenant-1", jobRequisitionId: "job-1", resumeFile: resumeFile(),
+      workCity: "Atlanta", workState: "GA", schedulePortalEmail: (task) => tasks.push(task),
+    });
+    expect(inserts).toHaveLength(1);
+    expect(result.applicationId).toBe("app-1");
+    expect(result.portalEmail).toEqual({ sent: false, queued: true });
+    expect(portalEmailMock).not.toHaveBeenCalled();
+    expect(tasks).toHaveLength(1);
+    await tasks[0]();
+    expect(portalEmailMock).toHaveBeenCalledWith(supabase, expect.objectContaining({
+      tenantId: "tenant-1", workerId: "worker-1",
+    }));
+  });
+
   it("stops retrying when the timed-out insert actually landed", async () => {
     const { supabase, inserts } = createSupabase({
       insertErrors: [TIMEOUT],
