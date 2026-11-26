@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 import JobsPortalClient from "@/app/jobs/JobsPortalClient";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
-import { loadTenantBrandingBySlug } from "@/lib/tenant/load-tenant-branding-server";
+import { loadPublicTenantBranding } from "@/lib/tenant/load-public-tenant-branding";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
 import {
   brandingFallbackForSlug,
@@ -19,16 +19,21 @@ async function resolveJobsBoardBranding(tenantQuery?: string): Promise<TenantBra
   const fromQuery = tenantQuery?.trim().toLowerCase() || null;
   const fromHeader = requestHeaders.get("x-tenant-slug")?.trim().toLowerCase() || null;
   const fromHost = resolveRequestTenantHost(requestHeaders).subdomainLabel;
-  const slug = fromQuery || fromHeader || fromHost;
+  const label = fromQuery || fromHeader || fromHost;
 
-  if (!slug || !isTenantApplicantPortalSlug(slug)) {
-    return brandingFallbackForSlug(slug);
+  if (!label || !isTenantApplicantPortalSlug(label)) {
+    return brandingFallbackForSlug(label);
   }
 
   try {
-    return await loadTenantBrandingBySlug(slug);
+    // Query/header labels may be slug or subdomain; subdomain lookup falls back to slug.
+    return await loadPublicTenantBranding(
+      fromHost && label === fromHost
+        ? { hostSubdomain: label }
+        : { subdomain: label }
+    );
   } catch {
-    return brandingFallbackForSlug(slug);
+    return brandingFallbackForSlug(label);
   }
 }
 

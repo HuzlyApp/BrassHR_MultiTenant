@@ -24,7 +24,12 @@ import {
   type JobsBoardUrlState,
   type PublicBoardJob,
 } from "@/lib/jobs/public-jobs-board";
-import { isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
+import { writeCachedTenantBranding } from "@/lib/tenant/client-branding-cache";
+import { fetchTenantBranding } from "@/lib/tenant/fetch-tenant-branding";
+import {
+  isTenantApplicantPortalSlug,
+  type TenantBranding,
+} from "@/lib/tenant/tenant-branding";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Option = { id: string; name: string; profession_id?: string };
@@ -80,7 +85,9 @@ function useIsDesktopBoard() {
 export default function JobsPortalClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const branding = useTenantBranding();
+  const contextBranding = useTenantBranding();
+  const [liveBranding, setLiveBranding] = useState<TenantBranding | null>(null);
+  const branding = liveBranding ?? contextBranding;
   const isDesktop = useIsDesktopBoard();
   const boardState = useMemo(() => parseJobsBoardSearchParams(searchParams), [searchParams]);
   const landedWithJobRef = useRef(Boolean(boardState.job));
@@ -115,11 +122,33 @@ export default function JobsPortalClient() {
     const slug = resolveJobsBoardTenantSlug(
       window.location.search,
       window.location.pathname,
-      branding.slug
+      contextBranding.slug
     );
     setTenant(slug);
     setTenantReady(true);
-  }, [branding.slug, searchParams]);
+  }, [contextBranding.slug, searchParams]);
+
+  // Re-fetch public branding by subdomain/slug so SSR fallback (Brass gold) cannot stick
+  // when `?tenant=` is a subdomain label rather than tenants.slug.
+  useEffect(() => {
+    if (!tenantReady || !isTenantApplicantPortalSlug(tenant)) {
+      setLiveBranding(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchTenantBranding(
+      `/api/tenant-branding?subdomain=${encodeURIComponent(tenant)}`
+    )
+      .then((payload) => {
+        if (cancelled || !payload.branding?.id) return;
+        setLiveBranding(payload.branding);
+        writeCachedTenantBranding(payload.branding);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant, tenantReady]);
 
   useEffect(() => {
     setQueryTags(mergePublicJobsSearchTags(boardState.q, boardState.location));

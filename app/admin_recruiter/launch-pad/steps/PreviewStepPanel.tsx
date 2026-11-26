@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
+import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
@@ -18,9 +21,35 @@ export function PreviewStepPanel({
 }) {
   const searchParams = useSearchParams();
   const { organization } = useAccountData();
-  const tenantParam = searchParams.get("tenant") || organization?.subdomain || organization?.id || null;
+  const { branding } = useEffectiveBranding();
+  const [previewEpoch, setPreviewEpoch] = useState(0);
+
+  const organizationRecord = organization as
+    | { id?: string | null; name?: string | null; slug?: string | null; subdomain?: string | null }
+    | null
+    | undefined;
+
+  const tenantParam =
+    searchParams.get("tenant") ||
+    organizationRecord?.slug ||
+    organizationRecord?.subdomain ||
+    organizationRecord?.id ||
+    null;
   const jobsHref = withTenant("/jobs", tenantParam);
-  const companyLabel = organization?.name?.trim() || "Your company";
+  const brandKey = [
+    branding?.primaryHex ?? "",
+    branding?.secondaryHex ?? "",
+    branding?.accentHex ?? "",
+    previewEpoch,
+  ].join("|");
+  const previewSrc = `${jobsHref}${jobsHref.includes("?") ? "&" : "?"}preview=${encodeURIComponent(brandKey)}`;
+  const companyLabel = organizationRecord?.name?.trim() || "Your company";
+
+  useEffect(() => {
+    const bump = () => setPreviewEpoch((value) => value + 1);
+    window.addEventListener(BRANDING_UPDATED_EVENT, bump);
+    return () => window.removeEventListener(BRANDING_UPDATED_EVENT, bump);
+  }, []);
 
   return (
     <div className="flex w-full justify-center py-8">
@@ -57,8 +86,9 @@ export function PreviewStepPanel({
               </span>
             </div>
             <iframe
+              key={brandKey}
               title="Public apply page preview"
-              src={jobsHref}
+              src={previewSrc}
               className="h-[min(620px,70vh)] w-full border-0 bg-white"
             />
           </div>

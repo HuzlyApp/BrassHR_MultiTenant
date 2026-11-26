@@ -50,14 +50,25 @@ async function loadTenantBrandingRow(
   }
 
   if (lookup.kind === "slug") {
-    const { data, error } = await supabase
+    const label = lookup.value;
+    const { data: bySlug, error: slugErr } = await supabase
       .from("tenants")
       .select(TENANT_BRANDING_SELECT)
-      .eq("slug", lookup.value)
+      .eq("slug", label)
       .eq("is_active", true)
       .maybeSingle<TenantBrandingRow>();
-    if (error) throw error;
-    return { row: data ?? null, resolvedSlug: lookup.value };
+    if (slugErr) throw slugErr;
+    if (bySlug) return { row: bySlug, resolvedSlug: bySlug.slug };
+
+    // `?tenant=` / `?slug=` may be the vanity subdomain, not tenants.slug.
+    const { data: bySub, error: subErr } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("subdomain", label)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (subErr) throw subErr;
+    return { row: bySub ?? null, resolvedSlug: bySub?.slug ?? label };
   }
 
   if (lookup.kind === "tenantId") {

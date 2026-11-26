@@ -99,6 +99,29 @@ export function braasLoginShellLogoUrl(brand: TenantBranding): string {
   return brand.loginLogoUrl || brand.logoUrl;
 }
 
+function isPlatformDefaultFavicon(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return true;
+  return (
+    trimmed === BRAAS_PLATFORM_FAVICON ||
+    trimmed.endsWith("brassHR favicon 2.svg") ||
+    trimmed.includes("brassHR%20favicon")
+  );
+}
+
+/**
+ * Compact mark for admin sidebar/header.
+ * Prefer a custom favicon; otherwise the company logo (so Launch Pad logo uploads
+ * update chrome without requiring a full page refresh).
+ */
+export function adminChromeLogoUrl(brand: TenantBranding): string {
+  const favicon = brand.faviconUrl?.trim() || "";
+  const logo = brand.logoUrl?.trim() || "";
+  if (favicon && !isPlatformDefaultFavicon(favicon)) return favicon;
+  if (logo) return logo;
+  return BRAAS_PLATFORM_FAVICON;
+}
+
 /** Logo shown on applicant welcome + onboarding right panels. */
 export function tenantApplicantPanelLogoUrl(brand: TenantBranding): string {
   return brand.loginLogoUrl || brand.logoUrl;
