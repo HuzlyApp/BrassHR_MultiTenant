@@ -31,6 +31,7 @@ import { isTenantStepBlocking } from "@/lib/onboarding/reference-verification";
 import { resolvePostStepContinueRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { readStepKeyFromSearch } from "@/lib/onboarding/find-applicant-step";
 import {
+  formatOnboardingAccessError,
   resolveApplicantId,
   uploadRequiredOnboardingFile,
 } from "@/lib/onboarding/upload-required-file-client";
@@ -494,10 +495,18 @@ export default function Step2License() {
           }
         }
 
-        const res = await fetch("/api/onboarding/documents/upload", { method: "POST", body: fd });
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        const res = await fetch("/api/onboarding/documents/upload", {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          reason?: string;
+          detail?: string;
+        };
         if (!res.ok) {
-          throw new Error(json.error || "Upload failed");
+          throw new Error(formatOnboardingAccessError(json, res.status, "Upload failed"));
         }
       }
 
