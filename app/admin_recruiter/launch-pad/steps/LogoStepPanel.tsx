@@ -9,6 +9,8 @@ import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
 type LogoTab = "logo" | "favicon";
 
+const BRASS_DEFAULT_LOGO_PATH = "/icons/braas-HR/BrassHR-logo.svg";
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
@@ -18,6 +20,17 @@ function formatBytes(bytes: number): string {
 function isAllowedImage(file: File): boolean {
   const type = file.type.toLowerCase();
   return type === "image/png" || type === "image/jpeg" || type === "image/jpg";
+}
+
+/** Platform fallback logo from branding API (not a tenant upload). */
+function isBrassDefaultLogo(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  return (
+    trimmed === BRASS_DEFAULT_LOGO_PATH ||
+    trimmed.endsWith("BrassHR-logo.svg") ||
+    trimmed.includes("/braas-HR/BrassHR-logo")
+  );
 }
 
 export function LogoStepPanel({
@@ -40,6 +53,7 @@ export function LogoStepPanel({
   const [savedFaviconUrl, setSavedFaviconUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -92,6 +106,8 @@ export function LogoStepPanel({
   const activeFile = tab === "logo" ? logoFile : faviconFile;
   const activePreview = tab === "logo" ? logoPreview : faviconPreview;
   const hasSavedActive = tab === "logo" ? Boolean(savedLogoUrl) : Boolean(savedFaviconUrl);
+  const activeIsDefaultLogo =
+    tab === "logo" && !activeFile && isBrassDefaultLogo(activePreview || savedLogoUrl);
 
   const applyFile = (file: File | null) => {
     if (!file) return;
@@ -119,13 +135,65 @@ export function LogoStepPanel({
     applyFile(event.dataTransfer.files?.[0] ?? null);
   };
 
-  const clearActive = () => {
+  const clearPendingFile = () => {
     if (tab === "logo") {
       setLogoFile(null);
       setLogoPreview(savedLogoUrl);
     } else {
       setFaviconFile(null);
       setFaviconPreview(savedFaviconUrl);
+    }
+  };
+
+  const removeActive = async () => {
+    if (removing || saving) return;
+    setError(null);
+
+    // New local selection — discard without hitting the API.
+    if (activeFile) {
+      clearPendingFile();
+      return;
+    }
+
+    // Platform default preview only (no tenant upload) — clear the UI so they can upload.
+    if (tab === "logo" && isBrassDefaultLogo(savedLogoUrl || logoPreview)) {
+      setLogoFile(null);
+      setLogoPreview("");
+      setSavedLogoUrl("");
+      return;
+    }
+
+    setRemoving(true);
+    try {
+      if (tab === "logo") {
+        const response = await fetch("/api/admin/branding", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logoUrl: "" }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Could not remove your logo.");
+        setLogoFile(null);
+        setLogoPreview("");
+        setSavedLogoUrl("");
+        toast.success("Company logo removed.");
+      } else {
+        const response = await fetch("/api/admin/branding", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ faviconUrl: "" }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Could not remove your favicon.");
+        setFaviconFile(null);
+        setFaviconPreview("");
+        setSavedFaviconUrl("");
+        toast.success("Favicon removed.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not remove the file.");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -348,23 +416,40 @@ export function LogoStepPanel({
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] font-normal leading-4 text-black" style={interStyle}>
-                  {activeFile?.name || (tab === "logo" ? "Saved company logo" : "Saved favicon")}
+                  {activeFile?.name
+                    ? activeFile.name
+                    : activeIsDefaultLogo
+                      ? "brasshr default company logo"
+                      : tab === "logo"
+                        ? "Saved company logo"
+                        : "Saved favicon"}
                 </p>
                 <p className="text-[10px] font-normal leading-[15px] text-[#6B7280]" style={interStyle}>
-                  {activeFile ? formatBytes(activeFile.size) : hasSavedActive ? "Saved" : "Selected"}
+                  {activeFile
+                    ? formatBytes(activeFile.size)
+                    : activeIsDefaultLogo
+                      ? "Default"
+                      : hasSavedActive
+                        ? "Saved"
+                        : "Selected"}
                 </p>
               </div>
-              {activeFile ? (
-                <button type="button" onClick={clearActive} aria-label="Remove file">
-                  <Image
-                    src="/icons/braas-HR/launch-pad/delete-outline.svg"
-                    alt=""
-                    width={18}
-                    height={18}
-                    className="size-[18px]"
-                  />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => void removeActive()}
+                disabled={removing || saving}
+                aria-label={tab === "logo" ? "Remove company logo" : "Remove favicon"}
+                title="Remove"
+                className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-[#F3F4F6] disabled:opacity-50"
+              >
+                <Image
+                  src="/icons/braas-HR/launch-pad/delete-outline.svg"
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="size-[18px]"
+                />
+              </button>
             </div>
           ) : null}
         </div>
