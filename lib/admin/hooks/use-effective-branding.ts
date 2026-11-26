@@ -42,14 +42,13 @@ export function patchEffectiveBrandingCache(
 ): void {
   queryClient.setQueryData<EffectiveBrandingPayload>(
     effectiveBrandingQueryKey(typeof window !== "undefined" ? window.location.hostname : null),
-    (prev) =>
-      prev
-        ? {
-            ...prev,
-            branding,
-            ...(hireJourneyTheme ? { hireJourneyTheme } : {}),
-          }
-        : prev
+    (prev) => ({
+      branding,
+      hireJourneyTheme:
+        hireJourneyTheme ?? prev?.hireJourneyTheme ?? EMPTY_HIRE_JOURNEY_THEME,
+      viewer: prev?.viewer ?? {},
+      debug: prev?.debug,
+    })
   );
 }
 

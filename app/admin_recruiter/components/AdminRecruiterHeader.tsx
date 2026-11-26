@@ -15,7 +15,7 @@ import { getAccountDisplayName } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
+import { adminChromeLogoUrl, BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import {
   formatMessageTime,
   type ApplicantMessageListRow,
@@ -86,7 +86,7 @@ export function AdminRecruiterHeader({
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [tenantLogoSrc, setTenantLogoSrc] = useState(
-    branding.faviconUrl || branding.logoUrl || DEFAULT_TENANT_LOGO
+    adminChromeLogoUrl(branding) || DEFAULT_TENANT_LOGO
   );
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const profileAreaRef = useRef<HTMLDivElement>(null);
@@ -238,8 +238,8 @@ export function AdminRecruiterHeader({
   );
 
   useEffect(() => {
-    setTenantLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
-  }, [branding.faviconUrl, branding.logoUrl]);
+    setTenantLogoSrc(adminChromeLogoUrl(branding) || DEFAULT_TENANT_LOGO);
+  }, [branding]);
 
   const accountName = getAccountDisplayName(profile, user);
   const trustedHeader = Boolean(user?.id && headerUserId === user.id);

@@ -5,12 +5,12 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { PanelLeftClose, X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
-import { ADMIN_HEADER_DATA_QUERY_KEY, type AdminHeaderDataPayload } from "@/lib/admin/hooks/use-admin-header-data";
+import { adminChromeLogoUrl, BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
   ADMIN_RECRUITER_HOME_ROUTE,
@@ -153,7 +153,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const { user, profile, organization } = useAccountData();
-  const [logoSrc, setLogoSrc] = useState(branding.faviconUrl || branding.logoUrl || DEFAULT_TENANT_LOGO);
+  const [logoSrc, setLogoSrc] = useState(adminChromeLogoUrl(branding) || DEFAULT_TENANT_LOGO);
   const pathname = usePathname() ?? "";
   const inSettingsArea = isSettingsMiniSidebarPath(pathname);
   const router = useRouter();
@@ -243,8 +243,8 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   );
 
   useEffect(() => {
-    setLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
-  }, [branding.faviconUrl, branding.logoUrl]);
+    setLogoSrc(adminChromeLogoUrl(branding) || DEFAULT_TENANT_LOGO);
+  }, [branding]);
 
   const handleLogout = async () => {
     clearStaffAccessCache(queryClient);
@@ -260,10 +260,11 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   };
 
   const profileName = getAccountDisplayName(profile, user);
-  const headerQuery = useQuery<AdminHeaderDataPayload>({ queryKey: ADMIN_HEADER_DATA_QUERY_KEY, enabled: false });
-  const profileRole = user?.id && headerQuery.data?.userId === user.id
-    ? headerQuery.data?.roleLabel || "Role unavailable"
-    : "Loading role…";
+  const headerData = useAdminHeaderData();
+  const profileRole =
+    user?.id && headerData.userId === user.id
+      ? headerData.roleLabel || "Role unavailable"
+      : "Loading role…";
   const sidebarCompanyName = getOrganizationDisplayName(organization, profile, user);
   const profilePhoto = profile?.avatar_url ?? null;
 

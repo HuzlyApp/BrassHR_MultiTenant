@@ -1,9 +1,12 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 import { BRAND_COLOR_PRESETS } from "@/app/tenant-onboarding/constants";
+import { refreshAdminBrandingChrome } from "@/lib/admin/refresh-admin-branding-chrome";
+import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
@@ -35,6 +38,7 @@ export function BrandingStepPanel({
   onSkip: () => void;
   onComplete: () => void;
 }) {
+  const queryClient = useQueryClient();
   const defaultPreset = BRAND_COLOR_PRESETS[0];
   const [presetIndex, setPresetIndex] = useState(0);
   const [primary, setPrimary] = useState<string>(defaultPreset.primary);
@@ -107,8 +111,9 @@ export function BrandingStepPanel({
           accentColor: accent,
         }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as { branding?: TenantBranding; error?: string };
       if (!response.ok) throw new Error(data.error ?? "Could not save your branding.");
+      await refreshAdminBrandingChrome(queryClient, data.branding ?? null);
       toast.success("Branding colors saved successfully.");
       onComplete();
     } catch (cause) {

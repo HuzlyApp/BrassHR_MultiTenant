@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import toast from "react-hot-toast";
-import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
+import { refreshAdminBrandingChrome } from "@/lib/admin/refresh-admin-branding-chrome";
+import { BRAAS_PLATFORM_FAVICON, type TenantBranding } from "@/lib/tenant/tenant-branding";
 import { interStyle } from "../constants";
 import { LaunchPadStepActions } from "../LaunchPadStepHeader";
 
@@ -56,6 +58,22 @@ export function LogoStepPanel({
   const [removing, setRemoving] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+
+  /** Push latest branding into sidebar/header chrome without a full page refresh. */
+  const syncAdminChromeBranding = useCallback(async () => {
+    let branding: TenantBranding | null = null;
+    try {
+      const response = await fetch("/api/admin/branding", { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        branding?: TenantBranding;
+      };
+      if (response.ok && payload.branding) branding = payload.branding;
+    } catch {
+      // Still refresh listeners below.
+    }
+    await refreshAdminBrandingChrome(queryClient, branding);
+  }, [queryClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +194,7 @@ export function LogoStepPanel({
         setLogoFile(null);
         setLogoPreview("");
         setSavedLogoUrl("");
+        await syncAdminChromeBranding();
         toast.success("Company logo removed.");
       } else {
         const response = await fetch("/api/admin/branding", {
@@ -188,6 +207,7 @@ export function LogoStepPanel({
         setFaviconFile(null);
         setFaviconPreview("");
         setSavedFaviconUrl("");
+        await syncAdminChromeBranding();
         toast.success("Favicon removed.");
       }
     } catch (cause) {
@@ -248,6 +268,9 @@ export function LogoStepPanel({
           }),
         });
         if (!response.ok) throw new Error("Could not save your company branding.");
+      }
+      if (uploaded.length > 0 || logoName.trim() || tagline.trim()) {
+        await syncAdminChromeBranding();
       }
       if (uploaded.includes("logo") && uploaded.includes("favicon")) {
         toast.success("Logo and favicon uploaded successfully.");
