@@ -18,6 +18,7 @@ import {
 import { EASTERN_TIME_ZONE } from "@/lib/datetime/eastern";
 import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import type { InterviewMeetingType } from "@/lib/interviews/schedule-payload";
+import { formatApiError } from "@/lib/api/format-api-error";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -335,8 +336,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/applicant-appointments:get]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }
 
@@ -464,7 +464,18 @@ export async function POST(req: NextRequest) {
         : interviewOrdinalTitle(sequence);
 
     const applicationId = appCtx.applicationId;
-    const jobId = body.jobId?.trim() || null;
+    let jobId = body.jobId?.trim() || null;
+    // Pre-hire schedule modal may omit jobId when applicationId is fixed; resolve from the application.
+    if (!jobId && applicationId) {
+      const { data: appJobRow, error: appJobError } = await supabase
+        .from("job_applications")
+        .select("job_requisition_id")
+        .eq("id", applicationId)
+        .eq("tenant_id", scope.tenantId)
+        .maybeSingle();
+      if (appJobError) throw appJobError;
+      jobId = appJobRow?.job_requisition_id?.trim() || null;
+    }
 
     const interviewId = crypto.randomUUID();
     const calendarUid = buildInterviewCalendarUid(interviewId);
@@ -582,7 +593,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/applicant-appointments:post]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

@@ -39,13 +39,19 @@ export function CandidateNotificationsClient() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!sessionReady) return;
+    if (!sessionReady) {
+      setLoading(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
-      const res = await fetch("/api/applicant-portal/notifications", { headers, cache: "no-store" });
+      const res = await fetch("/api/applicant-portal/notifications", {
+        headers,
+        cache: "no-store",
+      });
       const payload = (await res.json().catch(() => ({}))) as {
         notifications?: NotificationItem[];
         error?: string;
@@ -54,6 +60,7 @@ export function CandidateNotificationsClient() {
       setItems(payload.notifications ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load notifications.");
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -62,6 +69,16 @@ export function CandidateNotificationsClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Safety: if session never becomes ready, stop the infinite loading label.
+  useEffect(() => {
+    if (sessionReady) return;
+    const timer = window.setTimeout(() => {
+      setLoading(false);
+      setError((prev) => prev ?? "Could not load your session. Refresh and try again.");
+    }, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [sessionReady]);
 
   async function patch(action: string, notificationId?: string) {
     setBusy(true);

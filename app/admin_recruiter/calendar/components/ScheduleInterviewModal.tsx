@@ -212,14 +212,15 @@ export function ScheduleInterviewModal({
 
   /** Load the applicant's open applications so the recruiter can pick the job to interview for. */
   useEffect(() => {
-    if (!open || fixedApplicationId || initialValues?.applicationId) {
-      if (fixedApplicationId) setApplicationId(fixedApplicationId);
-      else if (initialValues?.applicationId) setApplicationId(initialValues.applicationId);
+    if (!open) return;
+
+    const lockedApplicationId = fixedApplicationId || initialValues?.applicationId || "";
+    if (lockedApplicationId) setApplicationId(lockedApplicationId);
+
+    if (!resolvedWorkerId) {
+      setApplications([]);
       return;
     }
-    setApplications([]);
-    setApplicationId("");
-    if (!resolvedWorkerId) return;
 
     let cancelled = false;
     setApplicationsLoading(true);
@@ -234,7 +235,9 @@ export function ScheduleInterviewModal({
         if (cancelled || !res.ok) return;
         const list = data.applications ?? [];
         setApplications(list);
-        setApplicationId(list.length === 1 ? list[0].id : "");
+        if (!lockedApplicationId) {
+          setApplicationId(list.length === 1 ? list[0].id : "");
+        }
       })
       .finally(() => {
         if (!cancelled) setApplicationsLoading(false);

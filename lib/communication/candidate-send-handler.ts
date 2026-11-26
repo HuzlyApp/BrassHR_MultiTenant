@@ -13,6 +13,8 @@ import {
 } from "@/lib/communication/schemas";
 import { sendCandidateEmail } from "@/lib/communication/send-candidate-email";
 import { sendCandidateSms } from "@/lib/communication/send-candidate-sms";
+import { createNotification } from "@/lib/notifications/create-notification";
+import { getSupabaseUrl } from "@/lib/supabase-env";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -123,11 +125,104 @@ export async function handleSendCandidateEmail(
     );
   }
 
+  const applicantUserId = await resolveCandidatePortalUserId(supabase, contact);
+  if (applicantUserId) {
+    const title = payload.subject?.trim() || "New message from your recruiter";
+    const plainBody =
+      payload.body?.trim() ||
+      (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
+    const created = await createNotification(supabase, {
+      tenantId: contact.tenantId,
+      userId: applicantUserId,
+      type: "admin_email",
+      title,
+      body: plainBody ? plainBody.slice(0, 500) : null,
+      link: "/application/candidate/notifications",
+    });
+    if (!created) {
+      console.error("[candidate-email:notify] createNotification returned null", {
+        workerId: contact.id,
+        userId: applicantUserId,
+        tenantId: contact.tenantId,
+      });
+    }
+  } else {
+    console.warn("[candidate-email:notify] skipped — candidate has no portal user_id", {
+      workerId: contact.id,
+      email: contact.email,
+      tenantId: contact.tenantId,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     messageId: sendResult.messageId,
     record: row,
   });
+}
+
+async function resolveCandidatePortalUserId(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  contact: { id: string; userId: string | null; email: string | null; tenantId: string }
+): Promise<string | null> {
+  const existing = contact.userId?.trim() ?? "";
+  if (existing) return existing;
+
+  const email = contact.email?.trim().toLowerCase() ?? "";
+  if (!email) return null;
+
+  // Fall back: auth user with the same email (portal login exists but worker.user_id not linked).
+  try {
+    const matchedId = await findAuthUserIdByEmail(email);
+    if (!matchedId) return null;
+
+    await supabase
+      .from("worker")
+      .update({ user_id: matchedId, updated_at: new Date().toISOString() })
+      .eq("id", contact.id)
+      .is("user_id", null);
+
+    return matchedId;
+  } catch (err) {
+    console.error("[candidate-email:notify] resolveCandidatePortalUserId", err);
+    return null;
+  }
+}
+
+async function findAuthUserIdByEmail(email: string): Promise<string | null> {
+  const baseUrl = getSupabaseUrl()?.replace(/\/$/, "");
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!baseUrl || !serviceKey) return null;
+
+  const url = `${baseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    console.error("[candidate-email:notify] auth admin users lookup failed", res.status);
+    return null;
+  }
+
+  const payload = (await res.json().catch(() => null)) as
+    | { users?: Array<{ id?: string; email?: string | null }> }
+    | { id?: string; email?: string | null }
+    | null;
+
+  if (payload && Array.isArray((payload as { users?: unknown }).users)) {
+    const users = (payload as { users: Array<{ id?: string; email?: string | null }> }).users;
+    const match = users.find((user) => (user.email ?? "").trim().toLowerCase() === email);
+    return match?.id?.trim() || null;
+  }
+
+  const single = payload as { id?: string; email?: string | null } | null;
+  if (single?.id && (single.email ?? "").trim().toLowerCase() === email) {
+    return single.id.trim();
+  }
+  return null;
 }
 
 export async function handleSendCandidateSms(
