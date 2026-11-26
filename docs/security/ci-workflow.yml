@@ -1,0 +1,53 @@
+name: Security regression
+on:
+  pull_request:
+    branches: [development, staging, main]
+  push:
+    branches: [development, staging]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  code-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run security:secrets
+      - run: npm test -- --testTimeout=20000
+      - run: npx tsc --noEmit --incremental false
+  # Destructive adversarial fixtures run only on a separately provisioned QA database.
+  # Configure the protected security-qa environment; never use shared staging secrets.
+  database-security:
+    if: github.event_name == 'workflow_dispatch'
+    environment: security-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Require dedicated test configuration
+        env:
+          QA_URL: ${{ secrets.RLS_TEST_SUPABASE_URL }}
+          QA_KEY: ${{ secrets.RLS_TEST_SUPABASE_ANON_KEY }}
+          QA_SERVICE: ${{ secrets.RLS_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+        run: test -n "$QA_URL" && test -n "$QA_KEY" && test -n "$QA_SERVICE"
+      - run: npm run test:rls -- --testTimeout=30000
+        env:
+          BRASSHR_RLS_TEST: '1'
+          BRASSHR_RLS_ALLOW_REMOTE: '1'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.RLS_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.RLS_TEST_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.RLS_TEST_SUPABASE_SERVICE_ROLE_KEY }}

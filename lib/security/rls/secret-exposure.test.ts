@@ -12,6 +12,8 @@ function walk(dir: string, files: string[] = []): string[] {
       name === ".git" ||
       name === ".next" ||
       name === "coverage" ||
+      name === "output" ||
+      name === "reports" ||
       name === "agent-transcripts"
     ) {
       continue;

@@ -52,3 +52,20 @@ describe("persistent candidate header", () => {
     await waitFor(() => expect(mocks.load).toHaveBeenLastCalledWith(`/api/admin/worker-profile?workerId=${workerId}`, { bust: true }));
   });
 });
+
+describe("unavailable candidate", () => {
+  it.each([403,404])("hides the profile and actions for a %s response", async (status) => {
+    mocks.load.mockResolvedValueOnce({ok:false,status,payload:{error:"unavailable"}});
+    render(<CandidateDetailChrome><button>Download private document</button></CandidateDetailChrome>);
+    await screen.findByText("Record not found");
+    expect(screen.queryByText("Download private document")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("job-id")).not.toBeInTheDocument();
+  });
+});
+
+it("does not mount candidate actions while record access is unresolved", () => {
+  mocks.load.mockImplementationOnce(() => new Promise(() => {}));
+  render(<CandidateDetailChrome><button>Download private document</button></CandidateDetailChrome>);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading candidate");
+  expect(screen.queryByText("Download private document")).not.toBeInTheDocument();
+});

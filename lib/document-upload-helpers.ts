@@ -112,3 +112,19 @@ export function isAcceptedDocumentFileType(
 
   return false
 }
+
+/** Server-side content check; browser MIME and a renamed extension are not trusted.
+ * This detects type spoofing, not malware: AV/quarantine remains a separate control.
+ */
+export function validateDocumentUploadBytes(name: string, bytes: Uint8Array): string | null {
+  const ext = name.toLowerCase().split(".").pop();
+  const starts = (...signature: number[]) => signature.every((value, i) => bytes[i] === value);
+  const valid = ext === "pdf" ? starts(0x25,0x50,0x44,0x46,0x2d)
+    : ext === "png" ? starts(0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a)
+    : ext === "jpg" || ext === "jpeg" ? starts(0xff,0xd8,0xff)
+    : ext === "webp" ? starts(0x52,0x49,0x46,0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+    : ext === "doc" ? starts(0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1)
+    : ext === "docx" ? starts(0x50,0x4b,0x03,0x04) && new TextDecoder().decode(bytes).includes("word/document.xml")
+    : false;
+  return valid ? null : "File contents do not match an allowed document type.";
+}

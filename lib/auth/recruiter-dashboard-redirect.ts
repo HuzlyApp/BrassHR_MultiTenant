@@ -10,11 +10,7 @@ export async function fetchTenantVanityLabel(
   supabase: SupabaseClient,
   tenantId: string
 ): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("subdomain, slug, domain")
-    .eq("id", tenantId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("public_tenant_branding", { p_kind: "tenantId", p_value: tenantId });
 
   if (error) throw error;
   // A saved subdomain is only a reservation until Launch Pad activates its domain.

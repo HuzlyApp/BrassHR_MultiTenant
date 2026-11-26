@@ -23,3 +23,10 @@ export async function canAccessWorkerRecord(
   const uid = worker.user_id != null ? String(worker.user_id).trim() : "";
   return uid.length > 0 && uid === auth.userId;
 }
+
+/** Default-deny access to identity/compliance files, independent of a broad People grant.
+ * Called only after requireApiSession validates current membership and OTP proof.
+ */
+export function canAccessWorkerSensitiveData(auth: ApiAuthContext): boolean {
+  return auth.godAdmin || ["admin", "hr"].includes(auth.role.trim().toLowerCase());
+}

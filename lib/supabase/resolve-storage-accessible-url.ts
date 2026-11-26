@@ -5,6 +5,12 @@ import {
   WORKER_RESUMES_BUCKET,
 } from "@/lib/supabase-storage-buckets";
 
+/** Private bearer links are deliberately short-lived, including legacy callers. */
+export const PRIVATE_DOCUMENT_URL_TTL_SECONDS = 120;
+export function privateDocumentUrlTtl(requested = PRIVATE_DOCUMENT_URL_TTL_SECONDS): number {
+  return Number.isFinite(requested) ? Math.max(60, Math.min(300, Math.floor(requested))) : PRIVATE_DOCUMENT_URL_TTL_SECONDS;
+}
+
 const FALLBACK_BUCKETS = [
   WORKER_REQUIRED_FILES_BUCKET,
   WORKER_RESUMES_BUCKET,
@@ -31,7 +37,13 @@ export function parseStoredStorageReference(stored: string): StoredStorageRefere
       return { kind: "storage", bucket: parsed.bucket, path: parsed.path };
     }
     if (value.includes("/storage/v1/object/sign/")) {
-      return { kind: "external", url: value };
+      try {
+        const url = new URL(value);
+        const object = url.pathname.split("/storage/v1/object/sign/")[1];
+        const slash = object?.indexOf("/") ?? -1;
+        if (slash > 0) return { kind: "storage", bucket: decodeURIComponent(object.slice(0, slash)), path: decodeURIComponent(object.slice(slash + 1)) };
+      } catch { return null; }
+      return null;
     }
     return { kind: "external", url: value };
   }
@@ -63,7 +75,7 @@ async function trySignedUrl(
 
 /**
  * Turn a stored path or legacy public URL into a browser-accessible URL.
- * Private buckets use signed URLs; legacy public object URLs are returned when signing fails.
+ * Private buckets fail closed when signing fails; stored signed URLs are re-signed.
  */
 export async function resolveStorageAccessibleUrl(
   supabase: SupabaseClient,
@@ -77,7 +89,7 @@ export async function resolveStorageAccessibleUrl(
   if (!ref) return null;
   if (ref.kind === "external") return ref.url;
 
-  const expiresIn = options?.expiresIn ?? 3600;
+  const expiresIn = privateDocumentUrlTtl(options?.expiresIn);
   const downloadFileName = options?.downloadFileName?.trim() || null;
   const buckets = Array.from(
     new Set(
@@ -103,10 +115,6 @@ export async function resolveStorageAccessibleUrl(
     );
     const hit = results.find(Boolean);
     if (hit) return hit;
-  }
-
-  if (/^https?:\/\//i.test(raw) && raw.includes("/object/public/")) {
-    return raw;
   }
 
   return null;

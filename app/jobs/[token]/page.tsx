@@ -165,7 +165,7 @@ export default async function PublicJobDetailPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900" style={brandVars}>
-      {acceptingApplications ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} /> : null}
+      {acceptingApplications ? <script nonce={(await headers()).get("x-nonce") ?? undefined} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} /> : null}
       {!acceptingApplications ? <div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-4 text-center text-sm font-medium text-amber-900">
         {job.status === "paused" ? "This job is paused." : job.status === "filled" ? "This position has been filled." : "This job is closed."} Applications are no longer being accepted. <Link className="underline" href={`/jobs?tenant=${encodeURIComponent(tenant.slug)}`}>Browse available jobs</Link>
       </div> : null}

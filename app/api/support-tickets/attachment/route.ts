@@ -1,3 +1,4 @@
+import { PRIVATE_DOCUMENT_URL_TTL_SECONDS } from "@/lib/supabase/resolve-storage-accessible-url";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     const signed = await supabase.storage
       .from(row.storage_bucket)
-      .createSignedUrl(row.file_path, 60 * 10);
+      .createSignedUrl(row.file_path, PRIVATE_DOCUMENT_URL_TTL_SECONDS);
     if (signed.error || !signed.data?.signedUrl) {
       throw signed.error ?? new Error("Could not load attachment");
     }

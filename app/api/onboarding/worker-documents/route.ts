@@ -181,18 +181,6 @@ export async function POST(req: NextRequest) {
     }
     const worker = { id: ctx.workerId, tenant_id: ctx.tenantId }
     const workerTenantId = ctx.tenantId
-    console.info("[debug-doc-upload] worker-documents:start", {
-      route: "/api/onboarding/worker-documents",
-      applicantId,
-      workerId: worker.id,
-      payload: {
-        nursing_license_url: body.nursing_license_url ?? null,
-        tb_test_url: body.tb_test_url ?? null,
-        cpr_certification_url: body.cpr_certification_url ?? null,
-        ssn_url: body.ssn_url ?? null,
-        drivers_license_url: body.drivers_license_url ?? null,
-      },
-    })
 
     const { data: existingRows, error: selErr } = await supabase
       .from("worker_documents")
@@ -243,13 +231,6 @@ export async function POST(req: NextRequest) {
         const msg = [upErr.message, upErr.details, upErr.hint].filter(Boolean).join(" — ")
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
       }
-      console.info("[debug-doc-upload] worker-documents:update:success", {
-        route: "/api/onboarding/worker-documents",
-        applicantId,
-        workerId: worker.id,
-        rowId: existingId,
-        updatePayload,
-      })
     } else {
       const { error: insErr } = await supabase.from("worker_documents").insert(merged)
       if (insErr) {
@@ -257,12 +238,6 @@ export async function POST(req: NextRequest) {
         const msg = [insErr.message, insErr.details, insErr.hint].filter(Boolean).join(" — ")
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
       }
-      console.info("[debug-doc-upload] worker-documents:insert:success", {
-        route: "/api/onboarding/worker-documents",
-        applicantId,
-        workerId: worker.id,
-        insertPayload: merged,
-      })
     }
 
     await Promise.all([

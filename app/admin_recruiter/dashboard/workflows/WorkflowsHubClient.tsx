@@ -4,9 +4,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
-import { OnboardingFlowsPage } from "@/app/braas-hr/dashboard/onboarding-flows/page";
+import { OnboardingFlowsPage } from "@/app/braas-hr/dashboard/onboarding-flows/OnboardingFlowsPage";
 import WorkflowMappingsClient from "@/app/admin_recruiter/dashboard/workflow-mappings/WorkflowMappingsClient";
-import AdminRecruiterTemplatesPage from "@/app/admin_recruiter/dashboard/templates/page";
+import AdminRecruiterTemplatesPage from "@/app/admin_recruiter/dashboard/templates/TemplatesPanel";
 import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
 
 const WORKFLOWS_HREF = "/admin_recruiter/dashboard/onboarding-flows";

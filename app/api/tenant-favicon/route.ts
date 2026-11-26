@@ -93,32 +93,11 @@ export async function GET(req: Request) {
     const supabase = createSb(url, key);
     let row: TenantBrandingRow | null = null;
 
-    if (subdomainParam && !slugParam) {
-      const { data: bySub } = await supabase
-        .from("tenants")
-        .select(TENANT_BRANDING_SELECT)
-        .eq("subdomain", subdomainParam)
-        .eq("is_active", true)
-        .maybeSingle<TenantBrandingRow>();
-      row = bySub ?? null;
-      if (!row) {
-        const { data: bySlug } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("slug", subdomainParam)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        row = bySlug ?? null;
-      }
-    } else {
-      const { data } = await supabase
-        .from("tenants")
-        .select(TENANT_BRANDING_SELECT)
-        .eq("slug", resolvedSlug)
-        .eq("is_active", true)
-        .maybeSingle<TenantBrandingRow>();
-      row = data ?? null;
-    }
+    const { data, error } = await supabase.rpc("public_tenant_branding", {
+      p_kind: subdomainParam && !slugParam ? "subdomain" : "slug",
+      p_value: subdomainParam && !slugParam ? subdomainParam : resolvedSlug,
+    });
+    if (!error) row = data as TenantBrandingRow | null;
 
     branding = brandingFromTenantRow(row, resolvedSlug);
   }

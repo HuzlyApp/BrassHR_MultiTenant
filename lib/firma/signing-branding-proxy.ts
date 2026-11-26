@@ -64,7 +64,8 @@ export function buildFirmaSigningBrandingInjectScript(
 /** Rewrite Firma signing HTML so assets load same-origin and branding patch runs first. */
 export function rewriteFirmaSigningProxyHtml(
   html: string,
-  palette?: FirmaEmbedColorPalette
+  palette?: FirmaEmbedColorPalette,
+  nonce?: string
 ): string {
   const script = buildFirmaSigningBrandingInjectScript(palette);
   const assetPrefix = FIRMA_SIGNING_ASSETS_PATH_PREFIX;
@@ -74,7 +75,10 @@ export function rewriteFirmaSigningProxyHtml(
   // Same-origin module scripts must not use crossorigin (Firma CDN sends no ACAO header).
   out = out.replace(/\s+crossorigin/g, "");
 
-  const injection = `<script>${script}</script>`;
+  // Only the server-generated nonce is accepted; never interpolate arbitrary attributes.
+  const attribute = nonce && /^[A-Za-z0-9+/=_-]+$/.test(nonce) ? ` nonce="${nonce}"` : "";
+  if (attribute) out = out.replace(/<script\b[^>]*>/gi, tag => tag.replace(/\snonce=(?:"[^"]*"|'[^']*')/gi, "").replace(/>$/, `${attribute}>`));
+  const injection = `<script${attribute}>${script}</script>`;
   if (out.includes("<head>")) {
     return out.replace("<head>", `<head>${injection}`);
   }

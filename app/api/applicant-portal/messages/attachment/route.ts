@@ -1,3 +1,4 @@
+import { PRIVATE_DOCUMENT_URL_TTL_SECONDS } from "@/lib/supabase/resolve-storage-accessible-url";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     if (!allowed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const signed = await supabase.storage.from(row.attachment_bucket).createSignedUrl(row.attachment_path, 60 * 10);
+    const signed = await supabase.storage.from(row.attachment_bucket).createSignedUrl(row.attachment_path, PRIVATE_DOCUMENT_URL_TTL_SECONDS);
     if (signed.error || !signed.data?.signedUrl) throw signed.error ?? new Error("Could not load attachment");
     return NextResponse.redirect(signed.data.signedUrl, { status: 302 });
   } catch (err) {

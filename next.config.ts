@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { appContentSecurityPolicy, APP_PERMISSIONS_POLICY } from "./lib/security/content-security-policy";
 import { LEGACY_APPLICATION_ROUTE_REDIRECTS } from "./lib/onboarding/application-routes";
 
 function getSupabaseImageRemotePatterns(): NonNullable<NextConfig["images"]>["remotePatterns"] {
@@ -83,20 +84,7 @@ function getPublicJobsFrameAncestors(): string {
 }
 
 function buildAppContentSecurityPolicy(frameAncestors: string): string {
-  return [
-    "default-src 'self'",
-    "base-uri 'self'",
-    `frame-ancestors ${frameAncestors}`,
-    "object-src 'none'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    // Firma embed loads pdf.js via data:/blob: workers and Google Fonts for field labels.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    `script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === "development" ? "'unsafe-eval' " : ""}https://api.firma.dev https://app.firma.dev`,
-    "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
-    "connect-src 'self' https: wss: blob:",
-    "frame-src 'self' https://app.firma.dev https://api.firma.dev https://dialpad.com",
-  ].join("; ");
+  return appContentSecurityPolicy({ frameAncestors });
 }
 
 const nextConfig: NextConfig = {
@@ -126,15 +114,12 @@ const nextConfig: NextConfig = {
   async headers() {
     const baseSecurityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Referrer-Policy", value: "no-referrer" },
       {
         key: "Permissions-Policy",
-        // Dialpad calls from a cross-origin iframe, and that iframe can navigate or
-        // nest another origin for WebRTC. A header allowlist that misses that origin
-        // (or camera=()) makes getUserMedia reject with NotAllowedError and no prompt.
-        // `*` is only the ceiling: a frame still needs its own allow attribute.
+        // Only the app and its explicit telephony origins may request device access.
         value:
-          "camera=*, microphone=*, speaker-selection=*, display-capture=*, autoplay=*, geolocation=(self)",
+          APP_PERMISSIONS_POLICY,
       },
     ];
     const securityHeaders = [
@@ -160,28 +145,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Cache-Control", value: "private, no-store" },
           { key: "Vary", value: "Host" },
-        ],
-      },
-      {
-        source: "/signing/:path*",
-        headers: [
-          ...securityHeaders.filter((h) => h.key !== "Content-Security-Policy"),
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "base-uri 'self'",
-              "frame-ancestors 'self'",
-              "object-src 'none'",
-              "img-src 'self' data: blob: https:",
-              "font-src 'self' data: https://fonts.gstatic.com https://fonts.cdnfonts.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.cdnfonts.com",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://www.googletagmanager.com https://www.google-analytics.com",
-              "worker-src 'self' blob: data:",
-              "connect-src 'self' https: wss: blob:",
-              "frame-src 'self' https:",
-            ].join("; "),
-          },
         ],
       },
       {

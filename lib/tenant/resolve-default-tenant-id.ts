@@ -19,19 +19,15 @@ export type ResolveTenantResult =
   | { ok: false; error: string }
 
 /**
- * Resolves the tenant UUID for platform onboarding: env first, else first active `tenants` row.
+ * Resolves the tenant UUID for platform onboarding: env first, else explicitly named platform tenant (never an arbitrary customer).
  */
 export async function resolveDefaultTenantId(supabase: SupabaseClient): Promise<ResolveTenantResult> {
   const fromEnv = getConfiguredDefaultTenantId()
   if (fromEnv) return { ok: true, tenantId: fromEnv }
 
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
+  const { data, error } = await supabase.rpc("public_tenant_branding", {
+    p_kind: "slug", p_value: "braas-hr",
+  })
 
   if (error) return { ok: false, error: `Could not resolve tenant: ${error.message}` }
   if (!data?.id) {

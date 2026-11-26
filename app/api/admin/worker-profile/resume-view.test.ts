@@ -4,7 +4,7 @@ const id = "11111111-1111-4111-8111-111111111111";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), tenant: vi.fn(), access: vi.fn(), from: vi.fn(), filters: [] as Array<[string, string, unknown]>, signed: vi.fn(), workerFound: true }));
 vi.mock("@/lib/auth/api-session", () => ({ requireStaffApiSession: mocks.auth }));
 vi.mock("@/lib/jobs/tenant", () => ({ resolveStaffTenantId: mocks.tenant }));
-vi.mock("@/lib/auth/worker-record-access", () => ({ canAccessWorkerRecord: mocks.access }));
+vi.mock("@/lib/auth/worker-record-access", () => ({ canAccessWorkerRecord: mocks.access, canAccessWorkerSensitiveData: () => false }));
 vi.mock("@/lib/supabase-env", () => ({ getSupabaseUrl: () => "https://qa.supabase.co" }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ from: mocks.from, storage: { from: () => ({ createSignedUrl: mocks.signed }) } }) }));
 vi.mock("@/lib/audit/activity-log", () => ({ writeActivityLog: vi.fn() }));

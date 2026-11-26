@@ -47,7 +47,7 @@ export async function GET(
       if (tenantPalette) palette = tenantPalette;
     }
 
-    const body = rewriteFirmaSigningProxyHtml(html, palette);
+    const body = rewriteFirmaSigningProxyHtml(html, palette, req.headers.get("x-nonce") ?? undefined);
     return new NextResponse(body, {
       status: upstream.status,
       headers: {
