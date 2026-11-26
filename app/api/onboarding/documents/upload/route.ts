@@ -21,8 +21,30 @@ import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
 
+const DEFAULT_DOCUMENT_FILE_TYPES = [
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "doc",
+  "docx",
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
+}
+
+function resolveAcceptedTypes(configured: string[] | null | undefined): string[] {
+  const listed = Array.isArray(configured) ? configured.filter(Boolean) : [];
+  // Keep tenant config, but always allow the standard document set (incl. Word).
+  return listed.length ? [...listed, ...DEFAULT_DOCUMENT_FILE_TYPES] : DEFAULT_DOCUMENT_FILE_TYPES;
 }
 
 async function saveWorkflowCredentialUpload(input: {
@@ -105,9 +127,9 @@ async function saveProfessionDocumentUpload(input: {
   const professionDoc = data as { id: string; has_expiration?: boolean | null } | null;
   if (error || !professionDoc) return null;
 
-  if (!isAcceptedDocumentFileType(input.file, ["pdf", "png", "jpg", "jpeg", "webp"])) {
+  if (!isAcceptedDocumentFileType(input.file, DEFAULT_DOCUMENT_FILE_TYPES)) {
     return NextResponse.json(
-      { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+      { error: "File type not allowed. Upload a PNG, JPG, WebP, PDF, DOC, or DOCX." },
       { status: 400 }
     );
   }
@@ -340,12 +362,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `File exceeds ${maxMb}MB limit` }, { status: 400 });
     }
 
-    const accepted = Array.isArray(reqDoc.accepted_file_types)
-      ? (reqDoc.accepted_file_types as string[])
-      : [];
+    const accepted = resolveAcceptedTypes(
+      Array.isArray(reqDoc.accepted_file_types) ? (reqDoc.accepted_file_types as string[]) : []
+    );
     if (!isAcceptedDocumentFileType(file, accepted)) {
       return NextResponse.json(
-        { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+        { error: "File type not allowed. Upload a PNG, JPG, WebP, PDF, DOC, or DOCX." },
         { status: 400 }
       );
     }
