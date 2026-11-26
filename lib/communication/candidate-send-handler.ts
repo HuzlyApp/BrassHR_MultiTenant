@@ -126,13 +126,14 @@ export async function handleSendCandidateEmail(
   }
 
   const applicantUserId = await resolveCandidatePortalUserId(supabase, contact);
-  if (applicantUserId) {
+  const tenantId = contact.tenantId?.trim() || "";
+  if (applicantUserId && tenantId) {
     const title = payload.subject?.trim() || "New message from your recruiter";
     const plainBody =
       payload.body?.trim() ||
       (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
     const created = await createNotification(supabase, {
-      tenantId: contact.tenantId,
+      tenantId,
       userId: applicantUserId,
       type: "admin_email",
       title,
@@ -143,13 +144,14 @@ export async function handleSendCandidateEmail(
       console.error("[candidate-email:notify] createNotification returned null", {
         workerId: contact.id,
         userId: applicantUserId,
-        tenantId: contact.tenantId,
+        tenantId,
       });
     }
   } else {
-    console.warn("[candidate-email:notify] skipped — candidate has no portal user_id", {
+    console.warn("[candidate-email:notify] skipped — missing portal user_id or tenantId", {
       workerId: contact.id,
       email: contact.email,
+      userId: applicantUserId,
       tenantId: contact.tenantId,
     });
   }
@@ -163,7 +165,7 @@ export async function handleSendCandidateEmail(
 
 async function resolveCandidatePortalUserId(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
-  contact: { id: string; userId: string | null; email: string | null; tenantId: string }
+  contact: { id: string; userId: string | null; email: string | null; tenantId: string | null }
 ): Promise<string | null> {
   const existing = contact.userId?.trim() ?? "";
   if (existing) return existing;

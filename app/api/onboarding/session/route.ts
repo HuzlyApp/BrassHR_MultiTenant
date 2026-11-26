@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
     secure,
     sameSite: "lax",
     path: "/",
-    maxAge: 3600,
+    // Keep cookie aligned with a full onboarding session (was 1h and caused upload 403s).
+    maxAge: 60 * 60 * 24 * 7,
   });
   return res;
 }
