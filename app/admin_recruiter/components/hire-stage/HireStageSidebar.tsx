@@ -106,9 +106,9 @@ export function HireStageSidebar({
   const sourceLabel = formatApplicationReferenceSourceLabel(profile.source);
 
   return (
-    <aside className="flex w-full max-w-[366px] flex-col gap-4 self-center lg:w-[366px] lg:shrink-0 lg:self-start">
+    <aside className="flex w-full max-w-none flex-col gap-4 self-stretch sm:max-w-[366px] sm:self-center lg:w-[366px] lg:max-w-[366px] lg:shrink-0 lg:self-start">
       <section
-        className="flex w-full flex-col rounded-2xl border border-[#E8ECF0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+        className="flex w-full flex-col rounded-2xl border border-[#E8ECF0] bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-5"
         style={{ minHeight: 420 }}
       >
         <h2
@@ -169,7 +169,7 @@ export function HireStageSidebar({
         <dl className="mt-6 space-y-3 text-sm">
           <div className="flex items-start justify-between gap-3">
             <dt className="shrink-0 font-semibold text-black">Job Name</dt>
-            <dd className="max-w-[200px] text-right">
+            <dd className="min-w-0 max-w-[55%] break-words text-right sm:max-w-[200px]">
               {jobName && jobHref ? (
                 <Link
                   href={jobHref}
@@ -266,7 +266,7 @@ export function HireStageSidebar({
         ) : null}
       </section>
 
-      <section className="w-full rounded-2xl border border-[#E8ECF0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <section className="w-full rounded-2xl border border-[#E8ECF0] bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-5">
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <span

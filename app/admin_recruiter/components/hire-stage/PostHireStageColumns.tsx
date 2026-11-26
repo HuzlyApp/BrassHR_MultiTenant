@@ -364,7 +364,7 @@ function PostStageColumn({
   return (
     <section
       aria-label={`${stage.name} stage`}
-      className={`flex min-h-[420px] min-w-[260px] flex-1 basis-0 flex-col overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+      className={`flex min-h-0 w-full min-w-0 flex-1 basis-auto flex-col overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:min-h-[420px] md:min-w-[260px] md:basis-0 ${
         locked ? "border-[#E8ECF0] bg-[#F8FAFC]" : "border-[#E8ECF0] bg-white"
       }`}
       style={
@@ -512,7 +512,7 @@ export function PostHireStageColumns({
 
   return (
     <>
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div className="flex min-w-0 flex-col gap-3 pb-2 md:flex-row md:gap-4 md:overflow-x-auto">
         {stages.map((stage, index) => (
           <PostStageColumn
             key={stage.id}
