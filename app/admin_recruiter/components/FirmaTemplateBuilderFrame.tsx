@@ -10,7 +10,7 @@ import {
   type FirmaTemplateEditorWithPalette,
 } from "@/lib/firma/embed-color-palette";
 import { patchFirmaTemplateEditorFieldPalette } from "@/lib/firma/patch-template-editor-field-palette";
-import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
+import { loadFirmaEmbedScript, prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
 import {
   applyEditorInitTimeout,
   isAllowedTemplateBuilderMessageOrigin,
@@ -197,11 +197,7 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
     const alreadyPresent = getFirmaTemplateEditor();
     if (alreadyPresent) return alreadyPresent;
 
-    const response = await fetch(src);
-    if (!response.ok) {
-      throw new Error("Failed to load signature template editor script");
-    }
-    const originalSource = await response.text();
+    const originalSource = await loadFirmaEmbedScript(src);
     const patched = patchFirmaTemplateEditorFieldPalette(originalSource);
     if (!patched.patched) {
       console.error(
@@ -215,6 +211,8 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
 
     await new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
+      const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
+      if (nonce) script.nonce = nonce;
       const timeout = window.setTimeout(() => {
         script.remove();
         URL.revokeObjectURL(scriptUrl);
@@ -281,7 +279,7 @@ export default function FirmaTemplateBuilderFrame({
     } catch {
       return null;
     }
-  }, [session?.editor_app_url]);
+  }, [session]);
 
   const editorSessionKey = useMemo(() => {
     if (!session) return null;
@@ -332,7 +330,7 @@ export default function FirmaTemplateBuilderFrame({
         setSyncing(false);
       }
     },
-    [session?.firma_template_id, templateId]
+    [session, templateId]
   );
 
   const requestBuilderSession = useCallback(
@@ -416,11 +414,9 @@ export default function FirmaTemplateBuilderFrame({
   );
 
   const refreshSessionRef = useRef(requestBuilderSession);
-  refreshSessionRef.current = requestBuilderSession;
-
   useEffect(() => {
-    void prepareFirmaPdfWorker().catch(() => undefined);
-  }, []);
+    refreshSessionRef.current = requestBuilderSession;
+  }, [requestBuilderSession]);
 
   useEffect(() => {
     void refreshSessionRef.current();
@@ -438,13 +434,15 @@ export default function FirmaTemplateBuilderFrame({
   }, [session?.expires_at]);
 
   const syncTemplateRef = useRef(syncTemplate);
-  syncTemplateRef.current = syncTemplate;
+  useEffect(() => {
+    syncTemplateRef.current = syncTemplate;
+  }, [syncTemplate]);
 
   useEffect(() => {
     if (!session || !editorSessionKey) return;
-    if (sessionLoading) return;
 
     const activeSession = session;
+    const wrapper = wrapperRef.current;
     const generation = ++mountGenerationRef.current;
     let cancelled = false;
     editorReadyRef.current = false;
@@ -602,14 +600,19 @@ export default function FirmaTemplateBuilderFrame({
       window.removeEventListener("resize", syncHeightToViewport);
       restoreFetch();
       clearFirmaEditorTimer(initTimeoutRef);
-      editorRef.current?.destroy?.();
+      const editor = editorRef.current;
       editorRef.current = null;
-      if (containerRef.current && wrapperRef.current) {
-        wrapperRef.current.replaceChildren();
+      try {
+        editor?.destroy?.();
+      } catch (err) {
+        console.warn("[e-signature-template-builder] Editor cleanup failed", err);
+      }
+      if (containerRef.current && wrapper) {
+        wrapper.replaceChildren();
       }
       containerRef.current = null;
     };
-  }, [editorSessionKey, session, sessionLoading, templateId]);
+  }, [editorSessionKey, session, templateId]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -643,22 +646,15 @@ export default function FirmaTemplateBuilderFrame({
     if (actionBusy) return;
     setActionBusy("retry");
     try {
-      const missingProviderTemplate =
-        !session ||
-        /could not be found|rebuild the document|reset signature template/i.test(error ?? "");
       setError(null);
-      if (session && !isBuilderSessionExpired(session.expires_at) && !missingProviderTemplate) {
+      if (session && !isBuilderSessionExpired(session.expires_at) && !expired) {
         setEditorReady(false);
         editorReadyRef.current = false;
         setRemountNonce((value) => value + 1);
         return;
       }
-      // Provider template ids can go missing (workspace wipe / expired docs). Heal by recreate.
-      await requestBuilderSession({
-        forceRecreate: missingProviderTemplate,
-        refreshDocument: !missingProviderTemplate,
-        preserveOnFailure: true,
-      });
+      // The server repairs confirmed missing templates; connection failures must not reset fields.
+      await requestBuilderSession({ preserveOnFailure: true });
     } finally {
       setActionBusy(null);
     }
@@ -668,9 +664,7 @@ export default function FirmaTemplateBuilderFrame({
     if (actionBusy) return;
     setActionBusy("refresh");
     try {
-      const missingProviderTemplate = /could not be found|rebuild the document/i.test(error ?? "");
       const ok = await requestBuilderSession({
-        forceRecreate: missingProviderTemplate,
         preserveOnFailure: true,
       });
       if (ok) toast.success("Signing session refreshed");
@@ -685,10 +679,7 @@ export default function FirmaTemplateBuilderFrame({
     setActionBusy("rebuild");
     try {
       // Prefer document replace; if the provider template is gone, recreate from the local PDF.
-      let ok = await requestBuilderSession({ refreshDocument: true, preserveOnFailure: true });
-      if (!ok) {
-        ok = await requestBuilderSession({ forceRecreate: true });
-      }
+      const ok = await requestBuilderSession({ refreshDocument: true, preserveOnFailure: true });
       if (ok) toast.success("Document rebuilt for the template builder");
     } finally {
       setActionBusy(null);
@@ -785,7 +776,9 @@ export default function FirmaTemplateBuilderFrame({
         </div>
       ) : null}
 
-      <div ref={wrapperRef} className="relative min-h-[960px] w-full">
+      <div className="relative min-h-[960px] w-full">
+        {/* Firma owns this empty host; React owns the loading and error siblings. */}
+        <div ref={wrapperRef} className="w-full" />
         {sessionLoading ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 text-sm text-[#667085]">
             Starting signature template builder...

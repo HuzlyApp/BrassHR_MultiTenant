@@ -52,6 +52,7 @@ export function classifyTemplateBuilderError(
   if (
     normalized.includes("failed to fetch") ||
     normalized.includes("network") ||
+    normalized.includes("timed out") ||
     (normalized.includes("timeout") && normalized.includes("script"))
   ) {
     return "network";

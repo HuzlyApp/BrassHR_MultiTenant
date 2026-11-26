@@ -3,6 +3,22 @@ const FIRMA_EMBED_SCRIPT_URL =
 
 let cachedWorkerBlobUrl: string | null = null;
 let workerPatchInstalled = false;
+let embedScriptDownload: { url: string; promise: Promise<string> } | null = null;
+
+/** The editor and its PDF worker are bundled together; share the large download. */
+export function loadFirmaEmbedScript(embedScriptUrl: string): Promise<string> {
+  if (embedScriptDownload?.url === embedScriptUrl) return embedScriptDownload.promise;
+  const promise = (async () => {
+    const response = await fetch(embedScriptUrl, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error("Failed to load signature template editor script");
+    return response.text();
+  })();
+  embedScriptDownload = { url: embedScriptUrl, promise };
+  void promise.catch(() => {
+    if (embedScriptDownload?.promise === promise) embedScriptDownload = null;
+  });
+  return promise;
+}
 
 function extractFirmaPdfWorkerSource(embedScript: string): string {
   const match = embedScript.match(/data:text\/javascript;base64,([A-Za-z0-9+/=]+)/);
@@ -22,12 +38,7 @@ function extractFirmaPdfWorkerSource(embedScript: string): string {
 async function getFirmaPdfWorkerBlobUrl(embedScriptUrl: string): Promise<string> {
   if (cachedWorkerBlobUrl) return cachedWorkerBlobUrl;
 
-  const response = await fetch(embedScriptUrl);
-  if (!response.ok) {
-    throw new Error("Failed to download Firma embed script for PDF worker setup");
-  }
-
-  const workerSource = extractFirmaPdfWorkerSource(await response.text());
+  const workerSource = extractFirmaPdfWorkerSource(await loadFirmaEmbedScript(embedScriptUrl));
   const blob = new Blob([workerSource], { type: "text/javascript" });
   cachedWorkerBlobUrl = URL.createObjectURL(blob);
   return cachedWorkerBlobUrl;
