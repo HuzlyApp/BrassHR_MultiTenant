@@ -200,6 +200,18 @@ export default function AdminRecruiterMessagesClient({
   useEffect(() => {
     const tab = searchParams.get("tab")?.trim().toLowerCase();
     const ticketId = searchParams.get("ticket")?.trim();
+    const workerId = searchParams.get("workerId")?.trim();
+    const groupId = searchParams.get("group")?.trim();
+    if (workerId) {
+      setActiveTab("worker");
+      setSelectedWorkerId(workerId);
+      setSelectedGroupId(null);
+    }
+    if (groupId) {
+      setActiveTab("group");
+      setSelectedGroupId(groupId);
+      setSelectedWorkerId(null);
+    }
     if (tab === "support" || ticketId) {
       setActiveTab("support");
     }
