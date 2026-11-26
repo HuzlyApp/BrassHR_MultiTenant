@@ -356,7 +356,7 @@ export default function NewApplicantProfileResumePage() {
                         {lowerPath.endsWith(".pdf") || lowerUrl.includes(".pdf") ? <ResumePdfPreview url={embedUrl ?? resumeUrl} /> : <iframe
                           title="Resume preview"
                           src={embedUrl ?? resumeUrl}
-                          className="h-[calc(100dvh-260px)] min-h-[700px] w-full"
+                          className="h-[calc(100dvh-220px)] min-h-[420px] w-full sm:min-h-[560px] md:min-h-[700px]"
                           onError={() =>
                             setResumePreviewError(
                               "Preview is blocked on this device. Use 'Open in new tab' to view the resume."

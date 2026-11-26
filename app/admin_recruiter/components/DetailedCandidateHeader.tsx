@@ -187,14 +187,14 @@ export default function DetailedCandidateHeader({
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(260px,350px)]">
-        <div className="rounded-lg border border-[#E5E7EB] bg-white p-4 sm:p-5">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex min-w-0 items-start gap-4">
+        <div className="rounded-lg border border-[#E5E7EB] bg-white p-3 sm:p-5">
+          <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
               <div className="relative shrink-0">
                 <CandidateAvatarIcon
                   photoUrl={profilePhotoUrl}
                   name={displayName}
-                  className="h-[100px] w-[100px] rounded-full text-3xl"
+                  className="h-16 w-16 rounded-full text-2xl sm:h-[100px] sm:w-[100px] sm:text-3xl"
                 />
               </div>
               <div className="min-w-0 space-y-3">

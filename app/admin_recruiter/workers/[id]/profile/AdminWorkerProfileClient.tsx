@@ -205,9 +205,9 @@ function SummaryStat({
 
 function WorkplaceRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid grid-cols-[minmax(140px,180px)_1fr] gap-3 border-b border-[#F3F4F6] py-3 last:border-b-0">
+    <div className="grid grid-cols-1 gap-1 border-b border-[#F3F4F6] py-3 last:border-b-0 sm:grid-cols-[minmax(140px,180px)_1fr] sm:gap-3">
       <dt className="text-sm font-medium text-[#6B7280]">{label}</dt>
-      <dd className="text-sm font-semibold text-[#111827]">{value}</dd>
+      <dd className="min-w-0 break-words text-sm font-semibold text-[#111827]">{value}</dd>
     </div>
   );
 }
@@ -256,9 +256,9 @@ function EditAboutMeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
+    <div className="fixed inset-0 z-70 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+      <div className="w-full max-w-lg rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-4 sm:px-6">
           <h2 className="text-lg font-semibold text-[#111827]">Edit About Me</h2>
           <button
             type="button"
@@ -269,7 +269,7 @@ function EditAboutMeModal({
             <X className="size-4" />
           </button>
         </div>
-        <form onSubmit={(e) => void handleSave(e)} className="space-y-4 px-6 py-5">
+        <form onSubmit={(e) => void handleSave(e)} className="space-y-4 px-4 py-5 sm:px-6">
           <textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -277,20 +277,20 @@ function EditAboutMeModal({
             maxLength={1000}
             className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#374151] outline-none focus:border-[color:var(--brand-primary)]"
           />
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-xs text-[#9CA3AF]">{value.trim().length}/1000</span>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#374151]"
+                className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#374151] sm:flex-none"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="flex-1 rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 sm:flex-none"
               >
                 {saving ? "Saving…" : "Save"}
               </button>
@@ -568,10 +568,10 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
       </div>
 
       {/* Profile header card */}
-      <section className={`${CARD_CLASS} p-5`}>
+      <section className={`${CARD_CLASS} p-4 sm:p-5`}>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="relative size-[72px] shrink-0 overflow-hidden rounded-full bg-[#E5E7EB]">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <div className="relative size-14 shrink-0 overflow-hidden rounded-full bg-[#E5E7EB] sm:size-[72px]">
               {worker.profile_photo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -636,7 +636,10 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
       </section>
 
       {/* Tabs */}
-      <nav className="mt-5 flex gap-1 overflow-x-auto border-b border-[#E5E7EB]" aria-label="Worker profile tabs">
+      <nav
+        className="mt-5 flex gap-1 overflow-x-auto border-b border-[#E5E7EB] [-webkit-overflow-scrolling:touch]"
+        aria-label="Worker profile tabs"
+      >
         {visibleTabs.map((tab) => {
           const href = workerFigmaProfileTabHref(workerId, tab.id);
           const isActive = activeTab === tab.id;
@@ -644,7 +647,7 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
             <Link
               key={tab.id}
               href={href}
-              className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${
+              className={`shrink-0 border-b-2 px-2.5 py-2.5 text-sm font-semibold transition sm:px-3 ${
                 isActive
                   ? "border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
                   : "border-transparent text-[#6B7280] hover:text-[#111827]"

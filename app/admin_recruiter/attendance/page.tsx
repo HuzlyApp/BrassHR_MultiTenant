@@ -316,8 +316,8 @@ export default function ClockInsAttendancePage() {
 
       {/* Search & Filter Bar */}
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex max-w-lg flex-1 items-center gap-2">
-          <div className="relative flex-1">
+        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-lg flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
@@ -329,14 +329,14 @@ export default function ClockInsAttendancePage() {
           </div>
           <button
             type="submit"
-            className="flex h-10 items-center justify-center rounded-lg px-6 text-sm font-medium text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
+            className="flex h-10 w-full items-center justify-center rounded-lg px-6 text-sm font-medium text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] sm:w-auto"
             style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
           >
             Search
           </button>
         </form>
 
-        <div className="relative z-20 flex flex-wrap items-center gap-3 overflow-visible">
+        <div className="relative z-20 flex w-full flex-wrap items-center gap-3 overflow-visible sm:w-auto">
           <ScrollableFilterSelect
             value={selectedFacility === "all" ? "" : selectedFacility}
             onChange={(next) => {
@@ -345,7 +345,7 @@ export default function ClockInsAttendancePage() {
             }}
             placeholder="Facilities • All"
             ariaLabel="Filter by facility"
-            triggerClassName="!h-10 min-w-[150px]"
+            triggerClassName="!h-10 w-full min-w-0 sm:!min-w-[150px] sm:w-auto"
             options={facilities.map((facility) => ({
               value: facility,
               label: facility,
@@ -359,7 +359,7 @@ export default function ClockInsAttendancePage() {
             }}
             placeholder="Departments • All"
             ariaLabel="Filter by department"
-            triggerClassName="!h-10 min-w-[150px]"
+            triggerClassName="!h-10 w-full min-w-0 sm:!min-w-[150px] sm:w-auto"
             options={departments.map((department) => ({
               value: department,
               label: department,
@@ -373,7 +373,7 @@ export default function ClockInsAttendancePage() {
             }}
             placeholder="Status • All"
             ariaLabel="Filter by status"
-            triggerClassName="!h-10 min-w-[140px]"
+            triggerClassName="!h-10 w-full min-w-0 sm:!min-w-[140px] sm:w-auto"
             options={statuses.map((status) => ({
               value: status,
               label: status,
@@ -443,7 +443,84 @@ export default function ClockInsAttendancePage() {
 
       {/* Main Table */}
       <div className="w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-[#F1F5F9] md:hidden">
+          {loading ? (
+            <div className="py-12">
+              <DashboardPageLoader />
+            </div>
+          ) : paginatedRows.length === 0 ? (
+            <p className="px-4 py-12 text-center text-sm text-[#64748B]">
+              {appliedSearch ||
+              selectedFacility !== "all" ||
+              selectedDepartment !== "all" ||
+              selectedStatus !== "all"
+                ? "No clock-ins match these filters."
+                : "No scheduled shifts or clock-ins for this week."}
+            </p>
+          ) : (
+            paginatedRows.map((row, idx) => {
+              const workerId = row.worker_id?.trim() || "";
+              const workerHref = workerId ? adminWorkerProfileHref(workerId) : null;
+              return (
+                <article key={`mobile-${row.id || idx}`} className="space-y-2 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      {workerHref ? (
+                        <Link
+                          href={workerHref}
+                          className="block truncate text-sm font-semibold text-[#0F172A] hover:text-[color:var(--brand-primary)] hover:underline"
+                        >
+                          {row.applicant_name}
+                        </Link>
+                      ) : (
+                        <h3 className="truncate text-sm font-semibold text-[#0F172A]">{row.applicant_name}</h3>
+                      )}
+                      <p className="mt-0.5 truncate text-xs text-[#475569]">{row.job_role || "—"}</p>
+                      <p className="truncate text-xs text-[#64748B]">{row.facility_name || "—"}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold leading-none ${statusBadge(
+                          row.computed_status
+                        )}`}
+                      >
+                        {row.computed_status || "On Shift"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRowDetail(row)}
+                        className="rounded-md p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                        title="View Details"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <div>
+                      <dt className="text-[#94A3B8]">Shift</dt>
+                      <dd className="font-medium text-[#334155]">{row.scheduled_shift || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[#94A3B8]">Hours</dt>
+                      <dd className="font-medium text-[#0F172A]">{row.hours_formatted || "0m"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[#94A3B8]">Clock In</dt>
+                      <dd className="font-medium text-[#1E293B]">{row.clock_in_formatted || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[#94A3B8]">Clock Out</dt>
+                      <dd className="font-medium text-[#64748B]">{row.clock_out_formatted || "—"}</dd>
+                    </div>
+                  </dl>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[950px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">

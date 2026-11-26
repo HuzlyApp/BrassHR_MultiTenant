@@ -144,7 +144,7 @@ export default function WhoIsOffPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           <button
             type="button"
             className="inline-flex h-[30px] w-8 items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
@@ -156,7 +156,7 @@ export default function WhoIsOffPage() {
           >
             <ChevronLeft className="h-3 w-3" />
           </button>
-          <div className="inline-flex h-[30px] min-w-[160px] items-center gap-2 rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[10px] leading-[15px] text-[#0F172A]">
+          <div className="inline-flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[10px] leading-[15px] text-[#0F172A] sm:min-w-[160px] sm:flex-none">
             <Calendar className="h-3 w-3 shrink-0 text-[#94A3B8]" aria-hidden />
             <span className="truncate">{dateRangeText}</span>
             <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
@@ -182,7 +182,7 @@ export default function WhoIsOffPage() {
       </div>
 
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-[30px]">
-        <form onSubmit={handleSearchSubmit} className="flex min-w-0 flex-1 items-center gap-3">
+        <form onSubmit={handleSearchSubmit} className="flex min-w-0 w-full flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94A3B8]" />
             <input
@@ -195,14 +195,14 @@ export default function WhoIsOffPage() {
           </div>
           <button
             type="submit"
-            className="inline-flex h-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary)] px-2.5 text-[10px] font-semibold leading-[15px] text-white transition hover:brightness-95"
+            className="inline-flex h-[30px] w-full shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary)] px-2.5 text-[10px] font-semibold leading-[15px] text-white transition hover:brightness-95 sm:w-auto"
           >
             Search
           </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative">
+        <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <select
               value={selectedFacility}
               onChange={(e) => {
@@ -210,7 +210,7 @@ export default function WhoIsOffPage() {
                 setPage(1);
               }}
               aria-label="Filter by facility"
-              className={filterControlClassName}
+              className={`${filterControlClassName} w-full sm:w-auto`}
             >
               <option value="all">All Facilities</option>
               {facilities.map((f) => (
@@ -225,7 +225,7 @@ export default function WhoIsOffPage() {
             />
           </div>
 
-          <div className="relative">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <select
               value={selectedOffType}
               onChange={(e) => {
@@ -233,7 +233,7 @@ export default function WhoIsOffPage() {
                 setPage(1);
               }}
               aria-label="Filter by off type"
-              className={filterControlClassName}
+              className={`${filterControlClassName} w-full sm:w-auto`}
             >
               <option value="all">All Off types</option>
               {offTypes.map((t) => (
@@ -251,7 +251,56 @@ export default function WhoIsOffPage() {
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Mobile cards — desktop table unchanged below */}
+        <div className="divide-y divide-[#F1F5F9] md:hidden">
+          {loading ? (
+            <div className="py-12">
+              <DashboardPageLoader />
+            </div>
+          ) : sortedRecords.length === 0 ? (
+            <p className="px-4 py-12 text-center text-sm text-[#64748B]">
+              No employees are off during this date range.
+            </p>
+          ) : (
+            sortedRecords.map((item) => (
+              <article key={`mobile-${item.id}`} className="space-y-2 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-[#0F172A]">{item.name}</h3>
+                    <p className="mt-0.5 truncate text-xs text-[#475569]">{item.jobRole}</p>
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-md px-2.5 py-1 text-xs font-semibold leading-none ${offTypeBadge(
+                      item.offType
+                    )}`}
+                  >
+                    {item.offType}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div>
+                    <dt className="text-[#94A3B8]">Facility</dt>
+                    <dd className="font-medium text-[#334155]">{item.facility}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#94A3B8]">Days</dt>
+                    <dd className="font-medium text-[#0F172A]">{item.days}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#94A3B8]">Start</dt>
+                    <dd className="font-medium text-[#334155]">{formatEastern(item.startDate)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#94A3B8]">End</dt>
+                    <dd className="font-medium text-[#334155]">{formatEastern(item.endDate)}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[850px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
