@@ -1,3 +1,4 @@
+import { OFF_TYPES } from "@/lib/scheduling/v1-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
@@ -10,7 +11,6 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const OFF_TYPES = ["Vacation", "Sick Leave", "Personal Leave", "Training", "Regular Off"] as const;
 
 export type OffType = (typeof OFF_TYPES)[number];
 

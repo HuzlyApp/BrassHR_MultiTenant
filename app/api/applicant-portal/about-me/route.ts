@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 const ABOUT_ME_MAX_LENGTH = 1000;
 
-export function normalizeAboutMe(value: unknown): string | null {
+function normalizeAboutMe(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().replace(/\s+/g, " ");
   if (!trimmed) return null;

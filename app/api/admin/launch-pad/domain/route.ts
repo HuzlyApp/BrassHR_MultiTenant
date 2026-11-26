@@ -44,7 +44,7 @@ function payload(tenant: { slug: string; subdomain: string | null }, request?: R
   };
 }
 
-export async function GET(request?: Request) {
+export async function GET(request: Request) {
   const ctx = await context(request);
   if (ctx instanceof NextResponse) return ctx;
   return NextResponse.json(payload(ctx.tenant, request), { headers: { "Cache-Control": "no-store" } });

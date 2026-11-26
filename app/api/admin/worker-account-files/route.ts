@@ -1,8 +1,11 @@
+import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
 import { requireApiSession } from "@/lib/auth/api-session";
-import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
+import { isStaffRole } from "@/lib/auth/app-role";
+import { writeActivityLog } from "@/lib/audit/activity-log";
+import { canAccessWorkerRecord, canAccessWorkerSensitiveData } from "@/lib/auth/worker-record-access";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
@@ -30,6 +33,7 @@ export async function GET(req: NextRequest) {
 
     const auth = await requireApiSession();
     if (auth instanceof NextResponse) return auth;
+    if (isStaffRole(auth.role) && !canAccessWorkerSensitiveData(auth)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,11 +43,14 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(url, key);
 
-    const { data: worker, error: workerErr } = await supabase
-      .from("worker")
-      .select("id, user_id")
-      .eq("id", workerId)
-      .maybeSingle();
+    let workerQuery = supabase.from("worker").select("id, user_id, tenant_id").eq("id", workerId);
+    if (isStaffRole(auth.role)) {
+      if (!auth.authUser) return NextResponse.json({error:"Forbidden"},{status:403});
+      const scope = await resolveEffectiveAdminTenantId(supabase, { userId:auth.userId, authUser:auth.authUser, godAdmin:auth.godAdmin });
+      if (!scope) return NextResponse.json({error:"Forbidden"},{status:403});
+      workerQuery = workerQuery.eq("tenant_id",scope);
+    } else workerQuery = workerQuery.eq("user_id",auth.userId);
+    const { data: worker, error: workerErr } = await workerQuery.maybeSingle();
 
     if (workerErr) throw workerErr;
     if (!worker?.id) {
@@ -59,6 +66,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const tenantId = String(worker.tenant_id ?? "");
+    if (!tenantId) return NextResponse.json({ error: "Document unavailable" }, { status: 404 });
+    const auditDownload = () => writeActivityLog({actorUserId:auth.userId,tenantId,action:"worker.document.download_link",entityType:"worker",entityId:workerId,metadata:{source,document_id:id,expires_in:120},request:req});
     let storagePath: string | null = null;
 
     if (source === "credential") {
@@ -67,6 +77,7 @@ export async function GET(req: NextRequest) {
         .select("storage_path, document_url")
         .eq("id", id)
         .eq("worker_id", workerId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
       storagePath =
@@ -79,6 +90,7 @@ export async function GET(req: NextRequest) {
         .select("storage_path, file_url")
         .eq("id", id)
         .eq("worker_id", workerId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
       storagePath =
@@ -91,6 +103,7 @@ export async function GET(req: NextRequest) {
         .select("storage_path, file_url")
         .eq("id", id)
         .eq("worker_id", workerId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
       storagePath =
@@ -103,6 +116,7 @@ export async function GET(req: NextRequest) {
         .select("file_url")
         .eq("id", id)
         .eq("worker_id", workerId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) throw error;
       const fileUrl = (data?.file_url as string | null)?.trim() || null;
@@ -113,7 +127,8 @@ export async function GET(req: NextRequest) {
       if (!accessibleUrl) {
         return NextResponse.json({ error: "Could not create download link." }, { status: 500 });
       }
-      return NextResponse.json({ url: accessibleUrl });
+      await auditDownload();
+      return NextResponse.json({ url: accessibleUrl }, { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
     } else {
       return NextResponse.json({ error: "Invalid document source." }, { status: 400 });
     }
@@ -130,7 +145,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Could not create download link." }, { status: 500 });
     }
 
-    return NextResponse.json({ url: accessibleUrl });
+    await auditDownload();
+      return NextResponse.json({ url: accessibleUrl }, { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
   } catch (err) {
     console.error("[admin/worker-account-files:get]", err);
     return NextResponse.json(

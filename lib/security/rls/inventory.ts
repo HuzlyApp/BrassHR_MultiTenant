@@ -35,10 +35,10 @@ export const RECRUITING_RESOURCES: ResourceInventory[] = [
   {
     resource: "tenants",
     rls: "on",
-    policyCount: 2,
+    policyCount: 1,
     tenantSource: "tenants.id",
-    securityClass: "public-reference",
-    notes: "anon/authenticated can SELECT every active tenant (tenants_public_select_active).",
+    securityClass: "tenant-private",
+    notes: "Anonymous table privileges revoked; public_tenant_branding returns a positive field projection for one active label. Private rows require an active Admin/HR membership in the same company.",
   },
   {
     resource: "users",

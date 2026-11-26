@@ -78,3 +78,9 @@ describe("buildFirmaSigningBrandingInjectScript", () => {
     expect(script).toContain("/complete");
   });
 });
+
+it("nonces both the branding patch and upstream signing bundle under strict CSP",()=>{
+ const html=rewriteFirmaSigningProxyHtml('<head></head><script type="module" src="/assets/app.js"></script>',undefined,"server-nonce");
+ expect(html).toContain('<head><script nonce="server-nonce">');
+ expect(html).toContain('src="/firma-signing-assets/app.js" nonce="server-nonce"');
+});

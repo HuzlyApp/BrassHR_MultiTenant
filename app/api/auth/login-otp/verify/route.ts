@@ -33,6 +33,14 @@ export async function POST(req: NextRequest) {
       failClosed: true,
     });
     if (limited) return limited;
+    for (const dimension of [{ name: "ip", key: getClientIp(req), limit: 30 }, { name: "email", key: email || "missing", limit: 10 }]) {
+      const throttled = await enforceRateLimit(req, {
+        namespace: "auth-login-verify-" + dimension.name,
+        key: dimension.key, limit: dimension.limit, windowMs: 15 * 60 * 1000, failClosed: true,
+      });
+      if (throttled) return throttled;
+    }
+
 
     if (!email) {
       return loginAuthErrorResponse("Email is required.", "VALIDATION_ERROR", 400, "email");

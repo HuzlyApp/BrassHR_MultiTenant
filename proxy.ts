@@ -43,6 +43,7 @@ import {
   parseLastActivityMs,
 } from "@/lib/auth/idle-session";
 import { runWithServerTiming, timeSpan } from "@/lib/perf/server-timing";
+import { appContentSecurityPolicy, APP_PERMISSIONS_POLICY, usesSessionProxy } from "@/lib/security/content-security-policy";
 
 function resolveRequestTenantSlug(request: NextRequest, hostTenantLabel: string | null): string | null {
   const fromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
@@ -178,6 +179,7 @@ async function modulePageDenial(request: NextRequest, actor: User): Promise<Next
     tenantSlug: request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null,
   });
   if (decision.ok) return null;
+  if (decision.code === "unmapped") return new NextResponse("Page not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" } });
   const limited = await noteAuthFailure({
     ip: clientIpFromHeaders(request.headers),
     method: "GET",
@@ -824,51 +826,39 @@ async function proxyInner(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
-  return runWithServerTiming(
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const publicJobs = request.nextUrl.pathname === "/jobs" || request.nextUrl.pathname.startsWith("/jobs/");
+  const policy = appContentSecurityPolicy({ nonce, frameAncestors: publicJobs ? process.env.PUBLIC_JOBS_FRAME_ANCESTORS?.trim() || "*" : "'self'" });
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("Content-Security-Policy", policy);
+  const staffApi = ["/api/admin", "/api/workers", "/api/search-workers", "/api/godadmin", "/api/account", "/api/applicant-portal", "/api/onboarding"].some(prefix => request.nextUrl.pathname === prefix || request.nextUrl.pathname.startsWith(prefix + "/"));
+  if (staffApi && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    if ((origin && origin !== request.nextUrl.origin) || (!origin && request.headers.get("sec-fetch-site") === "cross-site")) {
+      return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+    }
+  }
+  const result = await runWithServerTiming(
     {
       scope: "middleware",
       route: request.nextUrl.pathname,
       method: request.method,
       tenantSlug: request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value ?? null,
     },
-    () => proxyInner(request),
+    async () => usesSessionProxy(request.nextUrl.pathname) ? proxyInner(request) : NextResponse.next({ request: { headers: request.headers } }),
   );
+  result.headers.set("Content-Security-Policy", policy);
+  result.headers.set("Permissions-Policy", APP_PERMISSIONS_POLICY);
+  result.headers.set("Referrer-Policy", "no-referrer");
+  if (staffApi) {
+    result.headers.set("Cache-Control", "private, no-store");
+    result.headers.delete("Access-Control-Allow-Origin");
+    result.headers.delete("Access-Control-Allow-Credentials");
+  }
+  return result;
 }
 
 export const config = {
   regions: ["iad1"],
-  matcher: [
-    "/",
-    "/login",
-    "/login/:path*",
-    "/signin",
-    "/signin/:path*",
-    "/admin",
-    "/admin/:path*",
-    "/signup",
-    "/signup/:path*",
-    "/your-trial",
-    "/tenant-onboarding",
-    "/tenant-onboarding/:path*",
-    "/tenant-host-not-found",
-    "/admin_recruiter/:path*",
-    "/application",
-    "/application/:path*",
-    "/worker-onboarding",
-    "/worker-signin",
-    "/candidate-signin",
-    "/api/workers",
-    "/api/workers/:path*",
-    "/api/search-workers",
-    "/api/search-workers/:path*",
-    "/api/admin/:path*",
-    "/godadmin",
-    "/godadmin/:path*",
-    "/api/godadmin",
-    "/api/godadmin/:path*",
-    // Inbound Integration APIs (`/api/v1/*`) intentionally use route-level
-    // tenant API-key auth. If you add them to this matcher, keep
-    // `isPublicApiPath` covering `/api/v1` so production session gating
-    // does not treat `bhr_in_…` / `X-API-Key` as Supabase JWTs.
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)"],
 };

@@ -1,3 +1,5 @@
+import { maskSensitiveIdentifier } from "@/lib/security/pii";
+import { PRIVATE_DOCUMENT_URL_TTL_SECONDS } from "@/lib/supabase/resolve-storage-accessible-url";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import {
@@ -24,7 +26,7 @@ import { loadOnboardingApplicationSubmission } from "@/lib/onboarding/load-onboa
 import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { resolveStaffTenantId } from "@/lib/jobs/tenant"
-import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
+import { canAccessWorkerRecord, canAccessWorkerSensitiveData } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import {
   getLatestWorkerResumeStoragePath,
@@ -137,6 +139,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 })
     }
 
+    const sensitiveAccess = canAccessWorkerSensitiveData(auth)
     const w = worker as Record<string, unknown>
     if (!(await canAccessWorkerRecord(auth, { id: String(w.id), user_id: w.user_id }))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -248,7 +251,7 @@ export async function GET(req: NextRequest) {
     if (resumePathCanonical) {
       const { data: signed, error: signErr } = await supabase.storage
         .from(WORKER_RESUMES_BUCKET)
-        .createSignedUrl(resumePathCanonical, 3600)
+        .createSignedUrl(resumePathCanonical, PRIVATE_DOCUMENT_URL_TTL_SECONDS)
       if (signErr) {
         console.warn("[admin/worker-profile] resume signed URL", signErr)
       } else {
@@ -340,7 +343,7 @@ export async function GET(req: NextRequest) {
       if (publicBucketSet.has(hit.bucket)) {
         return supabase.storage.from(hit.bucket).getPublicUrl(hit.path).data.publicUrl
       }
-      const { data, error } = await supabase.storage.from(hit.bucket).createSignedUrl(hit.path, 3600)
+      const { data, error } = await supabase.storage.from(hit.bucket).createSignedUrl(hit.path, PRIVATE_DOCUMENT_URL_TTL_SECONDS)
       if (error) return null
       return data?.signedUrl ?? null
     }
@@ -440,7 +443,7 @@ export async function GET(req: NextRequest) {
       toAccessibleUrlIfAny(newestHit(byType.agreement_i9)),
     ])
     const attachmentFiles = await Promise.all(
-      listHits.slice(0, 12).map(async (hit) => ({
+      (sensitiveAccess ? listHits : []).slice(0, 12).map(async (hit) => ({
         bucket: hit.bucket,
         path: hit.path,
         name: hit.name,
@@ -510,16 +513,16 @@ export async function GET(req: NextRequest) {
       resolveDocUrl(docs?.nursing_license_url, storageNursingUrl),
       resolveDocUrl(docs?.tb_test_url, storageTbUrl),
       resolveDocUrl(docs?.cpr_certification_url, storageCprUrl),
-      resolveDocUrl(docs?.ssn_url, null),
-      resolveDocUrl(docs?.ssn_back_url, null),
-      resolveDocUrl(docs?.drivers_license_url, null),
-      resolveDocUrl(docs?.drivers_license_back_url, null),
-      resolveDocUrl(docs?.agreement_w2_url, storageAgreementW2Url),
-      resolveDocUrl(docs?.agreement_i9_url, storageAgreementI9Url),
+      resolveDocUrl(sensitiveAccess ? docs?.ssn_url : null, null),
+      resolveDocUrl(sensitiveAccess ? docs?.ssn_back_url : null, null),
+      resolveDocUrl(sensitiveAccess ? docs?.drivers_license_url : null, null),
+      resolveDocUrl(sensitiveAccess ? docs?.drivers_license_back_url : null, null),
+      resolveDocUrl(sensitiveAccess ? docs?.agreement_w2_url : null, sensitiveAccess ? storageAgreementW2Url : null),
+      resolveDocUrl(sensitiveAccess ? docs?.agreement_i9_url : null, sensitiveAccess ? storageAgreementI9Url : null),
       supabase
         .from("worker_license_records")
         .select(
-          "id, license_type, certification_name, license_number, expires_at, file_url, storage_path, status, uploaded_at"
+          "id, license_type, certification_name, license_number, license_number_last_four, expires_at, file_url, storage_path, status, uploaded_at"
         )
         .eq("worker_id", workerId)
         .order("uploaded_at", { ascending: false })
@@ -582,7 +585,7 @@ export async function GET(req: NextRequest) {
         license_type: licenseType,
         certification_name: certificationName,
         license_type_label: licenseTypeDisplayLabel(licenseType, certificationName),
-        license_number: asTrimmedString(row.license_number),
+        license_number: maskSensitiveIdentifier(row.license_number, row.license_number_last_four),
         expires_at: row.expires_at != null ? String(row.expires_at) : null,
         has_file: Boolean(asTrimmedString(row.storage_path) || asTrimmedString(row.file_url)),
         status: asTrimmedString(row.status),
@@ -1009,31 +1012,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.info("[debug-doc-upload] admin-worker-profile:attachment-mapping", {
-      route: "GET /api/admin/worker-profile",
-      workerId,
-      workerUserId: userIdForLegacy,
-      bucketCandidates: candidateBuckets,
-      storageHits: listHits.length,
-      classifiedCounts: {
-        license: byType.license.length,
-        tb: byType.tb.length,
-        cpr: byType.cpr.length,
-        authorization: byType.authorization.length,
-      },
-      dbUrls: {
-        nursing_license_url: urlOrNull(docs?.nursing_license_url),
-        tb_test_url: urlOrNull(docs?.tb_test_url),
-        cpr_certification_url: urlOrNull(docs?.cpr_certification_url),
-        document_url: urlOrNull(docs?.document_url),
-      },
-      resolvedUrls: {
-        nursing_license_url: nursingLicenseUrl,
-        tb_test_url: tbTestUrl,
-        cpr_certification_url: cprCertUrl,
-        authorization_document_url: storageAuthUrl,
-      },
-    })
 
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,

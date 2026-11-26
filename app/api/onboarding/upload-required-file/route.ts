@@ -1,9 +1,10 @@
+import { PRIVATE_DOCUMENT_URL_TTL_SECONDS } from "@/lib/supabase/resolve-storage-accessible-url";
 import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
-import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers"
+import { isAcceptedDocumentFileType, validateDocumentUploadBytes } from "@/lib/document-upload-helpers"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
@@ -76,13 +77,6 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
-    console.info("[debug-doc-upload] upload-required-file:start", {
-      route: "/api/onboarding/upload-required-file",
-      fileName: file.name,
-      documentType: folder,
-      applicantId,
-      bucket: WORKER_REQUIRED_FILES_BUCKET,
-    })
 
     if (isDraftPreviewApplicantId(applicantId)) {
       const path = `draft-preview/${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`
@@ -95,6 +89,8 @@ export async function POST(req: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
+    const contentError = validateDocumentUploadBytes(file.name, buffer)
+    if (contentError) return NextResponse.json({ error: contentError }, { status: 400 })
 
     const url = getSupabaseUrl()
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -133,17 +129,8 @@ export async function POST(req: Request) {
 
     const { data: signed } = await supabase.storage
       .from(WORKER_REQUIRED_FILES_BUCKET)
-      .createSignedUrl(path, 60 * 60)
+      .createSignedUrl(path, PRIVATE_DOCUMENT_URL_TTL_SECONDS)
     const accessibleUrl = signed?.signedUrl || path
-    console.info("[debug-doc-upload] upload-required-file:success", {
-      route: "/api/onboarding/upload-required-file",
-      fileName: file.name,
-      documentType: folder,
-      applicantId,
-      bucket: WORKER_REQUIRED_FILES_BUCKET,
-      uploadedPath: path,
-      generatedUrl: accessibleUrl,
-    })
 
     return NextResponse.json({
       path,

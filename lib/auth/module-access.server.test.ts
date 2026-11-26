@@ -59,3 +59,7 @@ describe("fresh staff authorization reads", () => {
     expect(await authorizeStaffHttpAccess(input)).toMatchObject({ ok: false, status: 403 });
   });
 });
+
+it("distinguishes an unknown route without granting it access", async()=>{
+ expect(await authorizeStaffHttpAccess({...input,pathname:"/admin_recruiter/does-not-exist",method:"GET"})).toMatchObject({ok:false,code:"unmapped"});
+});

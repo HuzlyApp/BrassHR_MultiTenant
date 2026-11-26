@@ -18,7 +18,7 @@ const denied = (reason?: string) =>
 
 /**
  * Plain service-role client (no resilient-fetch wrapper).
- * Matches working onboarding routes like /api/onboarding/config — the resilient
+ * Matches working onboarding routes like /api/onboarding/config â€” the resilient
  * wrapper has caused opaque 403s on Vercel for REST lookups during authorize.
  */
 function createOnboardingAuthClient(): SupabaseClient | null {
@@ -32,7 +32,7 @@ function createOnboardingAuthClient(): SupabaseClient | null {
 
 /**
  * Read a cookie from the Cookie header.
- * Avoid NextRequest.cookies — duplicated next/server copies on Vercel make
+ * Avoid NextRequest.cookies â€” duplicated next/server copies on Vercel make
  * private #state access throw TypeError.
  */
 function readCookie(request: Request, name: string): string {
@@ -51,7 +51,7 @@ function readCookie(request: Request, name: string): string {
 
 /**
  * Peek at identity fields without consuming the route handler body.
- * Prefer instance clone(); never Request.prototype.clone.call(nextReq) —
+ * Prefer instance clone(); never Request.prototype.clone.call(nextReq) â€”
  * that cross-realm call is what throws "#state" on Vercel.
  */
 async function readRequestValues(request: Request): Promise<Record<string, unknown>> {
@@ -256,9 +256,6 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
     return NextResponse.json(
       {
         error: "Unable to verify access",
-        // Temporary diagnostic for staging 403s — remove once root cause is confirmed.
-        detail,
-        name: error instanceof Error ? error.name : typeof error,
       },
       { status: 403 }
     );

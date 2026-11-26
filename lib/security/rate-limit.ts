@@ -32,7 +32,7 @@ type RateLimitResult = {
 const memoryBuckets = new Map<string, Bucket>();
 let storePromise: Promise<RateLimitStore | null> | null = null;
 
-/** Independent from cache circuit — a cache blip must not brick auth/tickets. */
+/** Independent from cache circuit â€” a cache blip must not brick auth/tickets. */
 const RATE_LIMIT_TIMEOUT_MS =
   Number(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS ?? process.env.CACHE_REDIS_TIMEOUT_MS ?? 8_000) ||
   8_000;
@@ -46,7 +46,7 @@ const rateLimitCircuit: RateLimitCircuitState =
 
 /**
  * One round-trip: INCR, ensure TTL, return {count, ttl}.
- * Avoids 3–4 sequential Redis calls that blow a single request timeout on remote Redis.
+ * Avoids 3â€“4 sequential Redis calls that blow a single request timeout on remote Redis.
  */
 const INCREMENT_LUA = `
 local count = redis.call("INCR", KEYS[1])
@@ -261,18 +261,9 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
     }
   }
 
-  // failClosed only hard-fails when no shared Redis is configured at all.
-  // If Redis is configured but briefly down, keep serving with in-process memory
-  // so login/tickets are not bricked by a cache/Redis blip.
-  if (options.failClosed && !redisConfigured()) {
-    throw new Error("Shared rate limit unavailable");
-  }
-
-  if (options.failClosed && redisConfigured()) {
-    console.warn(
-      `[rate-limit] falling back to memory namespace=${options.namespace} (redis unavailable)`
-    );
-  }
+  // Authentication limits must not become per-instance limits during an outage.
+  // Non-critical callers can explicitly retain the bounded memory fallback.
+  if (options.failClosed) throw new Error("Shared rate limit unavailable");
 
   return memoryResult(key, options);
 }

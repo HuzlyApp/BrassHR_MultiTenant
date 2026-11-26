@@ -38,12 +38,7 @@ export async function resolveTenantIdForApplicantPortal(
   const slug = tenantSlug?.trim().toLowerCase();
   if (!slug) return null;
 
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("id")
-    .or(`slug.eq.${slug},subdomain.eq.${slug}`)
-    .eq("is_active", true)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("public_tenant_branding", { p_kind: "slug", p_value: slug });
 
   if (error) throw error;
   return data?.id ? String(data.id) : null;

@@ -34,23 +34,7 @@ export async function resolveTenantIdBySlugUncached(
   const normalized = key.trim().toLowerCase();
   if (normalized.length < 2) return null;
 
-  const { data: bySlug, error: slugErr } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("slug", normalized)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (slugErr) throw slugErr;
-  if (bySlug?.id) return String(bySlug.id);
-
-  const { data: bySub, error: subErr } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("subdomain", normalized)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (subErr) throw subErr;
-  return bySub?.id ? String(bySub.id) : null;
+  const { data, error } = await supabase.rpc("public_tenant_branding", { p_kind: "slug", p_value: normalized });
+  if (error) throw error;
+  return typeof data?.id === "string" ? data.id : null;
 }
