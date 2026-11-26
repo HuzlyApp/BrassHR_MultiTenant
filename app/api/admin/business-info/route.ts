@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveBusinessInfoValidationContext } from "@/lib/tenant/resolve-business-info-context";
 import {
@@ -13,14 +14,8 @@ import {
  * Updates tenant business information with server-side validation.
  */
 export async function PATCH(req: Request) {
-  const authClient = await createClient();
-  const {
-    data: { user },
-  } = await authClient.auth.getUser();
-
-  if (!user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStaffApiSession(req);
+  if (auth instanceof NextResponse) return auth;
 
   const svc = createServiceRoleClient();
   if (!svc) {
@@ -34,19 +29,22 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { data: profile, error: profileErr } = await svc
-    .from("users")
-    .select("tenant_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileErr) {
-    return NextResponse.json({ error: profileErr.message }, { status: 500 });
+  const tenantId = await resolveEffectiveAdminTenantId(svc, auth);
+  if (!tenantId) return NextResponse.json({ error: "Organization unavailable" }, { status: 403 });
+  const additional: Record<string, string | null> = {};
+  if ("legalName" in body) additional.legal_name = String(body.legalName ?? "").trim().slice(0, 200) || null;
+  if ("subdomain" in body) {
+    const value = String(body.subdomain ?? "").trim().toLowerCase();
+    if (value && !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value)) return NextResponse.json({ error: "Invalid subdomain" }, { status: 400 });
+    additional.subdomain = value || null;
   }
-
-  const tenantId = profile?.tenant_id ? String(profile.tenant_id) : "";
-  if (!tenantId) {
-    return NextResponse.json({ error: "No organization is linked to your account." }, { status: 400 });
+  if ("website" in body) {
+    const value = String(body.website ?? "").trim();
+    if (value) {
+      try { const url = new URL(value); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error(); }
+      catch { return NextResponse.json({ error: "Invalid website URL" }, { status: 400 }); }
+    }
+    additional.website = value || null;
   }
 
   const input = normalizeBusinessInfoBody(body);
@@ -66,6 +64,7 @@ export async function PATCH(req: Request) {
   const { error: updateErr } = await svc
     .from("tenants")
     .update({
+      ...additional,
       name: input.companyName,
       industry: input.industry,
       company_size: input.companySize,

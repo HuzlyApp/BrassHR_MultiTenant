@@ -1,3 +1,4 @@
+import { PRIVATE_DOCUMENT_URL_TTL_SECONDS } from "@/lib/supabase/resolve-storage-accessible-url";
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { writeActivityLog } from "@/lib/audit/activity-log"
@@ -165,7 +166,7 @@ export async function GET(req: NextRequest) {
     if (resumePath) {
       const { data: signed } = await supabase.storage
         .from(WORKER_RESUMES_BUCKET)
-        .createSignedUrl(resumePath, 3600)
+        .createSignedUrl(resumePath, PRIVATE_DOCUMENT_URL_TTL_SECONDS)
       resumeUrl = signed?.signedUrl ?? null
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { PortalSignInLoadingShell, PortalSignInScreen } from "@/app/worker-signin/page";
+import { PortalSignInLoadingShell, PortalSignInScreen } from "@/app/worker-signin/PortalSignInScreen";
 
 export default function CandidateSignInPage() {
   return (

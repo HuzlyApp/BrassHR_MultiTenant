@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { WorkflowLibraryPage } from "./page";
+import { WorkflowLibraryPage } from "./WorkflowLibraryPage";
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), refetch: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin_recruiter/dashboard/workflowlibrary", useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock("@/lib/staff-auth-headers", () => ({ staffFetchInit: async () => ({}) }));

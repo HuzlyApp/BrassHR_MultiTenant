@@ -342,6 +342,7 @@ export default function BusinessInfoTab() {
           zipCode,
           ein,
           industryKeys: hireForKeys,
+          legalName, subdomain, website: trimmedWebsite,
         }),
       });
 
@@ -355,15 +356,6 @@ export default function BusinessInfoTab() {
         throw new Error(payload.error ?? "Failed to save business information");
       }
 
-      await supabaseBrowser
-        .from("tenants")
-        .update({
-          legal_name: legalName.trim() || null,
-          subdomain: subdomain.trim() || null,
-          website: trimmedWebsite || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", organization.id);
 
       await refresh();
       await syncAccountChecklist(supabaseBrowser, {

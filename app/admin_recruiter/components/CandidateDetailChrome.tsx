@@ -219,6 +219,17 @@ function CandidateDetailChromeInner({
     [applicantId, activeTab, workerStatus, profile, loading, refresh]
   );
 
+  if (loading && !profile?.worker) {
+    return <div className="admin-recruiter-page-pad" role="status">Loading candidate...</div>;
+  }
+  if (!profile?.worker) {
+    return <div className="admin-recruiter-page-pad" role="alert">
+      <h1>Record not found</h1>
+      <p>This record is unavailable or you do not have access.</p>
+      <a href="/admin_recruiter/new">Back to applicants</a>
+    </div>;
+  }
+
   return (
     <CandidateDetailChromeContext.Provider value={contextValue}>
       <div className="admin-recruiter-page-pad admin-candidate-detail-chrome-active">

@@ -30,12 +30,12 @@ function setup(overrides = {}, approve: () => Promise<Response> = async () => re
   return fetcher;
 }
 async function openApproval(location: "menu" | "drawer") {
-  await screen.findByText("Staging Worker");
+  await screen.findAllByText("Staging Worker");
   if (location === "menu") {
     fireEvent.click(screen.getByRole("button", { name: "Actions for Staging Worker" }));
     return screen.getByRole("button", { name: "Approve Timesheet" });
   }
-  fireEvent.click(screen.getByText("Staging Worker"));
+  fireEvent.click(screen.getAllByText("Staging Worker")[0]);
   return within(screen.getByRole("dialog")).getByRole("button", { name: "Approve Timesheet" });
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.canEdit = true; });
@@ -46,7 +46,7 @@ describe("timesheet approval buttons", () => {
     fireEvent.click(await openApproval("menu"));
     await waitFor(() => expect(mocks.success).toHaveBeenCalledWith("Timesheet for Staging Worker approved."));
     expect(fetcher).toHaveBeenCalledWith(`/api/v1/timesheets/${sheetId}/approve`, expect.objectContaining({ method: "POST", body: "{}", credentials: "include" }));
-    await waitFor(() => expect(screen.getByText("approved")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("approved").length).toBeGreaterThan(0));
     expect(fetcher.mock.calls.filter(([,init]) => init?.method !== "POST")).toHaveLength(2);
   });
   it("connects drawer approval and prevents duplicate clicks while saving", async () => {
@@ -64,7 +64,7 @@ describe("timesheet approval buttons", () => {
   it.each(["draft", "rejected", "approved"])("does not approve a %s sheet", async (approvalStatus) => {
     const fetcher = setup({ approvalStatus });
     const button = approvalStatus === "approved"
-      ? (await screen.findByText("Staging Worker"), fireEvent.click(screen.getByRole("button", { name: "Actions for Staging Worker" })), screen.getByRole("button", { name: "Approved" }))
+      ? (await screen.findAllByText("Staging Worker"), fireEvent.click(screen.getByRole("button", { name: "Actions for Staging Worker" })), screen.getByRole("button", { name: "Approved" }))
       : await openApproval("menu");
     expect(button).toBeDisabled();
     fireEvent.click(button);
@@ -104,7 +104,7 @@ describe("timesheet approval buttons", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-16T02:00:00Z"));
     const fetcher = setup();
-    await screen.findByText("Staging Worker");
+    await screen.findAllByText("Staging Worker");
     const url = new URL(String(fetcher.mock.calls[0][0]), "https://staging.example");
     expect(url.searchParams.get("start")).toBe("2026-11-09");
     expect(url.searchParams.get("end")).toBe("2026-11-15");

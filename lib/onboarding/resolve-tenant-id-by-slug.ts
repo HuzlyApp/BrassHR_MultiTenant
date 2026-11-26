@@ -1,19 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export async function resolveTenantIdBySlug(
-  supabase: SupabaseClient,
-  slug: string
-): Promise<string | null> {
-  const s = slug.trim().toLowerCase();
-  if (!s) return null;
-
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("id")
-    .or(`slug.eq.${s},subdomain.eq.${s}`)
-    .eq("is_active", true)
-    .maybeSingle();
-
+/** Client-compatible resolver: do not import the server-only Redis cache here. */
+export async function resolveTenantIdBySlug(supabase: SupabaseClient, slug: string): Promise<string | null> {
+  const value = slug.trim().toLowerCase();
+  if (!value) return null;
+  const { data, error } = await supabase.rpc("public_tenant_branding", { p_kind: "slug", p_value: value });
   if (error) throw error;
-  return data?.id ? String(data.id) : null;
+  return typeof data?.id === "string" ? data.id : null;
 }

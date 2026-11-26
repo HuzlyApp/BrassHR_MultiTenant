@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
@@ -30,11 +31,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Per-request script nonces cannot be reused in prerendered HTML.
+  await connection();
   return (
     <html lang="en" suppressHydrationWarning>
       <body

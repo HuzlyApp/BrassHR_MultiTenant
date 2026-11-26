@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { FlowCard } from "./page";
+import { FlowCard } from "./OnboardingFlowsPage";
 const flow = { id: "flow-a", name: "Nursing W2", status: "published" as const, libraryId: "folder-a", templateId: null, createdAsBlank: true, createdAt: "2026-11-20", updatedAt: "2026-11-20" };
 describe("workflow card actions", () => {
   it("offers Duplicate, Move to library, and Unpublish on a published flow", () => {

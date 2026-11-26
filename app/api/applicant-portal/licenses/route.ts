@@ -1,3 +1,4 @@
+import { maskSensitiveIdentifier } from "@/lib/security/pii";
 import { NextRequest, NextResponse } from "next/server";
 import {
   documentStatusLabel,
@@ -17,6 +18,7 @@ type LicenseRow = {
   license_type: LicenseType;
   certification_name: string | null;
   license_number: string | null;
+  license_number_last_four?: string | null;
   expires_at: string | null;
   file_url: string | null;
   storage_path: string | null;
@@ -39,7 +41,7 @@ function serializeLicense(row: LicenseRow) {
     licenseType: row.license_type,
     certificationName: row.certification_name,
     licenseTypeLabel: licenseTypeDisplayLabel(row.license_type, row.certification_name),
-    licenseNumber: row.license_number,
+    licenseNumber: maskSensitiveIdentifier(row.license_number, row.license_number_last_four),
     expiresAt: row.expires_at,
     expiresAtLabel: row.expires_at ? formatDateOnly(row.expires_at) : null,
     status,
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
     const licensesRes = await auth.supabase
       .from("worker_license_records")
       .select(
-        "id, worker_id, tenant_id, license_type, certification_name, license_number, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
+        "id, worker_id, tenant_id, license_type, certification_name, license_number, license_number_last_four, expires_at, file_url, storage_path, original_file_name, status, review_notes, uploaded_at"
       )
       .eq("worker_id", auth.applicant.id)
       .order("uploaded_at", { ascending: false });

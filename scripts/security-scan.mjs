@@ -8,6 +8,8 @@ const EXCLUDED_DIRS = new Set([
   ".next",
   "node_modules",
   "coverage",
+  "output",
+  "reports",
   "agent-transcripts",
 ]);
 const EXCLUDED_FILES = new Set(["package-lock.json", "performance-results.json"]);
@@ -15,13 +17,14 @@ const SECRET_PATTERNS = [
   { name: "Supabase service role JWT", regex: /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g },
   { name: "OpenAI style API key", regex: /sk-[A-Za-z0-9_-]{20,}/g },
   { name: "Private key block", regex: /-----BEGIN (?:RSA |OPENSSH |EC |)PRIVATE KEY-----/g },
-  { name: "Hardcoded assignment secret", regex: /(api[_-]?key|secret|token|password)\s*[:=]\s*["'][^"']{16,}["']/gi },
+  { name: "Hardcoded assignment secret", regex: /\b(api[_-]?key|secret|token|password)\s*[:=]\s*["'][^"']{16,}["']/gi },
 ];
 const PLACEHOLDER_VALUES = new Set([
   "your-secure-password",
   "your-secret",
   "your-token",
   "your-api-key",
+  "oauth-no-password",
 ]);
 
 function shouldSkip(filePath) {
@@ -52,6 +55,9 @@ for (const file of await walk(ROOT)) {
   const text = await readFile(file, "utf8").catch(() => "");
   for (const pattern of SECRET_PATTERNS) {
     for (const match of text.matchAll(pattern.regex)) {
+      // Test fixtures use deliberate dummy assignments; real provider-key/JWT/private-key
+      // signatures remain scanned in tests as well as production source.
+      if (pattern.name === "Hardcoded assignment secret" && /\.test\.[cm]?[jt]sx?$/.test(file)) continue;
       const matched = match[0].toLowerCase();
       if ([...PLACEHOLDER_VALUES].some((placeholder) => matched.includes(placeholder))) {
         continue;

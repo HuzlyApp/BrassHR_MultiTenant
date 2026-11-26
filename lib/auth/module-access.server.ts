@@ -19,7 +19,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export type AccessDenialCode = "not_staff" | "denied" | "unavailable";
+export type AccessDenialCode = "not_staff" | "denied" | "unavailable" | "unmapped";
 
 export type AccessDecision =
   | { ok: true }
@@ -222,7 +222,7 @@ async function authorizeStaffHttpAccessUncached(input: {
 
   const classified = classifyLoaded(input.pathname, resources);
   if (classified.kind === "god_only") return forbidden("Insufficient permission");
-  if (classified.kind === "unmapped") return forbidden("Insufficient permission");
+  if (classified.kind === "unmapped") return forbidden("Resource unavailable", "unmapped");
 
   const tenantId = await resolveTenantId(
     supabase,
