@@ -13,7 +13,6 @@ import { getStateCodeFromName } from "@/lib/us-state-names";
 export const runtime = "nodejs";
 
 const ABOUT_ME_MAX_LENGTH = 1000;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
 
 const LANGUAGE_VALUES = new Set(["en-US", "es-US"]);
@@ -25,6 +24,7 @@ type PortalPreferences = {
   timezone: string;
   dateFormat: string;
   timeFormat: string;
+  passwordChangedOnce: boolean;
 };
 
 const DEFAULT_PREFERENCES: PortalPreferences = {
@@ -32,6 +32,7 @@ const DEFAULT_PREFERENCES: PortalPreferences = {
   timezone: EASTERN_TIME_ZONE,
   dateFormat: "MM/DD/YYYY",
   timeFormat: "12h",
+  passwordChangedOnce: false,
 };
 
 type WorkerSettingsRow = {
@@ -77,7 +78,8 @@ function normalizePreferences(value: unknown): PortalPreferences {
     typeof raw.timeFormat === "string" && TIME_FORMAT_VALUES.has(raw.timeFormat)
       ? raw.timeFormat
       : DEFAULT_PREFERENCES.timeFormat;
-  return { language, timezone, dateFormat, timeFormat };
+  const passwordChangedOnce = raw.passwordChangedOnce === true;
+  return { language, timezone, dateFormat, timeFormat, passwordChangedOnce };
 }
 
 function employeeIdLabel(workerId: string): string {
@@ -236,11 +238,22 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (section === "preferences") {
+      const { data: existingPrefsRow, error: existingPrefsError } = await auth.supabase
+        .from("worker")
+        .select("portal_preferences")
+        .eq("id", auth.applicant.id)
+        .maybeSingle();
+      if (existingPrefsError) throw existingPrefsError;
+
+      const existingPrefs = normalizePreferences(existingPrefsRow?.portal_preferences);
       const preferences = normalizePreferences({
         language: body.language,
         timezone: body.timezone,
         dateFormat: body.dateFormat,
         timeFormat: body.timeFormat,
+        // Once set, password-changed flag cannot be cleared by the client.
+        passwordChangedOnce:
+          existingPrefs.passwordChangedOnce || body.passwordChangedOnce === true,
       });
 
       const { data, error } = await auth.supabase
@@ -283,12 +296,22 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
+    const { data: existingWorker, error: existingWorkerError } = await auth.supabase
+      .from("worker")
+      .select(WORKER_SETTINGS_SELECT)
+      .eq("id", auth.applicant.id)
+      .maybeSingle();
+    if (existingWorkerError) throw existingWorkerError;
+    if (!existingWorker) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
     const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
     const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
     const preferredName =
       typeof body.preferredName === "string" ? body.preferredName.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim() : "";
     const phoneRaw = typeof body.phone === "string" ? body.phone : "";
+    const birthdateRaw = typeof body.birthdate === "string" ? body.birthdate.trim() : "";
     const jobTitle = typeof body.jobTitle === "string" ? body.jobTitle.trim() : "";
     const address1 = typeof body.address1 === "string" ? body.address1.trim() : "";
     const address2 = typeof body.address2 === "string" ? body.address2.trim() : "";
@@ -309,13 +332,27 @@ export async function PATCH(req: NextRequest) {
     if (preferredName && isPersonNameTooLong(preferredName)) {
       fieldErrors.preferredName = personNameTooLongMessage("Preferred name");
     }
-    if (!email) fieldErrors.email = "Email is required.";
-    else if (!EMAIL_RE.test(email)) fieldErrors.email = "Enter a valid email address.";
     const phoneDigits = normalizePhoneInput(phoneRaw);
     if (!phoneDigits) fieldErrors.phone = "Phone number is required.";
     else if (phoneDigits.length !== 10) fieldErrors.phone = "Enter a valid 10-digit phone number.";
     if (bio.length > ABOUT_ME_MAX_LENGTH) {
       fieldErrors.bio = `Bio must be ${ABOUT_ME_MAX_LENGTH} characters or fewer.`;
+    }
+
+    let birthdate: string | null = null;
+    if (birthdateRaw) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(birthdateRaw)) {
+        fieldErrors.birthdate = "Enter a valid birthdate.";
+      } else {
+        const parsed = new Date(`${birthdateRaw}T00:00:00.000Z`);
+        if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== birthdateRaw) {
+          fieldErrors.birthdate = "Enter a valid birthdate.";
+        } else if (parsed.getTime() > Date.now()) {
+          fieldErrors.birthdate = "Birthdate cannot be in the future.";
+        } else {
+          birthdate = birthdateRaw;
+        }
+      }
     }
 
     let state: string | null = null;
@@ -334,15 +371,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Validation failed", fieldErrors }, { status: 400 });
     }
 
-    // Workers can view their department/birthdate/work location but cannot change them.
+    // Registered email is immutable from the candidate profile; contact support to change it.
+    // Department / work location remain staff-managed. Candidates may set birthdate.
     const { data, error } = await auth.supabase
       .from("worker")
       .update({
         first_name: firstName,
         last_name: lastName,
         preferred_name: preferredName || null,
-        email,
+        email: (existingWorker as WorkerSettingsRow).email,
         phone: formatPhoneNumber(phoneDigits),
+        date_of_birth: birthdate,
         job_role: jobTitle || null,
         address1: address1 || null,
         address2: address2 || null,

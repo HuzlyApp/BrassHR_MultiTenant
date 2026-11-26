@@ -5,6 +5,7 @@ import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { findApplicantByUserId } from "@/lib/applicant-portal";
+import { createNotification } from "@/lib/notifications/create-notification";
 import { APPLICANT_CHAT_BUCKET } from "@/lib/supabase-storage-buckets";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -223,6 +224,26 @@ export async function POST(req: NextRequest) {
       )
       .single();
     if (error) throw error;
+
+    if (senderRole === "recruiter") {
+      const applicantUserId =
+        "applicant" in resolved && resolved.applicant?.user_id
+          ? String(resolved.applicant.user_id).trim()
+          : "";
+      if (applicantUserId) {
+        const preview =
+          message.trim() ||
+          (attachmentName ? `Sent an attachment: ${attachmentName}` : "Sent a new message");
+        await createNotification(resolved.supabase, {
+          tenantId: resolved.tenantId,
+          userId: applicantUserId,
+          type: "message",
+          title: "New message from recruiter",
+          body: preview.slice(0, 500),
+          link: "/application/candidate/notifications",
+        });
+      }
+    }
 
     return NextResponse.json({ ok: true, message: withAttachmentUrl(data as MessageRow) });
   } catch (err) {

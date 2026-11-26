@@ -231,7 +231,7 @@ export function CandidateResumesClient() {
               return (
                 <article
                   key={resume.id}
-                  className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 hover:border-[#012352] sm:flex-row sm:items-center sm:justify-between"
+                  className="group flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 hover:border-[#012352] sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#EFF6FF] text-[#012352]">
@@ -253,7 +253,7 @@ export function CandidateResumesClient() {
                       <>
                         <button
                           type="button"
-                          className="text-[#64748B]"
+                          className="text-[#64748B] opacity-100 transition-opacity focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                           aria-label={`Delete ${resume.originalFileName}`}
                           onClick={() => void removeResume(resume.id)}
                         >
@@ -261,7 +261,7 @@ export function CandidateResumesClient() {
                         </button>
                         <button
                           type="button"
-                          className="text-[#64748B]"
+                          className="text-[#64748B] opacity-100 transition-opacity focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                           aria-label={`Replace ${resume.originalFileName}`}
                           onClick={() => {
                             setReplaceId(resume.id);

@@ -42,6 +42,7 @@ type Preferences = {
   timezone: string;
   dateFormat: string;
   timeFormat: string;
+  passwordChangedOnce?: boolean;
 };
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -49,6 +50,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   timezone: EASTERN_TIME_ZONE,
   dateFormat: "MM/DD/YYYY",
   timeFormat: "12h",
+  passwordChangedOnce: false,
 };
 
 const FIELD_CLASS =
@@ -91,10 +93,8 @@ export function CandidateAccountPanel() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [nextEmail, setNextEmail] = useState("");
-  const [emailBusy, setEmailBusy] = useState(false);
+  const [passwordChangedOnce, setPasswordChangedOnce] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -137,11 +137,13 @@ export function CandidateAccountPanel() {
         if (!res.ok) throw new Error(payload.error || "Could not load account settings.");
         if (!alive) return;
         setEmail(payload.profile?.email ?? session?.applicant.email ?? "");
-        setPreferences({
+        const nextPrefs = {
           ...DEFAULT_PREFERENCES,
           ...(payload.preferences ?? {}),
           timezone: EASTERN_TIME_ZONE,
-        });
+        };
+        setPreferences(nextPrefs);
+        setPasswordChangedOnce(nextPrefs.passwordChangedOnce === true);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load account settings.");
       } finally {
@@ -221,29 +223,12 @@ export function CandidateAccountPanel() {
     }
   }
 
-  async function handleChangeEmail(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = nextEmail.trim();
-    if (!trimmed) {
-      toast.error("Enter a new email address.");
-      return;
-    }
-    setEmailBusy(true);
-    try {
-      const { error: updateError } = await supabaseBrowser.auth.updateUser({ email: trimmed });
-      if (updateError) throw updateError;
-      toast.success("Check your inbox to confirm the new email.");
-      setEmailModalOpen(false);
-      setNextEmail("");
-    } catch (err) {
-      toast.error(messageFrom(err, "Could not update email."));
-    } finally {
-      setEmailBusy(false);
-    }
-  }
-
   async function handleChangePassword(event: FormEvent) {
     event.preventDefault();
+    if (passwordChangedOnce) {
+      toast.error("Password can only be changed once. Contact support for further resets.");
+      return;
+    }
     const validationError = validatePasswordUpdate(newPassword, confirmPassword);
     if (validationError) {
       toast.error(validationError);
@@ -252,6 +237,21 @@ export function CandidateAccountPanel() {
     setPasswordBusy(true);
     try {
       await updateAuthUserPassword(supabaseBrowser, newPassword);
+      const headers = await authHeaders();
+      if (headers) {
+        await fetch("/api/applicant-portal/user-settings", {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            section: "preferences",
+            ...preferences,
+            timezone: EASTERN_TIME_ZONE,
+            passwordChangedOnce: true,
+          }),
+        }).catch(() => undefined);
+      }
+      setPasswordChangedOnce(true);
+      setPreferences((current) => ({ ...current, passwordChangedOnce: true }));
       toast.success(PASSWORD_UPDATE_SUCCESS_MESSAGE);
       setPasswordModalOpen(false);
       setNewPassword("");
@@ -361,7 +361,7 @@ export function CandidateAccountPanel() {
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-10`}>
       <CandidatePageIntro
         title="Profile & Account"
-        subtitle="Manage your personal and professional information, login details and account preferences."
+        subtitle="Manage your personal information, login details and account preferences."
       />
       <CandidateSettingsTabs active="account" />
 
@@ -380,21 +380,12 @@ export function CandidateAccountPanel() {
               <div className="space-y-5">
                 <h2 className="text-base font-semibold text-[#0F172A]">Login Information</h2>
                 <div className="grid gap-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <div className="min-w-0 flex-1">
-                      <FieldLabel htmlFor="account-email">Email Address</FieldLabel>
-                      <input id="account-email" className={FIELD_CLASS} value={email} readOnly disabled />
-                    </div>
-                    <button
-                      type="button"
-                      className={WORKER_BTN_OUTLINE}
-                      onClick={() => {
-                        setNextEmail(email);
-                        setEmailModalOpen(true);
-                      }}
-                    >
-                      Change Email
-                    </button>
+                  <div className="min-w-0">
+                    <FieldLabel htmlFor="account-email">Email Address</FieldLabel>
+                    <input id="account-email" className={FIELD_CLASS} value={email} readOnly disabled />
+                    <p className="mt-1 text-xs text-[#6B7280]">
+                      Contact support if you need to change your registered email.
+                    </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <div className="min-w-0 flex-1">
@@ -406,14 +397,21 @@ export function CandidateAccountPanel() {
                         readOnly
                         disabled
                       />
+                      {passwordChangedOnce ? (
+                        <p className="mt-1 text-xs text-[#6B7280]">
+                          Password already changed. Contact support if you need a reset.
+                        </p>
+                      ) : null}
                     </div>
-                    <button
-                      type="button"
-                      className={WORKER_BTN_OUTLINE}
-                      onClick={() => setPasswordModalOpen(true)}
-                    >
-                      Change Password
-                    </button>
+                    {passwordChangedOnce ? null : (
+                      <button
+                        type="button"
+                        className={WORKER_BTN_OUTLINE}
+                        onClick={() => setPasswordModalOpen(true)}
+                      >
+                        Change Password
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -605,43 +603,6 @@ export function CandidateAccountPanel() {
           </div>
         </section>
       </div>
-
-      {emailModalOpen ? (
-        <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
-          <form
-            onSubmit={(event) => void handleChangeEmail(event)}
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold text-[#0F172A]">Change Email</h3>
-            <p className="mt-1 text-sm text-[#64748B]">
-              We may send a confirmation link to your new address before it takes effect.
-            </p>
-            <div className="mt-4">
-              <FieldLabel htmlFor="next-email">New email</FieldLabel>
-              <input
-                id="next-email"
-                type="email"
-                className={FIELD_CLASS}
-                value={nextEmail}
-                onChange={(event) => setNextEmail(event.target.value)}
-              />
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                className={WORKER_BTN_OUTLINE}
-                onClick={() => setEmailModalOpen(false)}
-                disabled={emailBusy}
-              >
-                Cancel
-              </button>
-              <button type="submit" className={WORKER_BTN_PRIMARY} disabled={emailBusy}>
-                {emailBusy ? "Saving..." : "Update Email"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
 
       {passwordModalOpen ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
