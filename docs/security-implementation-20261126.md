@@ -102,3 +102,6 @@ Release validation also exposed existing Next App Router entry-point type errors
 
 
 CI activation is pending: GitHub rejected the atomic publication because the connected OAuth app lacks workflow scope. The complete definition is preserved at `docs/security/ci-workflow.yml`; an authorized repository owner can install it at `.github/workflows/security.yml`. No CI execution is claimed until that installation is completed. Application changes are published independently using existing Git permissions.
+
+
+Follow-up storage review found that the tenant-prefix policy could bypass API-only role checks for `worker_required_files`. The new `security_sensitive_storage_roles` migration restricts direct tenant-prefixed identity object reads/updates to active, non-anonymous Admin/HR membership (or an active platform operator) with a verified AAL2 token. Normal application APIs continue signing only after their server-side staff OTP checks, keeps self-owned object access, and validates UUID prefixes before casting. Other buckets and new-object insert paths retain their existing boundaries. A dedicated two-tenant adversarial check covers Admin, recruiter, worker and foreign membership. Legacy API/document-path acceptance remains separately tracked; this does not establish antivirus coverage.
