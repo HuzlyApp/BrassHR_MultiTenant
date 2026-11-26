@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminRecruiterHeader } from "./AdminRecruiterHeader";
 const state = vi.hoisted(() => ({
+  push: vi.fn(),
   account: { user: null as { id: string } | null, profile: null as { first_name: string; role: string } | null, organization: null, loading: true },
   header: { userId: null as string | null, roleLabel: null as string | null, notifications: [], unreadNotifications: 0, isLoading: true },
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin_recruiter/dashboard", useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin_recruiter/dashboard", useRouter: () => ({ push: state.push }) }));
 vi.mock("@/app/admin_recruiter/hooks/useAccountData", () => ({ useAccountData: () => state.account }));
 vi.mock("@/app/components/tenant/TenantBrandingContext", () => ({ useTenantBranding: () => ({}) }));
 vi.mock("./GodAdminTenantSwitcher", () => ({ default: () => null }));
@@ -48,4 +49,21 @@ it("does not flash Staff while the current user's tenant role is loading", () =>
   render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);
   expect(screen.queryByText("Staff")).not.toBeInTheDocument();
   expect(screen.getByText("Loading role…")).toBeInTheDocument();
+});
+
+
+it("opens the message conversation from an already-read notification", () => {
+  state.push.mockClear();
+  Object.assign(state.header, { isLoading: false, notifications: [{
+    id: "message-alert", title: "New applicant message", is_read: true,
+    link: "/admin_recruiter/messages?workerId=worker",
+  }] });
+  const client = new QueryClient();
+  client.setQueryData(["header"], { notifications: state.header.notifications });
+  render(<QueryClientProvider client={client}><AdminRecruiterHeader /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+  fireEvent.click(screen.getByRole("button", { name: "New applicant message" }));
+  expect(state.push).toHaveBeenCalledWith("/admin_recruiter/messages?workerId=worker");
+  expect(screen.queryByRole("dialog", { name: "Notifications" })).not.toBeInTheDocument();
+  Object.assign(state.header, { notifications: [] });
 });
