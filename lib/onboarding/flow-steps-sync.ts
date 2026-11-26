@@ -107,46 +107,17 @@ export async function replaceFlowStepsFromDraft(
   const inserts = builderDraftToFlowStepInserts(flowId, draft);
   if (!inserts.length) return;
 
-  const { data, error } = await supabase
+  // Assign IDs before inserting so parent links are saved in the same statement.
+  const canvasToDbId = new Map(inserts.map((row) => [row.canvas_node_id, crypto.randomUUID()]));
+  const { error } = await supabase
     .from("onboarding_flow_steps")
-    .insert(
-      inserts.map((row) => ({
-        flow_id: row.flow_id,
-        step_type: row.step_type,
-        title: row.title,
-        description: row.description,
-        position: row.position,
-        parent_step_id: null,
-        day: row.day,
-        is_required: row.is_required,
-        settings: row.settings,
-        metadata: row.metadata,
-        canvas_node_id: row.canvas_node_id,
-      }))
-    )
-    .select("id, canvas_node_id");
-
+    .insert(inserts.map((row) => ({
+      ...row,
+      id: canvasToDbId.get(row.canvas_node_id),
+      parent_step_id: canvasToDbId.get(String(row.metadata.parent_canvas_node_id ?? "")) ?? null,
+    })));
   if (error) {
     throw formatSupabaseError("Failed to save flow steps", error);
-  }
-
-  const canvasToDbId = new Map(
-    (data ?? []).map((row) => [String(row.canvas_node_id), String(row.id)])
-  );
-
-  for (const row of inserts) {
-    const parentCanvas = row.metadata.parent_canvas_node_id as string | null;
-    if (!parentCanvas) continue;
-    const parentDbId = canvasToDbId.get(parentCanvas);
-    const selfDbId = canvasToDbId.get(row.canvas_node_id);
-    if (!parentDbId || !selfDbId) continue;
-    const { error: parentError } = await supabase
-      .from("onboarding_flow_steps")
-      .update({ parent_step_id: parentDbId })
-      .eq("id", selfDbId);
-    if (parentError) {
-      throw formatSupabaseError("Failed to link flow step parents", parentError);
-    }
   }
 }
 

@@ -119,17 +119,12 @@ export async function loadEmployeeScheduleWeek(
   endDate: string,
   facilityId?: string | null
 ): Promise<EmployeeScheduleWeekResponse> {
-  const { data: workerData, error: workerError } = await supabase
+  const workerQuery = supabase
     .from("workers")
     .select("id, candidate_id, first_name, last_name, job_role, location, status, source_job_application_id, application_snapshot")
     .eq("tenant_id", tenantId)
     .order("first_name", { ascending: true })
     .order("last_name", { ascending: true });
-
-  if (workerError) throw workerError;
-
-  const workerRows = (workerData ?? []) as WorkerRow[];
-  const workerIds = workerRows.map((row) => row.id).filter(Boolean);
 
   let shiftQuery = tenantEmployeeShiftQuery(supabase, tenantId, startDate, endDate)
     .order("work_date", { ascending: true })
@@ -140,8 +135,14 @@ export async function loadEmployeeScheduleWeek(
     shiftQuery = shiftQuery.eq("facility_id", scopedFacilityId);
   }
 
-  const { data: shiftData, error: shiftError } = await shiftQuery;
+  const [
+    { data: workerData, error: workerError },
+    { data: shiftData, error: shiftError },
+  ] = await Promise.all([workerQuery, shiftQuery]);
+  if (workerError) throw workerError;
   if (shiftError) throw shiftError;
+  const workerRows = (workerData ?? []) as WorkerRow[];
+  const workerIds = workerRows.map((row) => row.id).filter(Boolean);
 
   const shifts = (shiftData ?? []) as ShiftRow[];
   const facilityIds = [...new Set(shifts.map((row) => row.facility_id).filter(Boolean))] as string[];

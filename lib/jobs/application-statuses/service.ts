@@ -191,7 +191,13 @@ export async function listApplicationStatuses(
   options?: { activeOnly?: boolean; ensureDefaults?: boolean }
 ): Promise<ApplicationStatusRecord[]> {
   if (options?.ensureDefaults !== false) {
+    const existing = await listApplicationStatuses(supabase, tenantId, {
+      ...options, ensureDefaults: false,
+    });
+    if (existing.length) return existing;
+    // An empty active-only result does not mean the tenant has no catalog.
     await ensureDefaultApplicationStatuses(supabase, tenantId);
+    return listApplicationStatuses(supabase, tenantId, { ...options, ensureDefaults: false });
   }
 
   const baseColumns =

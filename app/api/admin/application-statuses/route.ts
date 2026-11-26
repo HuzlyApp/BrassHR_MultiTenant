@@ -48,8 +48,15 @@ export async function GET(req: NextRequest) {
 
     const activeOnly = req.nextUrl.searchParams.get("activeOnly") === "1";
     const includeCounts = req.nextUrl.searchParams.get("includeCounts") === "1";
-    const statuses = await listApplicationStatuses(supabase, tenantId, { activeOnly });
-    const groups = await listApplicationStatusGroups(supabase, tenantId);
+    const [statuses, initialGroups] = await Promise.all([
+      listApplicationStatuses(supabase, tenantId, { activeOnly }),
+      listApplicationStatusGroups(supabase, tenantId),
+    ]);
+    // First-time status initialization may finish after the parallel group read.
+    const groupIds = new Set(initialGroups.map((group) => group.id));
+    const groups = statuses.some((status) => status.groupId && !groupIds.has(status.groupId))
+      ? await listApplicationStatusGroups(supabase, tenantId)
+      : initialGroups;
     const canManage = auth.role === "admin" || auth.godAdmin;
     if (!includeCounts) {
       return NextResponse.json({ statuses, groups, canManage });
