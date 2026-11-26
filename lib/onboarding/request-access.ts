@@ -215,25 +215,29 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
         }
       }
     }
-    if (applicantId && applicantId !== userId) return denied();
+    if (applicantId && applicantId !== userId) return denied("applicant_mismatch");
     if (!applicantId && !workerId && !applicationId && !signingId && url.pathname !== "/api/onboarding/worker-references") return denied();
     if (workerId) {
       let query = svc.from("worker").select("id,tenant_id").eq("id", workerId).eq("user_id", userId);
       if (tenantId) query = query.eq("tenant_id", tenantId);
       const { data } = await query.maybeSingle();
-      if (!data) return denied();
+      if (!data) return denied("worker_ownership");
       tenantId = data.tenant_id;
     }
     if (applicationId) {
       let query = svc.from("job_applications").select("worker_id,tenant_id,applicant_auth_user_id").eq("id", applicationId);
       if (tenantId) query = query.eq("tenant_id", tenantId);
       const { data } = await query.maybeSingle();
-      if (!data || (workerId && data.worker_id !== workerId)) return denied();
+      if (!data || (workerId && data.worker_id !== workerId)) {
+        return denied("application_ownership");
+      }
       if (data.worker_id) {
         const { data: worker } = await svc.from("worker").select("id").eq("id", data.worker_id).eq("tenant_id", data.tenant_id).eq("user_id", userId).maybeSingle();
-        if (!worker) return denied();
+        if (!worker) return denied("application_ownership");
         workerId = worker.id;
-      } else if (!userId || data.applicant_auth_user_id !== userId) return denied();
+      } else if (!userId || data.applicant_auth_user_id !== userId) {
+        return denied("application_ownership");
+      }
       tenantId = data.tenant_id;
     }
     if (signingId) {

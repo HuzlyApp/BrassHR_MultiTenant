@@ -15,6 +15,7 @@ import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import { ensureProfessionalLicenseRequiredDocuments } from "@/lib/onboarding/ensure-professional-license-documents";
 import { enrichTenantConfigFromPublishedFlow } from "@/lib/onboarding/enrich-config-from-published-flow";
 import { attachPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/load-settings";
+import { coerceAcceptedFileTypes } from "@/lib/document-upload-helpers";
 
 export async function seedDefaultTenantOnboarding(
   supabase: OnboardingDbClient,
@@ -166,9 +167,18 @@ async function loadTenantOnboardingConfigUncached(
     description: d.description != null ? String(d.description) : null,
     is_required: Boolean(d.is_required),
     sort_order: Number(d.sort_order),
-    accepted_file_types: Array.isArray(d.accepted_file_types)
-      ? (d.accepted_file_types as string[])
-      : ["application/pdf", "image/jpeg", "image/png"],
+    accepted_file_types: (() => {
+      const coerced = coerceAcceptedFileTypes(d.accepted_file_types);
+      return coerced.length
+        ? coerced
+        : [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ];
+    })(),
     max_file_size_mb: Number(d.max_file_size_mb) || 10,
   }));
 

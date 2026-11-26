@@ -47,7 +47,21 @@ const MIME_ALIASES: Record<string, string> = {
   "image/jpg": "image/jpeg",
   "image/pjpeg": "image/jpeg",
   "image/x-png": "image/png",
+  "application/x-pdf": "application/pdf",
+  "application/acrobat": "application/pdf",
+  "application/x-msword": "application/msword",
+  "application/vnd.ms-word": "application/msword",
 }
+
+/** Browser placeholders — never treat these as the real file type. */
+const IGNORED_BROWSER_MIMES = new Set([
+  "application/octet-stream",
+  "binary/octet-stream",
+  "application/force-download",
+  "application/download",
+  "application/x-download",
+  "",
+])
 
 const EXT_TO_MIME: Record<string, string> = {
   pdf: "application/pdf",
@@ -60,28 +74,60 @@ const EXT_TO_MIME: Record<string, string> = {
 }
 
 export function normalizeDocumentMime(mime: string): string {
-  const m = mime.trim().toLowerCase()
+  // Strip parameters such as `application/pdf; charset=utf-8`.
+  const m = mime.trim().toLowerCase().split(";")[0]?.trim() || ""
   return MIME_ALIASES[m] ?? m
 }
 
 function mimeFromFileName(fileName: string): string | null {
-  const n = pathOrUrlForExtension(fileName)
-  const ext = n.split(".").pop()?.toLowerCase() ?? ""
+  const n = pathOrUrlForExtension(fileName).trim().replace(/\.+$/, "")
+  const ext = n.split(".").pop()?.trim().toLowerCase() ?? ""
   return EXT_TO_MIME[ext] ?? null
 }
 
-function normalizeAcceptedType(raw: string): string | null {
-  const v = raw.trim().toLowerCase()
+function normalizeAcceptedType(raw: unknown): string | null {
+  if (typeof raw !== "string") return null
+  const v = raw.trim().toLowerCase().replace(/^\{|\}$/g, "")
   if (!v) return null
-  if (v.startsWith(".")) return EXT_TO_MIME[v.slice(1)] ?? v
+  if (v.startsWith(".")) return EXT_TO_MIME[v.slice(1)] ?? null
   if (EXT_TO_MIME[v]) return EXT_TO_MIME[v]
-  return normalizeDocumentMime(v)
+  return normalizeDocumentMime(v) || null
+}
+
+/**
+ * Coerce tenant `accepted_file_types` from JSON arrays, Postgres `{a,b}` text, or scalars.
+ */
+export function coerceAcceptedFileTypes(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map(normalizeAcceptedType).filter((t): t is string => Boolean(t))
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    // Postgres text[] display / occasional stringified form: {application/pdf,image/png}
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      return trimmed
+        .slice(1, -1)
+        .split(",")
+        .map((part) => normalizeAcceptedType(part))
+        .filter((t): t is string => Boolean(t))
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (Array.isArray(parsed)) return coerceAcceptedFileTypes(parsed)
+    } catch {
+      /* single extension / mime */
+    }
+    const one = normalizeAcceptedType(trimmed)
+    return one ? [one] : []
+  }
+  return []
 }
 
 /**
  * Match a file against tenant `accepted_file_types`.
- * Treats jpg/jpeg aliases, file extensions (`pdf`, `.png`), and empty browser MIME as allowed
- * when the name matches. When any image type is listed, JPG/PNG/WebP are accepted.
+ * Treats jpg/jpeg aliases, file extensions (`pdf`, `.png`), and empty/octet-stream browser MIME
+ * as allowed when the name matches. When any image type is listed, JPG/PNG/WebP are accepted.
  */
 export function isAcceptedDocumentFileType(
   file: { type?: string; name?: string },
@@ -89,16 +135,20 @@ export function isAcceptedDocumentFileType(
 ): boolean {
   if (!accepted?.length) return true
 
-  const allowed = new Set(
-    accepted.map(normalizeAcceptedType).filter((t): t is string => Boolean(t))
-  )
+  const allowed = new Set(coerceAcceptedFileTypes(accepted))
   if (allowed.size === 0) return true
 
-  const fileMime = normalizeDocumentMime(file.type || "")
+  const rawType = typeof file.type === "string" ? file.type : ""
+  const normalizedType = normalizeDocumentMime(rawType)
+  const fileMime = IGNORED_BROWSER_MIMES.has(normalizedType) ? "" : normalizedType
   const nameMime = mimeFromFileName(file.name || "") || ""
+
+  // Prefer extension when present — browsers often send wrong or empty MIME types.
+  if (nameMime && allowed.has(nameMime)) return true
+  if (fileMime && allowed.has(fileMime)) return true
+
   const candidateMimes = [fileMime, nameMime].filter(Boolean)
   if (candidateMimes.length === 0) return true
-  if (candidateMimes.some((mime) => allowed.has(mime))) return true
 
   const acceptsImages = [...allowed].some((m) => m.startsWith("image/"))
   if (
@@ -109,6 +159,16 @@ export function isAcceptedDocumentFileType(
   ) {
     return true
   }
+
+  // Last resort: raw filename extension against shorthand allow-list entries.
+  const ext = pathOrUrlForExtension(file.name || "")
+    .trim()
+    .replace(/\.+$/, "")
+    .split(".")
+    .pop()
+    ?.trim()
+    .toLowerCase()
+  if (ext && (allowed.has(ext) || allowed.has(EXT_TO_MIME[ext] || ""))) return true
 
   return false
 }

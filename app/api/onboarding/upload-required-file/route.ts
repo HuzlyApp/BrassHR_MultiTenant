@@ -11,6 +11,13 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 export const runtime = "nodejs"
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_REQUIRED_FILE_UPLOAD_BYTES ?? 10 * 1024 * 1024)
 const ALLOWED_UPLOAD_TYPES = [
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "doc",
+  "docx",
   "application/pdf",
   "image/jpeg",
   "image/png",

@@ -388,10 +388,20 @@ export default function OnboardingConfigProvider({ children }: { children: React
       });
       const responsePayload = (await res.json().catch(() => ({}))) as {
         error?: string;
+        reason?: string;
         progress?: WorkerOnboardingProgressPayload;
       };
       if (!res.ok) {
-        throw new Error(responsePayload.error || "Could not update onboarding progress.");
+        const { formatOnboardingAccessError } = await import(
+          "@/lib/onboarding/upload-required-file-client"
+        );
+        throw new Error(
+          formatOnboardingAccessError(
+            responsePayload,
+            res.status,
+            "Could not update onboarding progress."
+          )
+        );
       }
       if (latestProgressWrite.current.get(savedStepId) !== writeSeq) return;
 
