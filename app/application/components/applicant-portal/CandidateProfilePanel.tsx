@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name";
 import { formatPhoneNumber } from "@/lib/phone";
-import { US_STATE_CODE_TO_NAME } from "@/lib/us-state-names";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
 import {
@@ -39,13 +38,7 @@ type ProfileForm = {
   bio: string;
 };
 
-type DepartmentOption = { id: string; name: string };
-
 type FieldErrors = Partial<Record<keyof ProfileForm, string>>;
-
-const STATE_OPTIONS = Object.entries(US_STATE_CODE_TO_NAME).sort((a, b) =>
-  a[1].localeCompare(b[1])
-);
 
 const EMPTY_FORM: ProfileForm = {
   firstName: "",
@@ -87,7 +80,6 @@ export function CandidateProfilePanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [baseline, setBaseline] = useState<ProfileForm>(EMPTY_FORM);
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -112,7 +104,6 @@ export function CandidateProfilePanel() {
         });
         const payload = (await res.json().catch(() => ({}))) as {
           profile?: ProfileForm & { profilePhotoUrl?: string | null; displayName?: string };
-          departments?: DepartmentOption[];
           error?: string;
         };
         if (!res.ok) throw new Error(payload.error || "Could not load settings.");
@@ -138,7 +129,6 @@ export function CandidateProfilePanel() {
         };
         setForm(next);
         setBaseline(next);
-        setDepartments(payload.departments ?? []);
         setPhotoUrl(payload.profile?.profilePhotoUrl ?? null);
         setDisplayName(payload.profile?.displayName ?? "");
       } catch (err) {
@@ -178,7 +168,6 @@ export function CandidateProfilePanel() {
       });
       const payload = (await res.json().catch(() => ({}))) as {
         profile?: ProfileForm & { profilePhotoUrl?: string | null; displayName?: string };
-        departments?: DepartmentOption[];
         fieldErrors?: FieldErrors;
         error?: string;
       };
@@ -206,7 +195,6 @@ export function CandidateProfilePanel() {
       };
       setForm(next);
       setBaseline(next);
-      if (payload.departments) setDepartments(payload.departments);
       toast.success("Profile saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
@@ -283,7 +271,7 @@ export function CandidateProfilePanel() {
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-10`}>
       <CandidatePageIntro
         title="Profile & Account"
-        subtitle="Manage your personal and professional information, login details and account preferences."
+        subtitle="Manage your personal information, login details and account preferences."
       />
       <CandidateSettingsTabs active="profile" />
 
@@ -401,11 +389,12 @@ export function CandidateProfilePanel() {
                     type="email"
                     className={FIELD_CLASS}
                     value={form.email}
-                    onChange={(event) => updateField("email", event.target.value)}
+                    readOnly
+                    disabled
                   />
-                  {fieldErrors.email ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
-                  ) : null}
+                  <p className="mt-1 text-xs text-[#6B7280]">
+                    Contact support if you need to change your registered email.
+                  </p>
                 </div>
                 <div>
                   <FieldLabel htmlFor="settings-phone">Phone Number</FieldLabel>
@@ -431,157 +420,10 @@ export function CandidateProfilePanel() {
                     type="date"
                     className={FIELD_CLASS}
                     value={form.birthdate}
-                    disabled
-                    readOnly
+                    onChange={(event) => updateField("birthdate", event.target.value)}
                   />
-                </div>
-              </div>
-            </div>
-
-            <div className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-4 p-5`}>
-              <SectionTitle>Professional Information</SectionTitle>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <FieldLabel htmlFor="settings-job-title">Job Title</FieldLabel>
-                  <input
-                    id="settings-job-title"
-                    className={FIELD_CLASS}
-                    value={form.jobTitle}
-                    onChange={(event) => updateField("jobTitle", event.target.value)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-department">Department</FieldLabel>
-                  <select
-                    id="settings-department"
-                    className={FIELD_CLASS}
-                    value={form.departmentId}
-                    disabled
-                  >
-                    <option value="">Select department</option>
-                    {departments.map((department) => (
-                      <option key={department.id} value={department.id}>
-                        {department.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-employee-id">Employee ID</FieldLabel>
-                  <input
-                    id="settings-employee-id"
-                    className={FIELD_CLASS}
-                    value={form.employeeId}
-                    disabled
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-company-work-location">Company Work Location</FieldLabel>
-                  <input
-                    id="settings-company-work-location"
-                    className={FIELD_CLASS}
-                    value={form.companyWorkLocation}
-                    placeholder="Assigned by your recruiter"
-                    disabled
-                    readOnly
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <FieldLabel htmlFor="settings-bio">Bio</FieldLabel>
-                  <textarea
-                    id="settings-bio"
-                    rows={4}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
-                    value={form.bio}
-                    maxLength={1000}
-                    placeholder="Tell others a little about yourself"
-                    onChange={(event) => updateField("bio", event.target.value)}
-                  />
-                  {fieldErrors.bio ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.bio}</p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <SectionTitle>Worker Address</SectionTitle>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <FieldLabel htmlFor="settings-address1">Address Line 1</FieldLabel>
-                  <input
-                    id="settings-address1"
-                    className={FIELD_CLASS}
-                    value={form.address1}
-                    autoComplete="address-line1"
-                    placeholder="Street address"
-                    onChange={(event) => updateField("address1", event.target.value)}
-                  />
-                  {fieldErrors.address1 ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address1}</p>
-                  ) : null}
-                </div>
-                <div className="md:col-span-2">
-                  <FieldLabel htmlFor="settings-address2">Address Line 2</FieldLabel>
-                  <input
-                    id="settings-address2"
-                    className={FIELD_CLASS}
-                    value={form.address2}
-                    autoComplete="address-line2"
-                    placeholder="Apt, suite, unit (optional)"
-                    onChange={(event) => updateField("address2", event.target.value)}
-                  />
-                  {fieldErrors.address2 ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address2}</p>
-                  ) : null}
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-city">City</FieldLabel>
-                  <input
-                    id="settings-city"
-                    className={FIELD_CLASS}
-                    value={form.city}
-                    autoComplete="address-level2"
-                    onChange={(event) => updateField("city", event.target.value)}
-                  />
-                  {fieldErrors.city ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
-                  ) : null}
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-state">State</FieldLabel>
-                  <select
-                    id="settings-state"
-                    className={FIELD_CLASS}
-                    value={form.state}
-                    autoComplete="address-level1"
-                    onChange={(event) => updateField("state", event.target.value)}
-                  >
-                    <option value="">Select state</option>
-                    {STATE_OPTIONS.map(([code, name]) => (
-                      <option key={code} value={code}>
-                        {code} — {name}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.state ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.state}</p>
-                  ) : null}
-                </div>
-                <div>
-                  <FieldLabel htmlFor="settings-zip">Zipcode</FieldLabel>
-                  <input
-                    id="settings-zip"
-                    className={FIELD_CLASS}
-                    value={form.zip}
-                    inputMode="numeric"
-                    autoComplete="postal-code"
-                    placeholder="12345"
-                    onChange={(event) => updateField("zip", event.target.value)}
-                  />
-                  {fieldErrors.zip ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.zip}</p>
+                  {fieldErrors.birthdate ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.birthdate}</p>
                   ) : null}
                 </div>
               </div>

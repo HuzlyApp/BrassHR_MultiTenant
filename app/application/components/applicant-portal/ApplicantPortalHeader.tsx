@@ -68,6 +68,7 @@ export function ApplicantPortalHeader({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<WorkerNotification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -103,8 +104,12 @@ export function ApplicantPortalHeader({
     };
     if (!res.ok) return;
 
-    setNotifications(payload.notifications ?? []);
+    const nextNotifications = payload.notifications ?? [];
+    setNotifications(nextNotifications);
     setUnreadNotifications(Math.max(0, payload.unreadNotifications ?? 0));
+    setUnreadMessages(
+      nextNotifications.filter((item) => !item.is_read && item.type === "message").length
+    );
   }, [authHeaders]);
 
   const markNotificationRead = useCallback(
@@ -119,6 +124,9 @@ export function ApplicantPortalHeader({
         current.map((item) => (item.id === notificationId ? { ...item, is_read: true } : item))
       );
       setUnreadNotifications((current) => Math.max(0, current - 1));
+      if (target?.type === "message") {
+        setUnreadMessages((current) => Math.max(0, current - 1));
+      }
 
       try {
         const headers = await authHeaders();
@@ -132,6 +140,9 @@ export function ApplicantPortalHeader({
       } catch {
         setNotifications(previousNotifications);
         setUnreadNotifications(previousUnread);
+        setUnreadMessages(
+          previousNotifications.filter((item) => !item.is_read && item.type === "message").length
+        );
       }
     },
     [authHeaders, notifications, unreadNotifications]
@@ -144,6 +155,7 @@ export function ApplicantPortalHeader({
     const previousUnread = unreadNotifications;
 
     setUnreadNotifications(0);
+    setUnreadMessages(0);
     setNotifications([]);
 
     try {
@@ -158,6 +170,9 @@ export function ApplicantPortalHeader({
     } catch {
       setNotifications(previousNotifications);
       setUnreadNotifications(previousUnread);
+      setUnreadMessages(
+        previousNotifications.filter((item) => !item.is_read && item.type === "message").length
+      );
     } finally {
       setClearingAll(false);
     }
@@ -170,6 +185,7 @@ export function ApplicantPortalHeader({
     const previousUnread = unreadNotifications;
 
     setUnreadNotifications(0);
+    setUnreadMessages(0);
     setNotifications((current) => current.map((item) => ({ ...item, is_read: true })));
 
     try {
@@ -184,6 +200,9 @@ export function ApplicantPortalHeader({
     } catch {
       setNotifications(previousNotifications);
       setUnreadNotifications(previousUnread);
+      setUnreadMessages(
+        previousNotifications.filter((item) => !item.is_read && item.type === "message").length
+      );
     } finally {
       setMarkingAllRead(false);
     }
@@ -331,65 +350,67 @@ export function ApplicantPortalHeader({
         </div>
 
         <div className="min-w-0 flex-1 justify-center px-1 max-[319px]:px-0.5">
-          <div ref={searchAreaRef} className="relative mx-auto w-full max-w-[520px]">
-            <label className="relative block w-full">
-              <span className="sr-only">Search anything</span>
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94A3B8] min-[1000px]:left-3 min-[1000px]:h-4 min-[1000px]:w-4" />
-              <input
-                ref={searchInputRef}
-                type="search"
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setSearchOpen(true);
-                }}
-                onFocus={() => setSearchOpen(true)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Search anything"
-                autoComplete="off"
-                aria-expanded={searchOpen}
-                aria-controls="worker-portal-search-results"
-                className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white pl-8 pr-2.5 text-[13px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] min-[1000px]:h-10 min-[1000px]:pl-10 min-[1000px]:pr-4 min-[1000px]:text-[14px]"
-              />
-            </label>
+          {candidatePortal ? null : (
+            <div ref={searchAreaRef} className="relative mx-auto w-full max-w-[520px]">
+              <label className="relative block w-full">
+                <span className="sr-only">Search anything</span>
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94A3B8] min-[1000px]:left-3 min-[1000px]:h-4 min-[1000px]:w-4" />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="Search anything"
+                  autoComplete="off"
+                  aria-expanded={searchOpen}
+                  aria-controls="worker-portal-search-results"
+                  className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white pl-8 pr-2.5 text-[13px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] min-[1000px]:h-10 min-[1000px]:pl-10 min-[1000px]:pr-4 min-[1000px]:text-[14px]"
+                />
+              </label>
 
-            {searchOpen ? (
-              <div
-                id="worker-portal-search-results"
-                role="listbox"
-                className="worker-portal-search-results absolute left-0 right-0 top-[calc(100%+6px)] z-[130] max-h-[min(360px,70vh)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
-              >
-                <div className="max-h-[min(360px,70vh)] overflow-y-auto py-1">
-                  {flatResults.length === 0 ? (
-                    <p className="px-3 py-3 text-sm text-[#64748B] min-[1000px]:px-4">No matches found.</p>
-                  ) : (
-                    flatResults.map((item, index) => {
-                      const active = index === activeIndex;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          role="option"
-                          aria-selected={active}
-                          onMouseEnter={() => setActiveIndex(index)}
-                          onClick={() => navigateToSearchItem(item)}
-                          className={`flex w-full min-w-0 flex-col gap-0.5 px-3 py-2.5 text-left transition min-[1000px]:px-4 ${
-                            active ? "bg-[#F8FAFC]" : "bg-white hover:bg-[#F8FAFC]"
-                          }`}
-                        >
-                          <span className="truncate text-sm font-semibold text-[#0F172A]">{item.label}</span>
-                          <span className="truncate text-xs text-[#64748B]">{item.description}</span>
-                        </button>
-                      );
-                    })
-                  )}
+              {searchOpen ? (
+                <div
+                  id="worker-portal-search-results"
+                  role="listbox"
+                  className="worker-portal-search-results absolute left-0 right-0 top-[calc(100%+6px)] z-[130] max-h-[min(360px,70vh)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+                >
+                  <div className="max-h-[min(360px,70vh)] overflow-y-auto py-1">
+                    {flatResults.length === 0 ? (
+                      <p className="px-3 py-3 text-sm text-[#64748B] min-[1000px]:px-4">No matches found.</p>
+                    ) : (
+                      flatResults.map((item, index) => {
+                        const active = index === activeIndex;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            role="option"
+                            aria-selected={active}
+                            onMouseEnter={() => setActiveIndex(index)}
+                            onClick={() => navigateToSearchItem(item)}
+                            className={`flex w-full min-w-0 flex-col gap-0.5 px-3 py-2.5 text-left transition min-[1000px]:px-4 ${
+                              active ? "bg-[#F8FAFC]" : "bg-white hover:bg-[#F8FAFC]"
+                            }`}
+                          >
+                            <span className="truncate text-sm font-semibold text-[#0F172A]">{item.label}</span>
+                            <span className="truncate text-xs text-[#64748B]">{item.description}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div className="border-t border-[#F1F5F9] px-3 py-2 text-[11px] text-[#94A3B8] min-[1000px]:px-4">
+                    Enter to open · Esc to close
+                  </div>
                 </div>
-                <div className="border-t border-[#F1F5F9] px-3 py-2 text-[11px] text-[#94A3B8] min-[1000px]:px-4">
-                  Enter to open · Esc to close
-                </div>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         <div className="ml-0 flex shrink-0 items-center gap-1 sm:gap-3">
@@ -400,10 +421,17 @@ export function ApplicantPortalHeader({
                 setNotificationsOpen(false);
                 onOpenMessages?.();
               }}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
-              aria-label="Open messages"
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
+              aria-label={
+                unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : "Open messages"
+              }
             >
-              <SidebarNavIcon iconType="Chat" active={false} />
+              <SidebarNavIcon
+                iconType="Chat"
+                active={false}
+                colorHex={unreadMessages > 0 ? "#EF4444" : undefined}
+              />
+              <HeaderIconCountBadge count={unreadMessages} />
             </button>
             <button
               ref={notificationsButtonRef}

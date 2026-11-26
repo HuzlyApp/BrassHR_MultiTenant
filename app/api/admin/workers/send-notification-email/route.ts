@@ -7,8 +7,10 @@ import { sendOnboardingApplicantEmail } from "@/lib/email/send-templated-email";
 import { SendEmailError } from "@/lib/email/errors";
 import {
   EMAIL_TEMPLATE_TYPE,
+  EMAIL_TEMPLATE_TYPE_LABELS,
   isOnboardingEmailTemplateKey,
 } from "@/lib/email-templates/template-keys";
+import { createNotification } from "@/lib/notifications/create-notification";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
@@ -95,6 +97,21 @@ export async function POST(req: NextRequest) {
       origin,
       reason: body.reason,
     });
+
+    const applicantUserId =
+      typeof worker.user_id === "string" ? worker.user_id.trim() : "";
+    if (applicantUserId && result.sent) {
+      const title =
+        EMAIL_TEMPLATE_TYPE_LABELS[body.templateKey] ?? "New notification";
+      await createNotification(supabase, {
+        tenantId,
+        userId: applicantUserId,
+        type: "admin_email",
+        title,
+        body: body.reason?.trim() || "You have a new message from your recruiter.",
+        link: "/application/candidate/notifications",
+      });
+    }
 
     return NextResponse.json({
       ok: true,
