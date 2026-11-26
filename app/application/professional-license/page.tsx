@@ -5,7 +5,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import { validateCredentialDates } from "@/lib/professions/catalog";
 import { MAX_PROFESSION_DOCUMENT_FILES } from "@/lib/professions/profession-documents";
-import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
+import {
+  coerceAcceptedFileTypes,
+  isAcceptedDocumentFileType,
+} from "@/lib/document-upload-helpers";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
 import {
   APPLICANT_ACTION_ROW,
@@ -79,15 +82,15 @@ const DEFAULT_ACCEPTED_TYPES = [
 ];
 
 const FILE_INPUT_ACCEPT =
-  "image/png,image/jpeg,image/jpg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/jpg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const FILE_TYPE_HINT = "PNG, JPG, PDF, DOC, or DOCX";
 
 function acceptedTypesForDoc(doc?: TenantRequiredDocument | null): string[] {
-  const configured = Array.isArray(doc?.accepted_file_types) ? doc.accepted_file_types : [];
-  // Always allow the standard document set so Word uploads work even when older
-  // tenant rows only list pdf/png/jpeg.
-  return configured.length ? [...configured, ...DEFAULT_ACCEPTED_TYPES] : DEFAULT_ACCEPTED_TYPES;
+  const configured = coerceAcceptedFileTypes(doc?.accepted_file_types);
+  // Always allow the formats advertised in the UI (PNG/JPG/PDF/DOC/DOCX), even when
+  // older tenant rows only list a subset like pdf/png/jpeg.
+  return [...new Set([...configured, ...DEFAULT_ACCEPTED_TYPES])];
 }
 
 function emptySlots(): Record<UploadType, UploadSlot | null> {

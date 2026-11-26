@@ -124,7 +124,7 @@ export function attachProfessionDocuments(
     description: professionDocumentKindLabel(doc.documentKind),
     is_required: doc.isRequired,
     sort_order: doc.sortOrder,
-    accepted_file_types: ["pdf", "png", "jpg", "jpeg", "webp"],
+    accepted_file_types: ["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx"],
     max_file_size_mb: 10,
     source: "profession",
     has_expiration: doc.hasExpiration,

@@ -63,4 +63,10 @@ export function setScopedApplicantId(applicantId: string): void {
 
 export function clearScopedApplicantId(): void {
   removeHostnameScopedItem(APPLICANT_ID_KEY);
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(APPLICANT_ID_KEY);
+  } catch {
+    /* ignore */
+  }
 }

@@ -169,7 +169,7 @@ export function attachWorkflowDocuments(
     description: null,
     is_required: doc.is_required,
     sort_order: doc.sort_order,
-    accepted_file_types: ["pdf", "png", "jpg", "jpeg", "webp"],
+    accepted_file_types: ["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx"],
     max_file_size_mb: 10,
     source: "workflow",
     code: doc.code,

@@ -35,6 +35,11 @@ function readApplicantIdOrPreview(): string {
  */
 export default function ApplicationOnboardingBootstrap({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
+  const [sessionErrorMeta, setSessionErrorMeta] = useState<{
+    reason?: string;
+    signInHref?: string;
+    ownerEmail?: string | null;
+  } | null>(null);
   const [brand, setBrand] = useState<TenantBranding>(() => brandingFallbackForSlug(null));
   const [brandingReady, setBrandingReady] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
@@ -97,6 +102,11 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
 
         if (authResult && "error" in authResult) {
           setError(authResult.error);
+          setSessionErrorMeta({
+            reason: "reason" in authResult ? authResult.reason : undefined,
+            signInHref: "signInHref" in authResult ? authResult.signInHref : undefined,
+            ownerEmail: "ownerEmail" in authResult ? authResult.ownerEmail : undefined,
+          });
         } else {
           setSessionReady(true);
         }
@@ -129,15 +139,27 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
   ]);
 
   if (error) {
+    const ownership = sessionErrorMeta?.reason === "application_ownership";
     return (
       <TenantBrandingProvider branding={brand}>
         <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-700">
-          <p className="font-medium">Could not start onboarding session</p>
-          <p className="mt-2 text-gray-700">{error}</p>
-          <p className="mt-4 text-xs text-gray-500">
-            In Supabase Dashboard, enable Anonymous Sign-In (Authentication → Providers). Then refresh
-            this page.
+          <p className="font-medium">
+            {ownership ? "Sign in to continue this application" : "Could not start onboarding session"}
           </p>
+          <p className="mt-2 text-gray-700">{error}</p>
+          {ownership && sessionErrorMeta?.signInHref ? (
+            <a
+              href={sessionErrorMeta.signInHref}
+              className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Sign in{sessionErrorMeta.ownerEmail ? ` as ${sessionErrorMeta.ownerEmail}` : ""}
+            </a>
+          ) : (
+            <p className="mt-4 text-xs text-gray-500">
+              In Supabase Dashboard, enable Anonymous Sign-In (Authentication → Providers). Then refresh
+              this page.
+            </p>
+          )}
         </div>
       </TenantBrandingProvider>
     );

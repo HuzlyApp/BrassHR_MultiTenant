@@ -17,6 +17,9 @@ export function formatOnboardingAccessError(
     if (json.reason === "origin_mismatch") {
       return "Upload blocked by browser security. Open the application from the same site and try again.";
     }
+    if (json.reason === "application_ownership" || json.reason === "applicant_mismatch") {
+      return "This application belongs to a different browser session. Sign in with the email used on your application, then try again.";
+    }
     if (base && base !== "Forbidden") return base;
     return "Upload was blocked (session mismatch). Refresh the page and try again.";
   }

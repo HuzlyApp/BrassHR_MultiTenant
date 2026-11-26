@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
+import {
+  coerceAcceptedFileTypes,
+  isAcceptedDocumentFileType,
+} from "@/lib/document-upload-helpers";
 
 const NURSING_LICENSE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+const STANDARD_TYPES = [
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "doc",
+  "docx",
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 describe("isAcceptedDocumentFileType", () => {
   it("allows listed MIME types", () => {
@@ -53,5 +71,55 @@ describe("isAcceptedDocumentFileType", () => {
         NURSING_LICENSE_TYPES
       )
     ).toBe(false);
+  });
+
+  it("ignores octet-stream and trusts the file extension", () => {
+    expect(
+      isAcceptedDocumentFileType(
+        { type: "application/octet-stream", name: "license.pdf" },
+        NURSING_LICENSE_TYPES
+      )
+    ).toBe(true);
+    expect(
+      isAcceptedDocumentFileType(
+        { type: "application/octet-stream", name: "license.docx" },
+        STANDARD_TYPES
+      )
+    ).toBe(true);
+  });
+
+  it("strips MIME parameters like charset", () => {
+    expect(
+      isAcceptedDocumentFileType(
+        { type: "application/pdf; charset=utf-8", name: "license.pdf" },
+        NURSING_LICENSE_TYPES
+      )
+    ).toBe(true);
+  });
+
+  it("allows doc/docx against the standard allow-list", () => {
+    expect(
+      isAcceptedDocumentFileType(
+        { type: "application/msword", name: "license.doc" },
+        STANDARD_TYPES
+      )
+    ).toBe(true);
+    expect(
+      isAcceptedDocumentFileType(
+        {
+          type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          name: "license.docx",
+        },
+        STANDARD_TYPES
+      )
+    ).toBe(true);
+  });
+
+  it("parses postgres text-array style accepted types", () => {
+    const allowed = coerceAcceptedFileTypes("{application/pdf,image/jpeg,image/png}");
+    expect(allowed).toEqual(["application/pdf", "image/jpeg", "image/png"]);
+    expect(
+      isAcceptedDocumentFileType({ type: "image/png", name: "x.png" }, allowed)
+    ).toBe(true);
   });
 });

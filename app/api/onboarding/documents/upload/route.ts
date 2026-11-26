@@ -7,7 +7,10 @@ import {
   readOnboardingTenantSlugFromRequest,
   resolveOnboardingWorker,
 } from "@/lib/onboarding/resolve-onboarding-worker";
-import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
+import {
+  coerceAcceptedFileTypes,
+  isAcceptedDocumentFileType,
+} from "@/lib/document-upload-helpers";
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -41,10 +44,10 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200);
 }
 
-function resolveAcceptedTypes(configured: string[] | null | undefined): string[] {
-  const listed = Array.isArray(configured) ? configured.filter(Boolean) : [];
+function resolveAcceptedTypes(configured: unknown): string[] {
+  const listed = coerceAcceptedFileTypes(configured);
   // Keep tenant config, but always allow the standard document set (incl. Word).
-  return listed.length ? [...listed, ...DEFAULT_DOCUMENT_FILE_TYPES] : DEFAULT_DOCUMENT_FILE_TYPES;
+  return [...new Set([...listed, ...DEFAULT_DOCUMENT_FILE_TYPES])];
 }
 
 async function saveWorkflowCredentialUpload(input: {
