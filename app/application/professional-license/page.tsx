@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import { validateCredentialDates } from "@/lib/professions/catalog";
 import { MAX_PROFESSION_DOCUMENT_FILES } from "@/lib/professions/profession-documents";
+import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
 import {
   APPLICANT_ACTION_ROW,
@@ -60,8 +61,136 @@ const DOC_URL_KEY: Record<UploadType, "nursing_license_url" | "tb_test_url" | "c
   cpr: "cpr_certification_url",
 };
 
+const DEFAULT_ACCEPTED_TYPES = [
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "doc",
+  "docx",
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const FILE_INPUT_ACCEPT =
+  "image/png,image/jpeg,image/jpg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+const FILE_TYPE_HINT = "PNG, JPG, PDF, DOC, or DOCX";
+
+function acceptedTypesForDoc(doc?: TenantRequiredDocument | null): string[] {
+  const configured = Array.isArray(doc?.accepted_file_types) ? doc.accepted_file_types : [];
+  // Always allow the standard document set so Word uploads work even when older
+  // tenant rows only list pdf/png/jpeg.
+  return configured.length ? [...configured, ...DEFAULT_ACCEPTED_TYPES] : DEFAULT_ACCEPTED_TYPES;
+}
+
 function emptySlots(): Record<UploadType, UploadSlot | null> {
   return { license: null, tb: null, cpr: null };
+}
+
+function LicenseFileDropzone({
+  primaryHex,
+  inputId,
+  multiple,
+  disabled,
+  empty,
+  onFiles,
+}: {
+  primaryHex: string;
+  inputId: string;
+  multiple?: boolean;
+  disabled?: boolean;
+  empty: boolean;
+  onFiles: (files: FileList | File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  function openPicker() {
+    if (disabled) return;
+    inputRef.current?.click();
+  }
+
+  function take(files: FileList | File[] | null | undefined) {
+    if (!files || disabled) return;
+    const list = Array.from(files);
+    if (!list.length) return;
+    onFiles(multiple ? list : [list[0]]);
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      onClick={openPicker}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openPicker();
+        }
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) setDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        setDragActive(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragActive(false);
+        take(event.dataTransfer.files);
+      }}
+      className={`block w-full cursor-pointer rounded-xl border border-dashed px-6 text-center transition hover:bg-slate-50 ${
+        empty ? "min-h-[206px] py-6" : "min-h-[120px] py-4"
+      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+      style={{
+        borderColor: primaryHex,
+        backgroundColor: dragActive ? `${primaryHex}14` : undefined,
+      }}
+    >
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        className="hidden"
+        multiple={multiple}
+        accept={FILE_INPUT_ACCEPT}
+        disabled={disabled}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(e) => {
+          const selected = e.target.files;
+          e.target.value = "";
+          take(selected);
+        }}
+      />
+      <div className="mx-auto flex h-full max-w-[360px] flex-col items-center justify-center gap-3">
+        <BrandedUploadIcon className="h-9 w-9" primaryHex={primaryHex} />
+        <p className="text-[12px] font-normal leading-5 text-slate-800">
+          {disabled
+            ? "Uploading…"
+            : empty
+              ? "Drag your file(s) to start uploading"
+              : "Add more files"}
+        </p>
+        <p className="text-[10px] font-normal leading-4 text-slate-400">OR</p>
+        <span
+          className="rounded-md border px-4 py-1 text-[12px] font-medium leading-5"
+          style={{ borderColor: primaryHex, color: primaryHex }}
+        >
+          Browse files
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function readSlotsFromStorage(): Record<UploadType, UploadSlot | null> {
@@ -305,9 +434,14 @@ export default function Step2License() {
     const selected = Array.from(incoming).slice(0, remaining);
     if (!selected.length) return;
 
+    const accepted = acceptedTypesForDoc(doc);
     for (const file of selected) {
       if (file.size > maxBytes) {
         setError(`Max file size is ${doc.max_file_size_mb || 10} MB.`);
+        return;
+      }
+      if (!isAcceptedDocumentFileType(file, accepted)) {
+        setError(`File type not allowed for ${doc.title}. Upload a ${FILE_TYPE_HINT}.`);
         return;
       }
     }
@@ -391,6 +525,10 @@ export default function Step2License() {
   const uploadForType = async (file: File, type: UploadType) => {
     if (file.size > MAX_BYTES) {
       setError("Max file size is 10 MB.");
+      return;
+    }
+    if (!isAcceptedDocumentFileType(file, DEFAULT_ACCEPTED_TYPES)) {
+      setError(`File type not allowed. Upload a ${FILE_TYPE_HINT}.`);
       return;
     }
 
@@ -575,38 +713,19 @@ export default function Step2License() {
           </ul>
         ) : null}
         {canAddMore ? (
-          <label
-            htmlFor={inputId}
-            className={`block w-full cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] px-6 text-center transition hover:bg-slate-50 ${
-              slots.length ? "min-h-[120px] py-4" : "min-h-[206px] py-6"
-            }`}
-          >
-            <input
-              id={inputId}
-              type="file"
-              className="hidden"
+          <div className="space-y-2">
+            <LicenseFileDropzone
+              primaryHex={branding.primaryHex}
+              inputId={inputId}
               multiple={maxFiles > 1}
-              accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
-              onChange={(e) => {
-                const selected = e.target.files;
-                e.target.value = "";
-                if (selected?.length) onUpload(selected);
-              }}
+              disabled={slots.some((slot) => slot.uploading)}
+              empty={slots.length === 0}
+              onFiles={onUpload}
             />
-            <div className="mx-auto flex h-full max-w-[360px] flex-col items-center justify-center gap-3">
-              <BrandedUploadIcon className="h-9 w-9" primaryHex={branding.primaryHex} />
-              <p className="text-[12px] font-normal leading-5 text-slate-800">
-                {slots.length ? "Add more files" : "Drag your file(s) to start uploading"}
-              </p>
-              <p className="text-[10px] font-normal leading-4 text-slate-400">OR</p>
-              <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]">
-                Browse files
-              </span>
-              <p className="text-[10px] font-normal leading-4 text-slate-500">
-                Up to {maxFiles} files · Max {doc.max_file_size_mb || 10} MB each — PNG, JPG, or PDF
-              </p>
-            </div>
-          </label>
+            <p className="text-center text-[10px] font-normal leading-4 text-slate-500">
+              Up to {maxFiles} files · Max {doc.max_file_size_mb || 10} MB each — {FILE_TYPE_HINT}
+            </p>
+          </div>
         ) : (
           <p className="text-[11px] text-slate-500">Maximum of {maxFiles} files uploaded.</p>
         )}
@@ -650,33 +769,20 @@ export default function Step2License() {
             </button>
           </div>
         ) : (
-          <label
-            htmlFor={inputId}
-            className="block w-full min-h-[206px] cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] px-6 py-6 text-center transition hover:bg-slate-50"
-          >
-            <input
-              id={inputId}
-              type="file"
-              className="hidden"
-              accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
-              onChange={(e) => {
-                const selected = e.target.files?.[0];
-                e.target.value = "";
-                if (selected) void uploadForType(selected, type);
+          <div className="space-y-2">
+            <LicenseFileDropzone
+              primaryHex={branding.primaryHex}
+              inputId={inputId}
+              empty
+              onFiles={(selected) => {
+                const first = Array.from(selected)[0];
+                if (first) void uploadForType(first, type);
               }}
             />
-            <div className="mx-auto flex h-full max-w-[360px] flex-col items-center justify-center gap-3">
-              <BrandedUploadIcon className="h-9 w-9" primaryHex={branding.primaryHex} />
-              <p className="text-[12px] font-normal leading-5 text-slate-800">
-                Drag your file(s) to start uploading
-              </p>
-              <p className="text-[10px] font-normal leading-4 text-slate-400">OR</p>
-              <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]">
-                Browse files
-              </span>
-              <p className="text-[10px] font-normal leading-4 text-slate-500">Max 10 MB — PNG, JPG, or PDF</p>
-            </div>
-          </label>
+            <p className="text-center text-[10px] font-normal leading-4 text-slate-500">
+              Max 10 MB — {FILE_TYPE_HINT}
+            </p>
+          </div>
         )}
       </div>
     );
@@ -796,7 +902,7 @@ export default function Step2License() {
           ) : null}
 
           <p className="mt-3 text-[10px] font-normal leading-4 text-slate-500">
-            Only support png, jpg or pdf files
+            Supported formats: {FILE_TYPE_HINT}
           </p>
           <p className="mt-1 text-[10px] font-normal leading-4 text-slate-500">
             You can continue now and come back to upload any missing documents later.

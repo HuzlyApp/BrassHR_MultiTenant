@@ -10,9 +10,11 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_REQUIRED_FILE_UPLOAD_BYTES ?? 10 * 1024 * 1024)
-const ALLOWED_UPLOAD_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"]
-const ALLOWED_EXTRA_FILE_TYPES = [
-  ...ALLOWED_UPLOAD_TYPES,
+const ALLOWED_UPLOAD_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]
@@ -59,14 +61,10 @@ export async function POST(req: Request) {
     if (!allowedFolder.test(folder)) {
       return NextResponse.json({ error: "Invalid folder" }, { status: 400 })
     }
-    const allowedTypes = folder === "other" ? ALLOWED_EXTRA_FILE_TYPES : ALLOWED_UPLOAD_TYPES
-    if (!isAcceptedDocumentFileType(file, allowedTypes)) {
+    if (!isAcceptedDocumentFileType(file, ALLOWED_UPLOAD_TYPES)) {
       return NextResponse.json(
         {
-          error:
-            folder === "other"
-              ? "File type not allowed. Upload a PNG, JPG, WebP, PDF, DOC, or DOCX."
-              : "File type not allowed. Upload a PNG, JPG, WebP, or PDF.",
+          error: "File type not allowed. Upload a PNG, JPG, WebP, PDF, DOC, or DOCX.",
         },
         { status: 400 }
       )
