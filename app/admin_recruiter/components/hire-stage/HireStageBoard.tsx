@@ -268,15 +268,15 @@ export function HireStageBoard({
 
   return (
     <>
-      <div className="flex flex-col gap-4">
+      <div className="flex w-full min-w-0 flex-col gap-3 sm:gap-4">
         {/* Centered under Pre Hire / Post Hire tabs */}
-        <div className="flex w-full justify-center">
+        <div className="flex w-full min-w-0 justify-center">
           <HireStageStepper stages={stages} />
         </div>
 
-        <header className="w-full shrink-0">
+        <header className="w-full min-w-0 shrink-0">
           <h1
-            className="text-3xl font-bold tracking-tight"
+            className="text-2xl font-bold tracking-tight sm:text-3xl"
             style={{ color: "var(--brand-secondary)" }}
           >
             {title}
@@ -318,8 +318,9 @@ export function HireStageBoard({
             />
           </>
         ) : (
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-            <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start">
+            {/* Profile first on small screens; accordion leads on desktop */}
+            <div className="order-2 min-w-0 flex-1 lg:order-1">
               <HireStageAccordion
                 stages={stages}
                 workflowSteps={steps}
@@ -336,26 +337,28 @@ export function HireStageBoard({
               />
             </div>
 
-            <HireStageSidebar
-              lifecycle={lifecycle}
-              profile={profile}
-              workerId={workerId}
-              templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
-              progressPercent={progressMeta.percent}
-              progressLabel={progressMeta.label}
-              lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
-              showProceedToPostHire={preHireComplete && phaseView?.workflowHasPostHireSteps !== false}
-              proceedDisabledReason={proceedDisabledReason}
-              aiAnalysisHref={aiAnalysisHref}
-              proceedBusy={activatingPostHire}
-              proceedError={activatePostHireError}
-              proceedNote={
-                canActivatePostHire
-                  ? "This marks the candidate as hired and emails them their Post-Hire steps."
-                  : null
-              }
-              onProceedToPostHire={() => void proceedToPostHire()}
-            />
+            <div className="order-1 w-full min-w-0 lg:order-2 lg:w-auto lg:shrink-0">
+              <HireStageSidebar
+                lifecycle={lifecycle}
+                profile={profile}
+                workerId={workerId}
+                templateName={assignment?.workflowName ?? phaseView?.currentWorkflowName ?? null}
+                progressPercent={progressMeta.percent}
+                progressLabel={progressMeta.label}
+                lastUpdated={formatLongDate(phaseView?.phaseStartedAt ?? assignment?.assignedAt)}
+                showProceedToPostHire={preHireComplete && phaseView?.workflowHasPostHireSteps !== false}
+                proceedDisabledReason={proceedDisabledReason}
+                aiAnalysisHref={aiAnalysisHref}
+                proceedBusy={activatingPostHire}
+                proceedError={activatePostHireError}
+                proceedNote={
+                  canActivatePostHire
+                    ? "This marks the candidate as hired and emails them their Post-Hire steps."
+                    : null
+                }
+                onProceedToPostHire={() => void proceedToPostHire()}
+              />
+            </div>
           </div>
         )}
       </div>

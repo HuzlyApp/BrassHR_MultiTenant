@@ -7,12 +7,11 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
   if (!stages.length) return null;
 
   const ICON_PX = 20;
-  const LINE_W = stages.length > 5 ? 72 : 124;
   const LINE_H = 2;
 
   return (
-    <nav aria-label="Hire stage progress" className="w-full overflow-x-auto pb-8">
-      <div className="mx-auto flex w-max items-start justify-center px-4">
+    <nav aria-label="Hire stage progress" className="w-full min-w-0 overflow-x-auto pb-8 [-webkit-overflow-scrolling:touch]">
+      <div className="mx-auto flex w-max max-w-full items-start justify-center px-2 sm:px-4">
         {stages.map((stage, index) => {
           const isLast = index === stages.length - 1;
           const done = stage.status === "completed";
@@ -47,7 +46,7 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
                   />
                 )}
                 <span
-                  className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap text-center text-[11px] font-medium leading-tight sm:text-xs"
+                  className="absolute left-1/2 top-full mt-2 max-w-[4.5rem] -translate-x-1/2 text-center text-[10px] font-medium leading-tight sm:max-w-none sm:whitespace-nowrap sm:text-xs"
                   style={{ color: upcoming ? "#9CA3AF" : "var(--hj-stepper, var(--brand-primary))" }}
                 >
                   {stage.name}
@@ -56,10 +55,8 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
 
               {!isLast ? (
                 <div
-                  className="shrink-0"
+                  className="h-0.5 w-10 shrink-0 sm:w-[72px] md:w-[100px] lg:w-[124px]"
                   style={{
-                    width: LINE_W,
-                    height: LINE_H,
                     marginTop: (ICON_PX - LINE_H) / 2,
                     backgroundColor: connectorFilled
                       ? "var(--hj-stepper, var(--brand-primary))"

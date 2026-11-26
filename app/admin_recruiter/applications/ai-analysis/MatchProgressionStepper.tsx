@@ -18,9 +18,6 @@ type StepTone = "current" | "completed" | "upcoming";
 
 const CHEVRON_SRC = "/icons/admin-recruiter/ai-analysis/chevron.svg";
 
-/** Wide enough for "Follow-Up" + "Enrichment" on one line. */
-const STEP_MIN_WIDTH_CLASS = "min-w-[13.75rem] sm:min-w-[14.5rem] lg:min-w-[15.25rem]";
-
 const STEP_ICONS: Record<
   MatchProgressionStepId,
   { src: string; frameClass: string; nested?: boolean }
@@ -88,12 +85,12 @@ function StepSubtitle({ text, tone }: { text: string; tone: StepTone }) {
 
   if (parts.length < 2) {
     return (
-      <span className={`whitespace-nowrap text-xs font-normal leading-4 ${color}`}>{text}</span>
+      <span className={`text-xs font-normal leading-4 ${color}`}>{text}</span>
     );
   }
 
   return (
-    <span className={`flex items-center gap-1 whitespace-nowrap text-xs font-normal leading-4 ${color}`}>
+    <span className={`flex flex-wrap items-center gap-1 text-xs font-normal leading-4 ${color}`}>
       {parts.map((part, index) => (
         <span key={`${part}-${index}`} className="flex items-center gap-1">
           {index > 0 ? <span className={bulletColor}>•</span> : null}
@@ -111,6 +108,7 @@ function StepButton({
   unlockedIndex,
   canAdvance,
   onSelect,
+  compact = false,
 }: {
   step: MatchProgressionStep;
   index: number;
@@ -118,6 +116,7 @@ function StepButton({
   unlockedIndex: number;
   canAdvance: boolean;
   onSelect: (index: number) => void;
+  compact?: boolean;
 }) {
   const tone = stepTone(index, viewedIndex);
   const enabled = canSelectMatchProgressionStep({
@@ -140,36 +139,36 @@ function StepButton({
   const labelColor = tone === "upcoming" ? "text-[#374151]" : "text-white";
 
   return (
-    <li className={`${STEP_MIN_WIDTH_CLASS} flex-1`}>
+    <li className={compact ? "w-full" : "min-w-[12.5rem] flex-1 sm:min-w-[13.75rem] lg:min-w-0"}>
       <button
         type="button"
         disabled={!enabled}
         aria-current={tone === "current" ? "step" : undefined}
         onClick={() => onSelect(index)}
-        className={`flex h-full min-h-[86px] w-full items-center justify-center rounded-lg px-3.5 py-3 text-left transition ${cardClass} ${hoverClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
+        className={`flex h-full w-full items-center justify-center rounded-lg px-3 py-3 text-left transition sm:px-3.5 ${
+          compact ? "min-h-[72px]" : "min-h-[86px]"
+        } ${cardClass} ${hoverClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
       >
-        <span className="flex w-full items-center gap-3.5">
+        <span className="flex w-full items-center gap-3 sm:gap-3.5">
           <span className="flex shrink-0 items-center justify-center">
             <span
-              className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full p-2 ${
-                tone === "completed" ? "bg-[#001A46]" : "bg-[color:var(--brand-primary)]"
-              }`}
+              className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full p-2 ${
+                compact ? "size-9" : "size-10"
+              } ${tone === "completed" ? "bg-[#001A46]" : "bg-[color:var(--brand-primary)]"}`}
             >
               <StepGlyph stepId={step.id} />
             </span>
           </span>
-          <span className="flex min-w-0 flex-col gap-1">
+          <span className="flex min-w-0 flex-col gap-0.5 sm:gap-1">
             <span className="flex flex-col items-start">
               <span
-                className={`whitespace-nowrap font-normal ${labelColor} ${
+                className={`font-normal ${labelColor} ${
                   step.stepNumber === 1 ? "text-xs leading-4" : "text-sm leading-5"
                 }`}
               >
                 STEP {step.stepNumber}
               </span>
-              <span
-                className={`whitespace-nowrap text-base font-semibold leading-5 ${labelColor}`}
-              >
+              <span className={`text-sm font-semibold leading-5 sm:text-base ${labelColor}`}>
                 {step.label}
               </span>
             </span>
@@ -188,34 +187,53 @@ export function MatchProgressionStepper({
   onSelect,
 }: MatchProgressionStepperProps) {
   return (
-    <nav aria-label="AI match progression" className="w-full overflow-x-auto pb-1">
-      <ol className="flex w-full min-w-[72rem] items-stretch lg:min-w-[78rem]">
-        {MATCH_PROGRESSION_STEPS.flatMap((step, index) => {
-          const nodes = [
-            <StepButton
-              key={step.id}
-              step={step}
-              index={index}
-              viewedIndex={viewedIndex}
-              unlockedIndex={unlockedIndex}
-              canAdvance={canAdvance}
-              onSelect={onSelect}
-            />,
-          ];
-          if (index < MATCH_PROGRESSION_STEPS.length - 1) {
-            nodes.push(
-              <li
-                key={`${step.id}-chevron`}
-                className="flex shrink-0 items-center justify-center px-2.5"
-                aria-hidden
-              >
-                <img alt="" className="block max-w-none" src={CHEVRON_SRC} />
-              </li>
-            );
-          }
-          return nodes;
-        })}
+    <nav aria-label="AI match progression" className="w-full min-w-0">
+      {/* Mobile / narrow: stack steps so the whole progression fits without sideways page scroll */}
+      <ol className="flex flex-col gap-2 md:hidden">
+        {MATCH_PROGRESSION_STEPS.map((step, index) => (
+          <StepButton
+            key={step.id}
+            step={step}
+            index={index}
+            viewedIndex={viewedIndex}
+            unlockedIndex={unlockedIndex}
+            canAdvance={canAdvance}
+            onSelect={onSelect}
+            compact
+          />
+        ))}
       </ol>
+
+      {/* Tablet+: horizontal track with scroll only when needed */}
+      <div className="hidden w-full min-w-0 overflow-x-auto pb-1 md:block">
+        <ol className="flex w-full min-w-0 items-stretch lg:min-w-0">
+          {MATCH_PROGRESSION_STEPS.flatMap((step, index) => {
+            const nodes = [
+              <StepButton
+                key={step.id}
+                step={step}
+                index={index}
+                viewedIndex={viewedIndex}
+                unlockedIndex={unlockedIndex}
+                canAdvance={canAdvance}
+                onSelect={onSelect}
+              />,
+            ];
+            if (index < MATCH_PROGRESSION_STEPS.length - 1) {
+              nodes.push(
+                <li
+                  key={`${step.id}-chevron`}
+                  className="flex shrink-0 items-center justify-center px-1.5 lg:px-2.5"
+                  aria-hidden
+                >
+                  <img alt="" className="block max-w-none" src={CHEVRON_SRC} />
+                </li>
+              );
+            }
+            return nodes;
+          })}
+        </ol>
+      </div>
     </nav>
   );
 }

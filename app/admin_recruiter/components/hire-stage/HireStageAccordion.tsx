@@ -163,9 +163,9 @@ export function HireStageAccordion({
                   : { backgroundColor: "#FFFFFF" }
             }
           >
-            <div className="flex w-full items-center gap-3 px-4 py-3.5 sm:gap-4 sm:px-5">
+            <div className="flex w-full items-center gap-2 px-3 py-3 sm:gap-4 sm:px-5 sm:py-3.5">
               <span
-                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold sm:h-9 sm:w-9 ${
                   locked
                     ? "bg-[#E5E7EB] text-[#9CA3AF]"
                     : completed || current
@@ -187,10 +187,10 @@ export function HireStageAccordion({
                 type="button"
                 onClick={() => toggle(stage.id, locked)}
                 disabled={locked}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left sm:gap-4"
                 aria-expanded={open}
               >
-                <div className="relative h-[70px] w-[70px] shrink-0">
+                <div className="relative hidden h-[70px] w-[70px] shrink-0 sm:block">
                   <Image src={heroSrc} alt="" fill className="object-contain" sizes="70px" />
                 </div>
 
@@ -199,7 +199,7 @@ export function HireStageAccordion({
                     {stage.name}
                   </h3>
                   <p
-                    className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium"
+                    className="mt-0.5 inline-flex flex-wrap items-center gap-1.5 text-xs font-medium sm:text-sm"
                     style={{ color: locked ? "#9CA3AF" : undefined }}
                   >
                     {completed ? (
@@ -339,7 +339,7 @@ export function HireStageAccordion({
                   return (
                     <div
                       key={step.id}
-                      className={`mx-4 mb-3 flex items-center gap-3 rounded-xl border px-3 py-3 last:mb-4 sm:mx-5 sm:px-4 ${lockedByScreening ? "opacity-60" : ""}`}
+                      className={`mx-3 mb-3 flex flex-col gap-3 rounded-xl border px-3 py-3 last:mb-4 sm:mx-5 sm:flex-row sm:items-center sm:px-4 ${lockedByScreening ? "opacity-60" : ""}`}
                       style={{
                         backgroundColor: settled
                           ? "var(--hj-completed-bg, #FFFFFF)"
@@ -360,7 +360,7 @@ export function HireStageAccordion({
                         <HireStepTypeIcon step={step} done={settled && !lockedByScreening} />
                         <div className="min-w-0 flex-1">
                           <p
-                            className="truncate"
+                            className="break-words sm:truncate"
                             style={{
                               color: lockedByScreening ? "#64748B" : "#000000",
                               fontFamily:
@@ -385,14 +385,14 @@ export function HireStageAccordion({
                         </div>
                       </button>
 
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
                       {showSchedule ? (
                         <button
                           type="button"
                           onClick={() => onScheduleInterview?.(step)}
-                          className="inline-flex min-w-[191px] shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold leading-5 text-white"
+                          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold leading-5 text-white sm:h-9 sm:w-auto sm:min-w-[191px]"
                           style={{
                             backgroundColor: "var(--brand-primary)",
-                            height: 36,
                           }}
                         >
                           <CalendarDays className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -429,6 +429,7 @@ export function HireStageAccordion({
                           onRefreshStep={onRefresh ? (id) => void refreshStep(id) : undefined}
                         />
                       )}
+                      </div>
                     </div>
                   );
                 })}

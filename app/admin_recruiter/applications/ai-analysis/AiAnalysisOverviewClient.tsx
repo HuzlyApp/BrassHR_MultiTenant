@@ -129,7 +129,7 @@ import { MatchProgressionStepper } from "./MatchProgressionStepper";
 import { deepMatchModelForProvider } from "@/lib/jobs/match-analysis/step-config";
 
 const CARD =
-  "rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
+  "rounded-[12px] border border-[#E5E7EB] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)] sm:p-5";
 /** Clears sticky admin header when scrolling step anchors into view. */
 const STEP_SCROLL_MARGIN_CLASS =
   "scroll-mt-[calc(var(--admin-recruiter-header-height,67px)+1rem)]";
@@ -1453,11 +1453,11 @@ export function AiAnalysisOverviewClient({
       <div className="mt-6 grid min-w-0 items-start gap-5 sm:gap-[30px] xl:grid-cols-[minmax(0,1fr)_minmax(16rem,21.875rem)]">
         <div className="min-w-0 space-y-5">
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div className="flex min-w-0 items-center gap-2">
                 <BrandedSvgIcon
                   src="/hugeicons_ai-user.svg"
-                  className="h-5 w-5"
+                  className="h-5 w-5 shrink-0"
                   color={branding.primaryHex}
                 />
                 <h1
@@ -1467,15 +1467,15 @@ export function AiAnalysisOverviewClient({
                   AI Analysis Overview
                 </h1>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[#667085]">Model</span>
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
+                <div className="flex min-w-0 items-center gap-2 sm:flex-none">
+                  <span className="shrink-0 text-sm text-[#667085]">Model</span>
                   <MatchAnalysisModelSelect
                     variant="primary"
                     value={analysisProvider}
                     onChange={setAnalysisProvider}
                     disabled={analyzing}
-                    className="h-9 shrink-0"
+                    className="h-9 min-w-0 flex-1 sm:flex-none sm:shrink-0"
                     claudeAvailable={data?.claudeAvailable}
                   />
                 </div>
@@ -1491,14 +1491,14 @@ export function AiAnalysisOverviewClient({
                   analysisProvider={analysisProvider}
                   requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
                   allowDeep={canRunPaidDeep}
-                  className="shrink-0 h-9"
+                  className="h-9 w-full shrink-0 sm:w-auto"
                   onAnalyze={(mode) => void handleRunAnalyze(mode)}
                 />
               </div>
             </div>
-            <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-3 py-4 sm:px-5">
               <div className="flex min-w-0 flex-col items-center justify-between gap-4 sm:flex-row sm:items-center sm:text-left">
-                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+                <div className="flex w-full min-w-0 flex-col items-center gap-4 sm:w-auto sm:flex-row sm:items-center">
                   <MatchRing
                     percent={matchScore == null ? null : Math.round(matchScore)}
                     label={matchLabel}
@@ -1524,10 +1524,10 @@ export function AiAnalysisOverviewClient({
                       </p>
                     ) : null}
                     {workerId ? (
-                      <div className="mt-3 flex items-center gap-3">
+                      <div className="mt-3 flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
                         <Link
                           href={candidateProfileHrefForAnalysisContext(workerId, backHref, jobId)}
-                          className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
+                          className="inline-flex w-full items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--brand-primary)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)] sm:w-auto sm:py-1.5"
                         >
                           View Profile
                         </Link>
@@ -1537,7 +1537,7 @@ export function AiAnalysisOverviewClient({
                               ? candidateDetailPreHireHref(workerId)
                               : candidateHireJourneyHref(workerId)
                           }
-                          className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+                          className="inline-flex w-full items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 sm:w-auto sm:py-1.5"
                         >
                           Hiring Journey
                         </Link>
@@ -1570,7 +1570,7 @@ export function AiAnalysisOverviewClient({
 
                 {isAnalyzed && outcomeCounts.total > 0 ? (
                   <div
-                    className="flex flex-wrap justify-center gap-2 sm:justify-end"
+                    className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
                     aria-label="Requirement outcome counts"
                   >
                     {OUTCOME_STAT_CARDS.map((card) => {
@@ -1585,7 +1585,7 @@ export function AiAnalysisOverviewClient({
                             setFilter(card.filter);
                             scrollAiAnalysisBelowHeader("match-step-quick");
                           }}
-                          className={`inline-flex w-[70px] h-[50px] flex-col items-center justify-center rounded-lg border transition ${
+                          className={`inline-flex h-[50px] w-full flex-col items-center justify-center rounded-lg border transition sm:w-[70px] ${
                             active
                               ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                               : "border-[#E5E7EB] bg-[#F8FAFC] hover:border-[#D0D5DD]"
@@ -1605,22 +1605,22 @@ export function AiAnalysisOverviewClient({
               </div>
             </div>
             {app?.ai_analysis_error ? (
-              <p className="border-b border-[#E5E7EB] px-5 py-5 text-xs leading-4 text-[#B91C1C]">{app.ai_analysis_error}</p>
+              <p className="border-b border-[#E5E7EB] px-3 py-4 text-xs leading-4 text-[#B91C1C] sm:px-5 sm:py-5">{app.ai_analysis_error}</p>
             ) : null}
             {summary ? (
-              <p className="px-5 py-5 text-xs leading-4 text-[#4B5563]">{summary}</p>
+              <p className="px-3 py-4 text-xs leading-4 text-[#4B5563] sm:px-5 sm:py-5">{summary}</p>
             ) : !isAnalyzed ? (
-              <p className="px-5 py-5 text-xs leading-4 text-[#6B7280]">
+              <p className="px-3 py-4 text-xs leading-4 text-[#6B7280] sm:px-5 sm:py-5">
                 This candidate has not been analyzed yet. Run Quick Match to populate the checklist.
               </p>
             ) : !hasDeepMatch ? (
-              <p className="px-5 py-5 text-xs leading-4 text-[#6B7280]">
+              <p className="px-3 py-4 text-xs leading-4 text-[#6B7280] sm:px-5 sm:py-5">
                 Quick Match is complete. Match % and confidence appear after Run Deep Match.
               </p>
             ) : null}
             {submitBanner ? (
               <div
-                className={`border-t border-[#E5E7EB] px-5 py-3 text-sm font-semibold ${
+                className={`border-t border-[#E5E7EB] px-3 py-3 text-sm font-semibold sm:px-5 ${
                   submitBanner.kind === "submit"
                     ? "bg-[#ECFDF3] text-[#027A48]"
                     : submitBanner.kind === "do_not_submit"
@@ -1631,7 +1631,7 @@ export function AiAnalysisOverviewClient({
                 {submitBanner.label}
               </div>
             ) : viewedStep >= 4 ? (
-              <p className="border-t border-[#E5E7EB] px-5 py-3 text-sm text-[#667085]">
+              <p className="border-t border-[#E5E7EB] px-3 py-3 text-sm text-[#667085] sm:px-5">
                 Run Deep Match to fill the submit recommendation.
               </p>
             ) : null}
@@ -2104,8 +2104,150 @@ export function AiAnalysisOverviewClient({
               </label>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-[720px] w-full text-left">
+            {/* Mobile: stacked requirement cards */}
+            <div className="mt-4 flex flex-col gap-3 md:hidden">
+              {filteredRequirements.map((row: QualificationRequirement) => {
+                const open = openReqId === row.id;
+                const displayStatus = qualificationDisplayStatus(row, blocking);
+                return (
+                  <div
+                    key={`mobile-${row.id}`}
+                    className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white"
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-start gap-3 px-3 py-3 text-left"
+                      aria-expanded={open}
+                      onClick={() => setOpenReqId(open ? "" : row.id)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start gap-2">
+                          <p className="text-sm font-medium leading-5 text-[#101828]">
+                            {row.requirement_text}
+                          </p>
+                          <RequirementNotesIndicator requirement={row} />
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`${CHECKLIST_BADGE} ${typeBadgeClass(row.requirement_type)}`}>
+                            {formatRequirementType(row.requirement_type)}
+                          </span>
+                          <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
+                            {displayStatus}
+                          </span>
+                          {(row.verification_note_count ?? 0) > 0 ? (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#3730A3]">
+                              Note saved
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#667085]">
+                        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </span>
+                    </button>
+                    {open ? (
+                      <div className="border-t border-[#F2F4F7] px-3 pb-3 pt-2">
+                        <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+                            Candidate Evidence
+                          </p>
+                          <div className="mt-2 flex flex-col gap-4">
+                            <div className="min-w-0 flex-1">
+                              {row.candidate_evidence ? (
+                                <blockquote className="border-l-[3px] border-[color:var(--brand-primary)] pl-3 text-sm italic leading-6 text-[#344054]">
+                                  {row.candidate_evidence}
+                                </blockquote>
+                              ) : (
+                                <p className="text-sm leading-6 text-[#667085]">
+                                  No candidate evidence recorded.
+                                </p>
+                              )}
+                              {row.impact ? (
+                                <p className="mt-2 text-xs leading-5 text-[#667085]">
+                                  <span className="font-semibold text-[#475467]">Impact:</span> {row.impact}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 flex-col items-start gap-1">
+                              <label
+                                htmlFor={`recruiter-verified-mobile-${row.id}`}
+                                className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm font-medium text-[#344054]"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <ListTableCheckbox
+                                  id={`recruiter-verified-mobile-${row.id}`}
+                                  size="md"
+                                  checked={row.recruiter_verified}
+                                  disabled={verifyingId === row.id}
+                                  onChange={() => handleRecruiterVerifiedClick(row)}
+                                  aria-label={`Recruiter verified: ${row.requirement_text}`}
+                                />
+                                Recruiter verified
+                                {verifyingId === row.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                ) : null}
+                              </label>
+                              {recruiterVerifiedNeedsNoteDecision(row) ? (
+                                <p className="max-w-[220px] text-[11px] leading-4 text-[#667085]">
+                                  Save a note first
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <RequirementVerificationNotesPanel
+                            applicationId={applicationId}
+                            requirement={row}
+                            notes={(data?.verificationNotes ?? []).filter(
+                              (note) => note.requirementId === row.id
+                            )}
+                            busyNoteId={busyVerificationNoteId}
+                            saving={savingVerificationNote}
+                            openCreateSignal={
+                              noteCreateSignal?.id === row.id ? noteCreateSignal.n : 0
+                            }
+                            createPrefill={
+                              noteCreateSignal?.id === row.id
+                                ? noteCreateSignal.prefill === "verified"
+                                  ? recruiterVerifiedNotePrefill(row)
+                                  : pendingVerificationNotePrefill(row)
+                                : undefined
+                            }
+                            onOpenCreateConsumed={() => setNoteCreateSignal(null)}
+                            onCreate={(draft) => createVerificationNote(row.id, draft)}
+                            onUpdate={(noteId, draft) =>
+                              updateVerificationNote(row.id, noteId, draft)
+                            }
+                            onDelete={(noteId) => deleteVerificationNote(row.id, noteId)}
+                            onAskCandidate={(note) => void handleAskCandidate(note)}
+                          />
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#667085]">
+                            <button
+                              type="button"
+                              className="cursor-pointer font-medium text-[color:var(--brand-primary)] hover:underline"
+                              onClick={() => setOpenReqId("")}
+                            >
+                              Show less
+                            </button>
+                            <span>
+                              Source: {row.evidence_source || "Resume"} • Confidence: {row.confidence}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {filteredRequirements.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-[#E5E7EB] px-3 py-8 text-center text-sm text-[#667085]">
+                  No requirements match this filter.
+                </p>
+              ) : null}
+            </div>
+
+            {/* Desktop / tablet: table */}
+            <div className="mt-4 hidden overflow-x-auto md:block">
+              <table className="min-w-[640px] w-full text-left lg:min-w-0">
                 <thead>
                   <tr className="border-b border-[#E5E7EB] text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
                     <th className="py-3 pr-3 text-left">Requirement</th>

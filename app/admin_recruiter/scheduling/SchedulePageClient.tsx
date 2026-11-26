@@ -889,10 +889,10 @@ export default function SchedulePageClient() {
             onViewChange={handleScheduleViewChange}
           />
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-2.5 md:justify-end">
             <select aria-label="Calendar range view" value={calendarRangeView} onChange={(event) => {
               if (event.target.value !== "custom") applyCalendarView(event.target.value as "day" | "week" | "month");
-            }} className="h-[30px] rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs">
+            }} className="h-[30px] min-w-0 flex-1 rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs sm:flex-none">
               <option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="custom" disabled>Custom range</option>
             </select>
             <button type="button" onClick={() => applyCalendarView(calendarRangeView === "custom" ? "week" : calendarRangeView, new Date())} className="h-[30px] rounded-lg border border-[#CBD5E1] px-3 text-xs font-semibold">Today</button>
@@ -902,7 +902,7 @@ export default function SchedulePageClient() {
               { key: "position", label: "Position", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
               { key: "location", label: "Location", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
               { key: "status", label: "Status", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-            ] as const).map((filter) => <select key={filter.key} aria-label={`Filter by ${filter.label.toLowerCase()}`} value={employeeFilters[filter.key]} onChange={(event) => setEmployeeFilters((current) => ({ ...current, [filter.key]: event.target.value }))} className="h-[30px] max-w-[180px] rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs">
+            ] as const).map((filter) => <select key={filter.key} aria-label={`Filter by ${filter.label.toLowerCase()}`} value={employeeFilters[filter.key]} onChange={(event) => setEmployeeFilters((current) => ({ ...current, [filter.key]: event.target.value }))} className="h-[30px] w-full max-w-none rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs sm:w-auto sm:max-w-[180px]">
               <option value="all">All {filter.label === "Status" ? "statuses" : `${filter.label.toLowerCase()}s`}</option>
               {filter.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>)}
@@ -910,7 +910,7 @@ export default function SchedulePageClient() {
               aria-label="Filter by facility"
               value={selectedFacility}
               onChange={setSelectedFacility}
-              className="w-[140px] sm:w-[160px]"
+              className="w-full sm:w-[140px] md:w-[160px]"
               size="sm"
               triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
               options={[
@@ -1069,9 +1069,9 @@ export default function SchedulePageClient() {
                   {listDays.map((dayRow) => (
                     <div
                       key={dayRow.dateKey}
-                      className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4"
+                      className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4"
                     >
-                      <div className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      <div className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#64748B] sm:pt-2">
                         {dayRow.label}
                       </div>
                       <div className="min-w-0 space-y-2">
@@ -1146,11 +1146,14 @@ export default function SchedulePageClient() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+            <p className="px-3 pt-2 text-[10px] text-[#94A3B8] md:hidden">
+              Swipe sideways to see the full week calendar, or switch to List view.
+            </p>
             <table className="w-full min-w-[980px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                  <th className="w-[180px] px-3 py-3 text-left text-xs font-semibold text-[#64748B]">
+                  <th className="sticky left-0 z-10 w-[140px] bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold text-[#64748B] sm:w-[180px]">
                     Employees
                   </th>
                   {rangeDays.map((d, index) => {
@@ -1204,7 +1207,7 @@ export default function SchedulePageClient() {
                     return (
                       <tr key={emp.id} className="transition-colors hover:bg-[#F8FAFC]/60">
                         <td
-                          className="w-[180px] px-3 py-2.5 align-middle"
+                          className="sticky left-0 z-10 w-[140px] bg-white px-3 py-2.5 align-middle sm:w-[180px]"
                           style={{ minHeight: rowMinHeight }}
                         >
                           {emp.id ? <Link

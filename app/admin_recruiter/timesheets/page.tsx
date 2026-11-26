@@ -309,8 +309,8 @@ export default function TimesheetsPage() {
 
       {/* Search & Filter Bar */}
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex max-w-lg flex-1 items-center gap-2">
-          <div className="relative flex-1">
+        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-lg flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
@@ -322,7 +322,7 @@ export default function TimesheetsPage() {
           </div>
           <button
             type="submit"
-            className="flex h-10 items-center justify-center rounded-lg px-6 text-sm font-medium text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
+            className="flex h-10 w-full items-center justify-center rounded-lg px-6 text-sm font-medium text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] sm:w-auto"
             style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
           >
             Search
@@ -438,7 +438,57 @@ export default function TimesheetsPage() {
 
       {/* Main Timesheets Table */}
       <div className="w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-[#E2E8F0] md:hidden">
+          {loading ? (
+            <div className="py-12">
+              <DashboardPageLoader label="Loading timesheets..." className="min-h-[160px]" />
+            </div>
+          ) : sortedRows.length === 0 ? (
+            <p className="px-4 py-12 text-center text-sm text-[#64748B]">
+              No timesheets found matching your filters.
+            </p>
+          ) : (
+            sortedRows.map((row) => (
+              <article
+                key={`mobile-${row.id}`}
+                className="cursor-pointer space-y-2 px-4 py-4 transition hover:bg-[#F8FAFC]/80"
+                onClick={() => setSelectedTimesheet(row)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-[#0F172A]">{row.name}</h3>
+                    <p className="mt-0.5 truncate text-xs text-[#475569]">{row.jobRole}</p>
+                    <p className="truncate text-xs text-[#64748B]">{row.facility}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold leading-none ${statusBadge(
+                        row.status
+                      )}`}
+                    >
+                      {row.status}
+                    </span>
+                    <p className="mt-1 text-[10px] capitalize text-[#64748B]">
+                      {row.approvalStatus ?? "Not submitted"}
+                    </p>
+                  </div>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div>
+                    <dt className="text-[#94A3B8]">Total Hours</dt>
+                    <dd className="font-semibold text-[#0F172A]">{row.totalHours}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#94A3B8]">OT Hours</dt>
+                    <dd className="font-semibold text-[#0F172A]">{row.otHours}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1050px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
@@ -696,21 +746,21 @@ export default function TimesheetsPage() {
       {/* Timesheet Details Drawer / Modal */}
       {selectedTimesheet && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 backdrop-blur-xs sm:items-center sm:p-4"
           onClick={() => setSelectedTimesheet(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto"
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-2xl transition-all sm:rounded-2xl sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-label={`${selectedTimesheet.name} timesheet`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-[#0F172A]">{selectedTimesheet.name}</h2>
+            <div className="flex items-start justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold text-[#0F172A] sm:text-xl">{selectedTimesheet.name}</h2>
                   <span
                     className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${statusBadge(
                       selectedTimesheet.status
@@ -720,7 +770,7 @@ export default function TimesheetsPage() {
                   </span>
                   <span className="text-xs capitalize text-[#64748B]">{selectedTimesheet.approvalStatus ?? "Not submitted"}</span>
                 </div>
-                <p className="mt-1 text-xs text-[#64748B]">
+                <p className="mt-1 break-words text-xs text-[#64748B]">
                   {selectedTimesheet.jobRole} • {selectedTimesheet.facility} • {selectedTimesheet.department}
                 </p>
               </div>
@@ -728,7 +778,7 @@ export default function TimesheetsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedTimesheet(null)}
-                className="rounded-lg p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                className="shrink-0 rounded-lg p-1.5 text-[#94A3B8] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -758,8 +808,8 @@ export default function TimesheetsPage() {
 
             {/* Day by Day Breakdown */}
             <h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Daily Attendance & Shift Details</h3>
-            <div className="overflow-hidden rounded-lg border border-[#E2E8F0]">
-              <table className="w-full border-collapse text-left text-xs">
+            <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
+              <table className="w-full min-w-[480px] border-collapse text-left text-xs">
                 <thead>
                   <tr className="bg-[#F8FAFC] text-[#64748B]">
                     <th className="px-3 py-2.5 font-semibold">Day / Date</th>
@@ -786,11 +836,11 @@ export default function TimesheetsPage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#E2E8F0] pt-4">
+            <div className="mt-6 flex flex-col-reverse gap-2 border-t border-[#E2E8F0] pt-4 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedTimesheet(null)}
-                className="h-9 rounded-lg border border-[#CBD5E1] px-4 text-xs font-semibold text-[#475569] hover:bg-[#F1F5F9]"
+                className="h-9 w-full rounded-lg border border-[#CBD5E1] px-4 text-xs font-semibold text-[#475569] hover:bg-[#F1F5F9] sm:w-auto"
               >
                 Close
               </button>
@@ -799,7 +849,7 @@ export default function TimesheetsPage() {
                 onClick={() => handleApproveTimesheet(selectedTimesheet)}
                 disabled={!canEdit || !selectedTimesheet.timesheetId || selectedTimesheet.approvalStatus !== "submitted" || approvingId !== null}
                 title={!canEdit ? "Scheduling edit permission is required" : selectedTimesheet.approvalStatus !== "submitted" ? "Only submitted timesheets can be approved" : undefined}
-                className="flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold text-white shadow-sm transition hover:brightness-95 sm:w-auto"
                 style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />

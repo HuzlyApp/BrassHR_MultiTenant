@@ -811,11 +811,11 @@ export default function CandidateWorkflowStepModal({
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-slate-950/50 backdrop-blur-[2px]" />
         <Dialog.Content
           style={brandStyle}
-          className="fixed left-1/2 top-1/2 z-[101] flex max-h-[calc(100dvh-2rem)] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white outline-none"
+          className="fixed left-1/2 top-1/2 z-[101] flex max-h-[calc(100dvh-1rem)] w-[min(58rem,calc(100vw-1rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-white outline-none sm:max-h-[calc(100dvh-2rem)] sm:w-[min(58rem,calc(100vw-1.5rem))] sm:rounded-2xl"
           aria-describedby="workflow-step-inspection-desc"
         >
           <div
-            className="flex shrink-0 items-start gap-3 border-b border-slate-200 px-5 py-4"
+            className="flex shrink-0 items-start gap-3 border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-4"
             style={{ background: "var(--step-modal-header)" }}
           >
             <span
@@ -882,7 +882,7 @@ export default function CandidateWorkflowStepModal({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-5 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-3 py-3 sm:px-5 sm:py-4">
             {actionError && !pendingAction ? (
               <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {actionError}
@@ -1453,7 +1453,7 @@ export default function CandidateWorkflowStepModal({
           </div>
 
           {showFooter ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-3 py-3 sm:px-5">
               <p className="text-xs font-semibold text-slate-700">{stepSideLabel}</p>
               <div className="flex flex-wrap gap-2">
                 {canEmailCandidate ? (
