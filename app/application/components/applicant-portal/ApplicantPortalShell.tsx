@@ -1,5 +1,6 @@
 "use client";
 
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import type { CSSProperties } from "react";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -84,8 +85,9 @@ export function ApplicantPortalShell({ session, children }: Props) {
   };
 
   const openMessages = useCallback(() => {
-    router.push(GROUP_CHAT_HREF);
-  }, [router]);
+    router.push(applicationPath(pathname?.startsWith("/application/candidate")
+      ? "/application/candidate/messages" : GROUP_CHAT_HREF));
+  }, [pathname, router]);
 
   const sidebarWidth = sidebarCollapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 

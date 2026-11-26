@@ -1,3 +1,4 @@
+import { notifyGroupMessage } from "@/lib/messaging/message-notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import {
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const messagesRes = await resolved.auth.supabase
       .from("group_messages")
       .select("id, group_id, tenant_id, sender_id, sender_name, sender_role, content, sent_at")
+      .eq("tenant_id", resolved.group.tenant_id)
       .eq("group_id", resolved.group.id)
       .order("sent_at", { ascending: true });
     if (messagesRes.error) throw messagesRes.error;
@@ -54,6 +56,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const membersRes = await resolved.auth.supabase
       .from("group_members")
       .select("id, user_id, user_name, joined_at")
+      .eq("tenant_id", resolved.group.tenant_id)
       .eq("group_id", resolved.group.id)
       .order("joined_at", { ascending: true });
     if (membersRes.error) throw membersRes.error;
@@ -112,6 +115,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       .single();
     if (insertRes.error) throw insertRes.error;
 
+    await notifyGroupMessage(auth.supabase, {
+      tenantId: resolved.group.tenant_id, groupId: resolved.group.id,
+      groupName: resolved.group.name, senderUserId: auth.user.id,
+      senderWorkerId: auth.applicant.id, body: content,
+    });
     return NextResponse.json({ ok: true, message: insertRes.data as GroupMessageRow });
   } catch (err) {
     console.error("[applicant-portal/groups/:id/messages:post]", err);

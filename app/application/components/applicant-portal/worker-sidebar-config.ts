@@ -153,6 +153,13 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
  */
 export const CANDIDATE_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
+    label: "Messages",
+    href: "/application/candidate/messages",
+    iconType: "Mail",
+    matchPrefixes: ["/application/candidate/messages"],
+    matchExact: true,
+  },
+  {
     label: "Find Jobs",
     href: "/application/candidate/jobs",
     iconType: "Jobs",
