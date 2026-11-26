@@ -50,6 +50,22 @@ describe.skipIf(!live)("RLS adversarial suite (live local/test only)", () => {
     if (fx) await destroyRlsFixtures(fx);
   }, 60_000);
 
+  describe("identity file roles", () => {
+    it("denies password-only Admin, recruiter, worker and foreign direct identity access", async () => {
+      for (const [client, tenantId, expected] of [
+        [aAdmin, fx.tenantA.tenantId, false],
+        [aAdmin, fx.tenantB.tenantId, false],
+        [aRecruiter, fx.tenantA.tenantId, false],
+        [aWorker, fx.tenantA.tenantId, false],
+        [bRecruiter, fx.tenantA.tenantId, false],
+      ] as const) {
+        const { data, error } = await client.rpc("user_can_access_sensitive_worker_files", { p_tenant_id: tenantId });
+        expect(error).toBeNull();
+        expect(data).toBe(expected);
+      }
+    });
+  });
+
   describe("positive access", () => {
     it("Tenant A recruiter can read Tenant A application and A1 note", async () => {
       const { data: apps, error } = await aRecruiter
