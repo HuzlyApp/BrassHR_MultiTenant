@@ -162,61 +162,64 @@ async function decorateApplications(
       const id = String(row.id ?? "");
       return id && !appliedJobsById.has(id);
     });
-  if (needsWorkerFallback) {
-    const workerIds = Array.from(
-      new Set(
-        applications
-          .map((row) => String(row.worker_id ?? "").trim())
-          .filter(Boolean)
-      )
-    );
-    if (workerIds.length > 0) {
-      for (let offset = 0; offset < workerIds.length; offset += HYDRATE_CHUNK) {
-        const chunk = workerIds.slice(offset, offset + HYDRATE_CHUNK);
-        const { data: workerApps, error } = await supabase
-          .from("job_applications")
-          .select("worker_id")
-          .eq("tenant_id", tenantId)
-          .in("worker_id", chunk)
-          .not("status", "in", JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER);
-        if (error) throw error;
-        for (const app of workerApps ?? []) {
-          const workerIdValue = String((app as { worker_id?: string | null }).worker_id ?? "");
-          if (!workerIdValue) continue;
-          countByWorker.set(workerIdValue, (countByWorker.get(workerIdValue) ?? 0) + 1);
-        }
-      }
-    }
-  }
-
   const noteByApplication = new Map<string, string>();
   const applicationIds = applications.map((row) => String(row.id ?? "")).filter(Boolean);
-  if (applicationIds.length > 0) {
-    for (let offset = 0; offset < applicationIds.length; offset += HYDRATE_CHUNK) {
-      const chunk = applicationIds.slice(offset, offset + HYDRATE_CHUNK);
-      const { data: historyRows, error } = await supabase
-        .from("application_status_history")
-        .select("application_id, note, created_at")
-        .eq("tenant_id", tenantId)
-        .in("application_id", chunk)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      for (const history of historyRows ?? []) {
-        const applicationId = String((history as { application_id?: string }).application_id ?? "");
-        if (!applicationId || noteByApplication.has(applicationId)) continue;
-        noteByApplication.set(applicationId, String((history as { note?: string | null }).note ?? "").trim());
-      }
-    }
-  }
-
   const recruiterIds = Array.from(
     new Set(applications.map((row) => String(row.assigned_recruiter_user_id ?? "").trim()).filter(Boolean))
   );
-  const recruitersById = await loadStaffUsersByIds(supabase, tenantId, recruiterIds);
-  const requirementCountsByApplication =
+  const [, , recruitersById, requirementCountsByApplication] = await Promise.all([
+    (async () => {
+      if (needsWorkerFallback) {
+        const workerIds = Array.from(
+          new Set(
+            applications
+              .map((row) => String(row.worker_id ?? "").trim())
+              .filter(Boolean)
+          )
+        );
+        if (workerIds.length > 0) {
+          for (let offset = 0; offset < workerIds.length; offset += HYDRATE_CHUNK) {
+            const chunk = workerIds.slice(offset, offset + HYDRATE_CHUNK);
+            const { data: workerApps, error } = await supabase
+              .from("job_applications")
+              .select("worker_id")
+              .eq("tenant_id", tenantId)
+              .in("worker_id", chunk)
+              .not("status", "in", JOB_CANDIDATE_LIST_HIDDEN_STATUS_IN_FILTER);
+            if (error) throw error;
+            for (const app of workerApps ?? []) {
+              const workerIdValue = String((app as { worker_id?: string | null }).worker_id ?? "");
+              if (!workerIdValue) continue;
+              countByWorker.set(workerIdValue, (countByWorker.get(workerIdValue) ?? 0) + 1);
+            }
+          }
+        }
+      }
+    })(),
+    (async () => {
+      if (applicationIds.length > 0) {
+        for (let offset = 0; offset < applicationIds.length; offset += HYDRATE_CHUNK) {
+          const chunk = applicationIds.slice(offset, offset + HYDRATE_CHUNK);
+          const { data: historyRows, error } = await supabase
+            .from("application_status_history")
+            .select("application_id, note, created_at")
+            .eq("tenant_id", tenantId)
+            .in("application_id", chunk)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          for (const history of historyRows ?? []) {
+            const applicationId = String((history as { application_id?: string }).application_id ?? "");
+            if (!applicationId || noteByApplication.has(applicationId)) continue;
+            noteByApplication.set(applicationId, String((history as { note?: string | null }).note ?? "").trim());
+          }
+        }
+      }
+    })(),
+    loadStaffUsersByIds(supabase, tenantId, recruiterIds),
     applicationIds.length > 0
-      ? await loadRequirementOutcomeCountsByApplication(supabase, tenantId, applicationIds)
-      : new Map();
+      ? loadRequirementOutcomeCountsByApplication(supabase, tenantId, applicationIds)
+      : Promise.resolve(new Map()),
+  ]);
 
   return applications.map((row) => {
     const statusJoin = Array.isArray(row.application_statuses)
