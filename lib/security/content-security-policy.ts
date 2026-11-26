@@ -3,6 +3,9 @@ type PolicyOptions = { nonce?: string; frameAncestors?: string; development?: bo
 export function appContentSecurityPolicy({ nonce, frameAncestors = "'self'", development = process.env.NODE_ENV === "development" }: PolicyOptions = {}): string {
   const connections = new Set(["'self'", "https://api.firma.dev", "https://app.firma.dev", "https://dialpad.com", "https://*.dialpad.com", "wss://*.dialpad.com", "https://api.mapbox.com", "https://events.mapbox.com", "https://vitals.vercel-insights.com", "https://va.vercel-scripts.com"]);
   const database = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+  // Firma's SDK calls its own backend and PDF.js reads local blob URLs.
+  connections.add("https://ielmshcswdhuacyjlpiy.supabase.co");
+  connections.add("blob:");
   if (database) {
     try {
       const url = new URL(database);
@@ -17,8 +20,8 @@ export function appContentSecurityPolicy({ nonce, frameAncestors = "'self'", dev
     "default-src 'self'", "base-uri 'self'", "object-src 'none'",
     `frame-ancestors ${frameAncestors}`,
     `script-src 'self'${nonce ? ` 'nonce-${nonce}' 'strict-dynamic'` : ""}${development ? " 'unsafe-eval'" : ""} https://api.firma.dev https://app.firma.dev`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.cdnfonts.com",
-    "font-src 'self' data: https://fonts.gstatic.com https://fonts.cdnfonts.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.cdnfonts.com https://ielmshcswdhuacyjlpiy.supabase.co",
+    "font-src 'self' data: https://fonts.gstatic.com https://fonts.cdnfonts.com https://ielmshcswdhuacyjlpiy.supabase.co",
     "img-src 'self' data: blob: https:",
     `connect-src ${[...connections].join(" ")}`,
     "worker-src 'self' blob: https://api.firma.dev https://app.firma.dev",

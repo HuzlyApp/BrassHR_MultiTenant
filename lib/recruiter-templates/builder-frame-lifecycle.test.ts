@@ -29,6 +29,10 @@ describe("builder-frame-lifecycle", () => {
     expect(classifyTemplateBuilderError("did not finish loading")).toBe("ready_timeout");
   });
 
+  it("explains an aborted editor download as a connection failure", () => {
+    expect(classifyTemplateBuilderError("The operation was timed out")).toBe("network");
+  });
+
   it("sanitizes provider messages for unknown failures", () => {
     const message = templateBuilderUserMessage("Firma API returned 502", 502, "abc-123");
     expect(message).toContain("Ref: abc-123");

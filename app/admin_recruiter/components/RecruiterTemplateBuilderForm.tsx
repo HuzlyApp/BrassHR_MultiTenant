@@ -9,7 +9,6 @@ import FirmaTemplateBuilderFrame from "@/app/admin_recruiter/components/FirmaTem
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import { NAVY, statusBadgeClass } from "@/app/admin_recruiter/components/RecruiterTemplateCards";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
 import {
   RECRUITER_TEMPLATE_CATEGORIES,
   RECRUITER_TEMPLATE_CATEGORY_LABELS,
@@ -225,7 +224,6 @@ export default function RecruiterTemplateBuilderForm({
   };
 
   const openBuilder = async () => {
-    void prepareFirmaPdfWorker();
     const saved = await saveDraft();
     const id = saved?.id ?? currentTemplateId;
     if (!id) return;

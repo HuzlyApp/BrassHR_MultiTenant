@@ -18,6 +18,17 @@ it("retains explicit public jobs embedding and local development support", () =>
   expect(appContentSecurityPolicy({ frameAncestors: "*", development: true })).toContain("frame-ancestors *");
   expect(appContentSecurityPolicy({ development: true })).toContain("'unsafe-eval'");
 });
+it("allows Firma's embedded backend and PDF blob reads without opening all Supabase projects", () => {
+  const policy = appContentSecurityPolicy({ nonce: "server-nonce", development: false });
+  const connections = policy.split("; ").find(rule => rule.startsWith("connect-src"))!;
+  expect(connections.split(" ")).toContain("https://ielmshcswdhuacyjlpiy.supabase.co");
+  expect(connections.split(" ")).toContain("blob:");
+  expect(connections).not.toContain("https://*.supabase.co");
+  const fonts = policy.split("; ").find(rule => rule.startsWith("font-src"))!;
+  expect(fonts).toContain("https://ielmshcswdhuacyjlpiy.supabase.co");
+  const styles = policy.split("; ").find(rule => rule.startsWith("style-src"))!;
+  expect(styles).toContain("https://ielmshcswdhuacyjlpiy.supabase.co");
+});
 it("does not put public integrations or portal APIs behind the staff session gate", () => {
   expect(usesSessionProxy("/api/v1/applicants")).toBe(false);
   expect(usesSessionProxy("/api/applicant-portal/resumes")).toBe(false);
