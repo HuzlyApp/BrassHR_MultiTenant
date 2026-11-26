@@ -1,3 +1,4 @@
+import { notifyGroupMessage } from "@/lib/messaging/message-notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
@@ -53,6 +54,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const messagesRes = await resolved.supabase
       .from("group_messages")
       .select("id, group_id, tenant_id, sender_id, sender_name, sender_role, content, sent_at")
+      .eq("tenant_id", resolved.group.tenant_id)
       .eq("group_id", resolved.group.id)
       .order("sent_at", { ascending: true });
     if (messagesRes.error) throw messagesRes.error;
@@ -102,6 +104,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       .single();
     if (insertRes.error) throw insertRes.error;
 
+    await notifyGroupMessage(resolved.supabase, {
+      tenantId: resolved.group.tenant_id, groupId: resolved.group.id,
+      groupName: resolved.group.name, senderUserId: resolved.auth.devBypass ? null : resolved.auth.userId,
+       body: content,
+    });
     return NextResponse.json({ ok: true, message: insertRes.data as GroupMessageRow });
   } catch (error) {
     console.error("[admin/messages/groups/:id/messages:post]", error);

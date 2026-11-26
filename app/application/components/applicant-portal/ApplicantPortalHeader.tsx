@@ -502,6 +502,8 @@ export function ApplicantPortalHeader({
                         type="button"
                         onClick={() => {
                           void markNotificationRead(notification.id);
+                          setNotificationsOpen(false);
+                          if (notification.link) router.push(applicationPath(notification.link, tenantQuery));
                         }}
                         className={`block w-full border-b border-[#F1F5F9] px-4 py-3 text-left transition hover:bg-[#F8FAFC] ${
                           notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"

@@ -4,8 +4,8 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { findApplicantByUserId } from "@/lib/applicant-portal";
-import { createNotification } from "@/lib/notifications/create-notification";
+import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
+import { notifyDirectMessage } from "@/lib/messaging/message-notifications";
 import { APPLICANT_CHAT_BUCKET } from "@/lib/supabase-storage-buckets";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -52,27 +52,10 @@ function withAttachmentUrl(row: MessageRow): MessageRow {
   };
 }
 
-function bearerToken(req: NextRequest): string | null {
-  const header = req.headers.get("authorization")?.trim() ?? "";
-  if (!header.toLowerCase().startsWith("bearer ")) return null;
-  const token = header.slice(7).trim();
-  return token.length > 0 ? token : null;
-}
-
 async function resolveApplicantRequest(req: NextRequest) {
-  const token = bearerToken(req);
-  if (!token) return null;
-
-  const supabase = createServiceRoleClient();
-  if (!supabase) throw new Error("Supabase service role not configured");
-
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user?.id) return null;
-
-  const applicant = await findApplicantByUserId(supabase, data.user.id);
-  if (!applicant?.id) return null;
-
-  return { supabase, workerId: applicant.id, tenantId: applicant.tenant_id, userId: data.user.id };
+  const auth = await requireApprovedApplicant(req);
+  if (auth instanceof NextResponse) return { error: auth };
+  return { supabase: auth.supabase, workerId: auth.applicant.id, tenantId: auth.applicant.tenant_id, userId: auth.user.id };
 }
 
 async function resolveStaffRequest(req: NextRequest, workerIdRaw: string) {
@@ -130,6 +113,7 @@ export async function GET(req: NextRequest) {
       .select(
         "id, sender_role, sender_name, body, created_at, message_type, attachment_bucket, attachment_path, attachment_name, attachment_mime, attachment_size, metadata"
       )
+      .eq("tenant_id", resolved.tenantId)
       .eq("worker_id", resolved.workerId)
       .order("created_at", { ascending: true });
     if (error) throw error;
@@ -225,26 +209,10 @@ export async function POST(req: NextRequest) {
       .single();
     if (error) throw error;
 
-    if (senderRole === "recruiter") {
-      const applicantUserId =
-        "applicant" in resolved && resolved.applicant?.user_id
-          ? String(resolved.applicant.user_id).trim()
-          : "";
-      if (applicantUserId) {
-        const preview =
-          message.trim() ||
-          (attachmentName ? `Sent an attachment: ${attachmentName}` : "Sent a new message");
-        await createNotification(resolved.supabase, {
-          tenantId: resolved.tenantId,
-          userId: applicantUserId,
-          type: "message",
-          title: "New message from recruiter",
-          body: preview.slice(0, 500),
-          link: "/application/candidate/notifications",
-        });
-      }
-    }
-
+    await notifyDirectMessage(resolved.supabase, {
+      tenantId: resolved.tenantId, workerId: resolved.workerId,
+      senderUserId: resolved.userId, senderRole, body: message, attachmentName,
+    });
     return NextResponse.json({ ok: true, message: withAttachmentUrl(data as MessageRow) });
   } catch (err) {
     console.error("[applicant-portal/messages:post]", err);

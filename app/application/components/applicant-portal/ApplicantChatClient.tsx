@@ -82,19 +82,19 @@ function ChatHeader({
   );
 }
 
-export function ApplicantChatClient() {
+export function ApplicantChatClient({ directOnly = false }: { directOnly?: boolean }) {
   return (
     <Suspense fallback={null}>
-      <ApplicantChatClientContent />
+      <ApplicantChatClientContent directOnly={directOnly} />
     </Suspense>
   );
 }
 
-function ApplicantChatClientContent() {
+function ApplicantChatClientContent({ directOnly }: { directOnly: boolean }) {
   const searchParams = useSearchParams();
   const branding = useTenantBranding();
   const { session, sessionReady, authHeaders, messaging } = useApplicantPortal();
-  const [activeTab, setActiveTab] = useState<ChatTab>(() => parseTab(searchParams.get("tab")));
+  const [activeTab, setActiveTab] = useState<ChatTab>(() => directOnly ? "recruiter" : parseTab(searchParams.get("tab")));
   const [searchQuery, setSearchQuery] = useState("");
   const [groups, setGroups] = useState<AssignedGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -107,11 +107,12 @@ function ApplicantChatClientContent() {
   const applicantWorkerId = session?.applicant.id ?? null;
 
   useEffect(() => {
-    setActiveTab(parseTab(searchParams.get("tab")));
-  }, [searchParams]);
+    setActiveTab(directOnly ? "recruiter" : parseTab(searchParams.get("tab")));
+    setSelectedGroupId(searchParams.get("group"));
+  }, [directOnly, searchParams]);
 
   useEffect(() => {
-    if (!sessionReady || !applicantWorkerId) return;
+    if (directOnly || !sessionReady || !applicantWorkerId) return;
 
     let alive = true;
     setGroupsLoading(true);
@@ -141,7 +142,7 @@ function ApplicantChatClientContent() {
     return () => {
       alive = false;
     };
-  }, [applicantWorkerId, authHeaders, sessionReady]);
+  }, [applicantWorkerId, authHeaders, directOnly, sessionReady]);
 
   useEffect(() => {
     if (!selectedGroupId) {
@@ -211,11 +212,11 @@ function ApplicantChatClientContent() {
                 active={activeTab === "recruiter"}
                 onClick={() => setActiveTab("recruiter")}
               />
-              <ChatTabButton
+              {directOnly ? null : <ChatTabButton
                 label="Group"
                 active={activeTab === "group"}
                 onClick={() => setActiveTab("group")}
-              />
+              />}
             </div>
           </div>
 

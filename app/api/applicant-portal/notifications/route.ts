@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await auth.supabase
       .from("notifications")
       .select("id, title, body, type, link, is_read, sent_at")
+      .eq("tenant_id", auth.applicant.tenant_id)
       .eq("user_id", auth.user.id)
       .order("sent_at", { ascending: false })
       .limit(20);
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
     const { count, error: countError } = await auth.supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
+      .eq("tenant_id", auth.applicant.tenant_id)
       .eq("user_id", auth.user.id)
       .eq("is_read", false);
     if (countError) throw countError;
@@ -64,7 +66,8 @@ export async function PATCH(req: NextRequest) {
         .from("notifications")
         .update({ is_read: true })
         .eq("id", notificationId)
-        .eq("user_id", auth.user.id)
+        .eq("tenant_id", auth.applicant.tenant_id)
+      .eq("user_id", auth.user.id)
         .eq("is_read", false)
         .select("id")
         .maybeSingle();
@@ -83,7 +86,8 @@ export async function PATCH(req: NextRequest) {
         .from("notifications")
         .delete()
         .eq("id", notificationId)
-        .eq("user_id", auth.user.id);
+        .eq("tenant_id", auth.applicant.tenant_id)
+      .eq("user_id", auth.user.id);
       if (error) throw error;
 
       return NextResponse.json({ ok: true });
@@ -93,7 +97,8 @@ export async function PATCH(req: NextRequest) {
       const { error } = await auth.supabase
         .from("notifications")
         .update({ is_read: true })
-        .eq("user_id", auth.user.id)
+        .eq("tenant_id", auth.applicant.tenant_id)
+      .eq("user_id", auth.user.id)
         .eq("is_read", false);
       if (error) throw error;
 
@@ -104,7 +109,8 @@ export async function PATCH(req: NextRequest) {
       const { error } = await auth.supabase
         .from("notifications")
         .delete()
-        .eq("user_id", auth.user.id);
+        .eq("tenant_id", auth.applicant.tenant_id)
+      .eq("user_id", auth.user.id);
       if (error) throw error;
 
       return NextResponse.json({ ok: true });
@@ -126,6 +132,7 @@ export async function DELETE(req: NextRequest) {
     const { error } = await auth.supabase
       .from("notifications")
       .delete()
+      .eq("tenant_id", auth.applicant.tenant_id)
       .eq("user_id", auth.user.id);
     if (error) throw error;
 
