@@ -1,6 +1,6 @@
 /** Shared step-1 review validation (client + API). */
 
-import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name"
+import { validatePersonName } from "@/lib/person-name"
 import { getStateCodeFromName } from "@/lib/us-state-names"
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state"
 
@@ -36,7 +36,7 @@ export function resolveStep1Address2(
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function isValidStep1Email(email: string): boolean {
-  return EMAIL_RE.test(email.trim())
+  return EMAIL_RE.test(email.trim()) && /\.(?:[a-z]{2,}|xn--[a-z0-9-]{2,})$/i.test(email.trim())
 }
 
 /** Internal placeholder addresses used before step 1 review — not deliverable by Firma. */
@@ -53,7 +53,7 @@ export function isDeliverableApplicantEmail(email: string): boolean {
 
 /** US phone: exactly 10 digits (normalized). */
 export function isValidStep1Phone(phone: string): boolean {
-  return /^\d{10}$/.test(phone.replace(/\D/g, ""))
+  return /^[\d() .-]+$/.test(phone) && /^\d{10}$/.test(phone.replace(/\D/g, ""))
 }
 
 /** Strict 5-digit US ZIP (no ZIP+4 on this step). */
@@ -95,12 +95,10 @@ export function validateStep1Form(
   if (!allRequiredTrimmedNonEmpty(b)) {
     return { code: "INCOMPLETE", message: STEP1_INCOMPLETE_MESSAGE }
   }
-  if (isPersonNameTooLong(b.firstName)) {
-    return { code: "NAME", message: personNameTooLongMessage("First name") }
-  }
-  if (isPersonNameTooLong(b.lastName)) {
-    return { code: "NAME", message: personNameTooLongMessage("Last name") }
-  }
+  const first = validatePersonName(b.firstName, { label: "First name" })
+  if (!first.ok) return { code: "NAME", message: first.error }
+  const last = validatePersonName(b.lastName, { label: "Last name" })
+  if (!last.ok) return { code: "NAME", message: last.error }
   if (options?.addressVerified === false) {
     return { code: "ADDRESS", message: STEP1_ADDRESS_NOT_VERIFIED_MESSAGE }
   }

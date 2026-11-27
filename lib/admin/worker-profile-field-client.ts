@@ -1,3 +1,4 @@
+import { normalizeWorkerPayRateAmount } from "@/lib/admin/worker-pay-rate"
 import { filterPersonNameInput, validatePersonName } from "@/lib/person-name"
 
 export type CandidateFieldKind =
@@ -36,7 +37,7 @@ export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string)
     case "ssn_last_four":
       return raw.replace(/\D/g, "").slice(0, 4)
     case "hourly_rate":
-      return formatHourlyRateInput(raw)
+      return raw
     case "short_text":
       return raw.replace(/\s+/g, " ").slice(0, SHORT_TEXT_MAX_LENGTH)
     default:
@@ -45,7 +46,8 @@ export function filterCandidateFieldInput(kind: CandidateFieldKind, raw: string)
 }
 
 function formatDobInput(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 8)
+  if (/[^\d/]/.test(raw) || raw.replace(/\D/g, "").length > 8) return raw
+  const digits = raw.replace(/\D/g, "")
   if (digits.length <= 2) return digits
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
@@ -60,30 +62,10 @@ function formatPhoneInput(raw: string): string {
 }
 
 function formatZipInput(raw: string): string {
-  const cleaned = raw.replace(/[^\d-]/g, "")
-  const digits = cleaned.replace(/\D/g, "").slice(0, 9)
+  if (/[^\d-]/.test(raw) || raw.replace(/\D/g, "").length > 9) return raw
+  const digits = raw.replace(/\D/g, "")
   if (digits.length <= 5) return digits
   return `${digits.slice(0, 5)}-${digits.slice(5)}`
-}
-
-function formatHourlyRateInput(raw: string): string {
-  let out = ""
-  let hasDot = false
-  for (const ch of raw) {
-    if (ch >= "0" && ch <= "9") {
-      out += ch
-      continue
-    }
-    if (ch === "." && !hasDot) {
-      hasDot = true
-      out += ch
-    }
-  }
-  const parts = out.split(".")
-  if (parts.length === 2) {
-    return `${parts[0]}.${parts[1].slice(0, 2)}`
-  }
-  return out
 }
 
 export function validateCandidateFieldInput(
@@ -127,6 +109,9 @@ export function validateCandidateFieldInput(
       if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) {
         return { ok: false, error: "Enter a valid date." }
       }
+      const today = new Date().toISOString().slice(0, 10)
+      const iso = `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`
+      if (iso > today) return { ok: false, error: "Date of birth cannot be in the future." }
       return { ok: true, value }
     }
     case "years_experience": {
@@ -143,26 +128,20 @@ export function validateCandidateFieldInput(
       return { ok: true, value: digits.slice(-10) }
     }
     case "zip": {
-      const digits = value.replace(/\D/g, "")
-      if (digits.length === 0) return { ok: false, error: "Zip code is required." }
-      if (digits.length > 9) return { ok: false, error: "Enter a valid zip code." }
-      const normalized =
-        digits.length <= 5 ? digits.padStart(5, "0") : `${digits.slice(0, 5)}-${digits.slice(5, 9)}`
-      return { ok: true, value: normalized }
+      if (!value) return { ok: false, error: "Zip code is required." }
+      if (!/^\d{5}(?:-?\d{4})?$/.test(value)) {
+        return { ok: false, error: "Enter a 5-digit ZIP or ZIP+4." }
+      }
+      const digits = value.replace(/-/g, "")
+      return { ok: true, value: digits.length === 9 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits }
     }
     case "ssn_last_four": {
       const digits = value.replace(/\D/g, "")
       if (digits.length !== 4) return { ok: false, error: "Enter exactly 4 digits." }
       return { ok: true, value: digits }
     }
-    case "hourly_rate": {
-      if (!value) return { ok: false, error: "Hourly rate is required." }
-      const n = Number(value.replace(/[^0-9.]/g, ""))
-      if (!Number.isFinite(n) || n < 0) {
-        return { ok: false, error: "Enter a valid hourly rate." }
-      }
-      return { ok: true, value: n.toFixed(2) }
-    }
+    case "hourly_rate":
+      return normalizeWorkerPayRateAmount(value)
     case "short_text": {
       if (!value) return { ok: false, error: "This field cannot be empty." }
       if (value.length > SHORT_TEXT_MAX_LENGTH) {

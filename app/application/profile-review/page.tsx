@@ -28,14 +28,15 @@ import {
   normalizeBrandingImageSrc,
   tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
-import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
+import { normalizePhoneInput } from "@/lib/phone"
 import {
   isValidStep1Email,
+  isValidStep1Phone,
   resolveStep1Address2,
   step1ZipInlineMessage,
   validateStep1Form,
 } from "@/lib/onboardingStep1Validation"
-import { PERSON_NAME_MAX_LENGTH } from "@/lib/person-name"
+import { PERSON_NAME_MAX_LENGTH, validatePersonName } from "@/lib/person-name"
 import ValidatedAddressField from "@/app/components/onboarding/ValidatedAddressField"
 // import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { buildAddressQuery, shouldValidateAddressQuery } from "@/lib/mapbox/address-validation"
@@ -148,6 +149,7 @@ type EditableInputProps = {
   required?: boolean
   className?: string
   hint?: string
+  error?: string | null
   iconSlot?: ReactNode
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"]
   disabled?: boolean
@@ -162,6 +164,7 @@ function EditableInput({
   required,
   className,
   hint,
+  error,
   iconSlot,
   inputMode,
   disabled,
@@ -191,6 +194,7 @@ function EditableInput({
           inputMode={inputMode}
           disabled={disabled}
           maxLength={maxLength}
+          aria-invalid={Boolean(error)}
         />
         <button
           type="button"
@@ -201,6 +205,7 @@ function EditableInput({
           <Pencil className="h-4 w-4" />
         </button>
       </div>
+      {error ? <p role="alert" className="mt-1 text-xs text-red-600">{error}</p> : null}
     </div>
   )
 }
@@ -494,15 +499,16 @@ function Step1ReviewContent() {
     [form.zipCode, form.state],
   )
 
+  const firstNameCheck = validatePersonName(form.firstName, { label: "First name" })
+  const lastNameCheck = validatePersonName(form.lastName, { label: "Last name" })
   const emailFieldError = useMemo(() => {
     if (!form.email.trim()) return null
     return isValidStep1Email(form.email) ? null : "Enter a valid email address."
   }, [form.email])
 
   const phoneFieldError = useMemo(() => {
-    const digits = normalizePhoneInput(form.phone)
-    if (!digits) return null
-    return digits.length === 10 ? null : "Enter a valid 10-digit US phone number."
+    if (!form.phone.trim()) return null
+    return isValidStep1Phone(form.phone) ? null : "Enter a valid 10-digit US phone number."
   }, [form.phone])
 
   const addressQuery = useMemo(() => buildAddressQuery(addressParts), [addressParts])
@@ -1095,19 +1101,21 @@ function Step1ReviewContent() {
                   label="First Name"
                   required
                   value={form.firstName}
+                  error={form.firstName.trim() && !firstNameCheck.ok ? firstNameCheck.error : null}
                   onChange={(value) => handleChange("firstName", value)}
                   className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white font-medium pr-10 ${focusBorderClass}`}
                   placeholder="First Name"
-                  maxLength={PERSON_NAME_MAX_LENGTH}
+                  hint={`Maximum ${PERSON_NAME_MAX_LENGTH} characters.`}
                 />
                 <EditableInput
                   label="Last Name"
                   required
                   value={form.lastName}
+                  error={form.lastName.trim() && !lastNameCheck.ok ? lastNameCheck.error : null}
                   onChange={(value) => handleChange("lastName", value)}
                   className={`w-full px-4 h-[56px] border border-gray-200 rounded-md text-[#1e293b] text-sm bg-white pr-10 ${focusBorderClass}`}
                   placeholder="Last Name"
-                  maxLength={PERSON_NAME_MAX_LENGTH}
+                  hint={`Maximum ${PERSON_NAME_MAX_LENGTH} characters.`}
                 />
               </div>
 
@@ -1208,8 +1216,8 @@ function Step1ReviewContent() {
                     </span>
                     <input
                       id="phone-input"
-                      value={formatPhoneNumber(form.phone)}
-                      onChange={(e) => handleChange("phone", normalizePhoneInput(e.target.value))}
+                      value={form.phone}
+                      onChange={(e) => handleChange("phone", e.target.value)}
                       className={`w-full pl-14 pr-11 h-[52px] sm:h-[56px] border rounded-md text-[#1e293b] text-sm bg-white ${
                         phoneConflict || phoneFieldError
                           ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200"

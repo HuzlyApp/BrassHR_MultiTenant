@@ -1,3 +1,4 @@
+import { validateAddCandidateField } from "@/lib/jobs/add-candidate-validation";
 import { randomUUID } from "node:crypto";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { NextRequest, NextResponse } from "next/server";
@@ -359,6 +360,11 @@ export async function POST(req: NextRequest) {
     }
     if (!phone) {
       return NextResponse.json({ error: "Phone is required" }, { status: 400 });
+    }
+
+    for (const field of ["email", "phone"] as const) {
+      const message = validateAddCandidateField(field, { email, phone });
+      if (message) return NextResponse.json({ error: message }, { status: 400 });
     }
 
     let resumePath: string | null = null;

@@ -3,7 +3,7 @@ vi.mock("@/lib/service-area/jobs", () => ({ evaluateJobServiceArea: vi.fn(async 
 vi.mock("@/lib/onboarding/onboarding-flows", () => ({ getOnboardingFlowById: vi.fn(async () => ({ status: "published", builderDraft: { nodes: [{ id: "step" }] } })) }));
 import { publishExistingJob, transitionJobStatus } from "./service";
 
-const valid = { id: "job-a", status: "draft", published_at: null, source_type: "Internal", employment_type: "W2", public_title: "Nurse", public_description: "Provide nursing care.", location: "Austin, TX", shift_type: "Full-time", profession_id: "profession-a", workflow_id: "assigned-flow", workflow_assignment_mode: "manual" };
+const valid = { id: "job-a", status: "draft", published_at: null, source_type: "Internal", employment_type: "W2", public_title: "Nurse", public_description: "Provide nursing care.", pay_rate_min: 25, pay_rate_period: "Hourly", location: "Austin, TX", shift_type: "Full-time", profession_id: "profession-a", workflow_id: "assigned-flow", workflow_assignment_mode: "manual" };
 function database(row: Record<string, unknown>) {
   const patch = vi.fn();
   const filters: unknown[][] = [];
