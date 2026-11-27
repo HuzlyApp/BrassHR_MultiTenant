@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const applications = await listWorkerJobApplications(auth.supabase, {
       workerId: auth.applicant.id,
       tenantId: auth.applicant.tenant_id,
-    });
+    }, { applicationScopedResumes: true });
 
     return NextResponse.json({ applications });
   } catch (err) {

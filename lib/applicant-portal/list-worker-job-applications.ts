@@ -111,6 +111,7 @@ type ResumeRow = {
   file_type?: string | null;
   file_size_bytes?: number | null;
   job_application_id?: string | null;
+  uploaded_at?: string | null;
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -175,7 +176,7 @@ function formatAgreedPayRate(job: JobRequisitionJoin | null): string | null {
 export async function listWorkerJobApplications(
   supabase: SupabaseClient,
   input: { workerId: string; tenantId: string },
-  options?: { includeStatusNotes?: boolean; includeResumes?: boolean }
+  options?: { includeStatusNotes?: boolean; includeResumes?: boolean; applicationScopedResumes?: boolean }
 ): Promise<WorkerJobApplicationListItem[]> {
   const includeResumes = options?.includeResumes !== false;
   const includeStatusNotes = options?.includeStatusNotes !== false;
@@ -249,6 +250,7 @@ export async function listWorkerJobApplications(
   }
 
   const latestResumeByApplication = new Map<string, WorkerJobApplicationResume>();
+  const resumeById = new Map<string, WorkerJobApplicationResume>();
   let latestResume: WorkerJobApplicationResume | null = null;
 
   for (const resume of (resumeRows ?? []) as unknown as ResumeRow[]) {
@@ -267,6 +269,7 @@ export async function listWorkerJobApplications(
       fileType: resume.file_type ?? null,
       jobApplicationId: linkedApplicationId || null,
     };
+    resumeById.set(item.id, item);
     if (!latestResume) latestResume = item;
     if (linkedApplicationId && !latestResumeByApplication.has(linkedApplicationId)) {
       latestResumeByApplication.set(linkedApplicationId, item);
@@ -300,6 +303,17 @@ export async function listWorkerJobApplications(
       aiAnalysis: row.ai_analysis,
     });
 
+    // Legacy unassigned files must have existed when this job was applied to.
+    const appliedAt = row.submitted_at || row.created_at || "";
+    const unassignedResume = options?.applicationScopedResumes
+      ? ((resumeRows ?? []) as unknown as ResumeRow[]).find((resume) =>
+          !resume.job_application_id && resume.uploaded_at && resume.uploaded_at <= appliedAt
+        )
+      : null;
+    const fallbackResume = options?.applicationScopedResumes
+      ? (unassignedResume ? resumeById.get(unassignedResume.id) ?? null : null)
+      : latestResume;
+
     return {
       id: applicationId,
       jobRequisitionId: String(row.job_requisition_id ?? "").trim(),
@@ -323,7 +337,7 @@ export async function listWorkerJobApplications(
       statusGroupSortOrder:
         statusGroup?.sort_order == null ? null : Number(statusGroup.sort_order),
       statusNote: note || null,
-      resume: latestResumeByApplication.get(applicationId) ?? latestResume,
+      resume: latestResumeByApplication.get(applicationId) ?? fallbackResume,
       matchScore: matchDisplay.score,
       matchCategory: matchDisplay.category,
       matchStatus: row.ai_match_status?.trim() || null,

@@ -445,6 +445,7 @@ export async function listWorkerResumesForApplicant(
     .from("worker_resumes")
     .select(RESUME_LIST_SELECT)
     .eq("worker_id", workerId)
+    .eq("tenant_id", tenantId)
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: true });
 
@@ -645,9 +646,10 @@ export async function reuploadWorkerResumeForApplicant(
   applicant: ApplicantWorkerRow,
   userId: string,
   resumeId: string,
-  file: File
+  file: File,
+  jobApplicationId?: string
 ) {
-  return storeResumeFromFile(supabase, applicant, userId, file, "update", { resumeId });
+  return storeResumeFromFile(supabase, applicant, userId, file, "update", { resumeId, jobApplicationId });
 }
 
 export async function deleteWorkerResumeForApplicant(
