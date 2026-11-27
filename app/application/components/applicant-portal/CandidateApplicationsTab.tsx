@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Download } from "lucide-react";
 import { applicantApplicationStatusHref } from "@/lib/applicant-portal/application-status-link";
+import Link from "next/link";
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -348,6 +350,13 @@ export function CandidateApplicationsTab({
                       ) : (
                         <span className="text-sm text-[#94A3B8]">—</span>
                       )}
+                      <Link
+                        href={applicationPath(`/application/candidate/applications?application=${encodeURIComponent(row.id)}`, tenantSlug)}
+                        onClick={(event) => event.stopPropagation()}
+                        className="mt-2 block text-sm text-[#012352] hover:underline"
+                      >
+                        Manage resume
+                      </Link>
                     </td>
                     <td className="px-4 py-4 text-sm text-[#111827]">{formatPay(row)}</td>
                     <td className="px-4 py-4 text-sm text-[#374151]">{formatShortDate(row.appliedAt)}</td>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CandidateApplicationsTab } from "@/app/application/components/applicant-portal/CandidateApplicationsTab";
+import { CandidateApplicationDetail } from "@/app/application/components/applicant-portal/CandidateApplicationDetail";
 import {
   CANDIDATE_BTN_NAVY,
   CandidatePageIntro,
@@ -24,7 +25,9 @@ export default function CandidateApplicationsPage() {
           </Link>
         }
       />
-      <CandidateApplicationsTab portalPage />
+      {searchParams?.get("application") ? (
+        <CandidateApplicationDetail key={searchParams.get("application")} applicationId={searchParams.get("application")!} tenant={searchParams.get("tenant")} />
+      ) : <CandidateApplicationsTab portalPage />}
     </div>
   );
 }
