@@ -188,7 +188,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
   ]);
 
   if (error) {
-    const ownership = sessionErrorMeta?.reason === "application_ownership";
+    const ownership = sessionErrorMeta?.reason === "application_ownership" || sessionErrorMeta?.reason === "sign_in_required";
     return (
       <TenantBrandingProvider branding={brand}>
         <div className="mx-auto max-w-lg p-8 text-center text-sm text-red-700">
