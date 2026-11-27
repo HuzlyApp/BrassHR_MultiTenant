@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCandidateDetailChromeActive } from "../../../components/CandidateDetailChrome";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -20,19 +19,6 @@ import AddDocumentModal, {
 import { BulkDeleteConfirmModal } from "../../../components/BulkDeleteConfirmModal";
 import type { ProfessionDocumentKind } from "@/lib/professions/profession-documents";
 import { unifiedDocumentTypeSortOrder } from "@/lib/professions/profession-documents";
-import {
-  Briefcase,
-  Calendar,
-  LogOut,
-  Menu,
-  Plus,
-  Settings,
-  UserCheck,
-  UserPlus,
-  UserX,
-  Users,
-  X,
-} from "lucide-react";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
 
 type WorkerProfile = {
@@ -114,21 +100,11 @@ function isResumeAttachmentRow(row: Pick<AttachmentRow, "id" | "stepType">): boo
   return row.stepType === "resume_upload" || row.id === "resume";
 }
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
-
 export default function NewApplicantAttachmentsFilledPage() {
-  const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
   const chromeActive = useCandidateDetailChromeActive();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
@@ -620,121 +596,19 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const candidateRole = applicant?.job_role || "N/A";
 
-  return (
-    <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      {/* Sidebar */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="px-6 py-8 flex items-center gap-3 border-b border-white/10">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
-              <span className="text-[#0A1F1C] font-bold text-3xl">N</span>
-            </div>
-            <div>
-              <div className="font-semibold text-2xl tracking-tight">Nexus</div>
-              <div className="text-xs text-teal-400 -mt-1">MedPro Staffing</div>
-            </div>
-          </div>
-
-          <nav className="flex-1 px-3 py-8 space-y-1">
-            <div className="px-4 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              PERSONAL SETTINGS
-            </div>
-            <a
-              href="#"
-              className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl"
-            >
-              Profile
-            </a>
-            <a
-              href="#"
-              className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl"
-            >
-              Account
-            </a>
-
-            <div className="px-4 pt-8 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              TEAM MANAGEMENT
-            </div>
-
-            {[
-              { label: "Candidates", href: "/admin_recruiter/candidates", icon: Users },
-              { label: "New", href: "/admin_recruiter/new", icon: UserPlus },
-              { label: "Pending", href: "/admin_recruiter/pending", icon: UserCheck },
-              { label: "Approved", href: "/admin_recruiter/approved", icon: UserCheck },
-              { label: "Disapproved", href: "/admin_recruiter/disapproved", icon: UserX },
-              { label: "Workers", href: "/admin_recruiter/workers", icon: Briefcase },
-              { label: "Schedule", href: "/admin_recruiter/schedule", icon: Calendar },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={`${item.href}-${item.label}`}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm rounded-2xl transition-all ${
-                    isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/10"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            <div className="px-4 pt-10">
-              <a
-                href="#"
-                className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl"
-              >
-                <Settings className="w-5 h-5" /> Settings
-              </a>
-            </div>
-          </nav>
-
-          <div className="p-6 border-t border-white/10">
-            <button className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/10 rounded-2xl">
-              <LogOut className="w-5 h-5" /> Sign out
-            </button>
-          </div>
-        </div>
+  if (!applicantId) {
+    return (
+      <div className="admin-recruiter-page-pad">
+        <p className="text-sm text-red-700">Missing candidate id.</p>
       </div>
+    );
+  }
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen((v) => !v)} className="lg:hidden text-gray-600">
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div className="font-semibold text-2xl">New Applicant</div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1 rounded-full text-sm">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Online
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium text-sm">Sean Smith</div>
-                <div className="text-xs text-gray-600">Manager</div>
-              </div>
-              <img
-                src="https://i.pravatar.cc/128?u=sean"
-                alt="Sean Smith"
-                className="w-9 h-9 rounded-full object-cover"
-              />
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
-          <div className="admin-recruiter-content-width">
+  return (
+    <div className="flex min-h-screen overflow-x-hidden bg-zinc-50">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+        <div className="admin-recruiter-page-pad w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="admin-recruiter-content-width min-w-0 max-w-full">
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -761,164 +635,134 @@ export default function NewApplicantAttachmentsFilledPage() {
               <CandidateDetailLoader label="Loading attachments..." />
             ) : (
               <>
-            {!chromeActive ? (
-              <>
-            <DetailedCandidateHeader
-              name={candidateName}
-              role={candidateRole}
-              profilePhotoUrl={applicant?.profile_photo_url}
-              workerId={applicantId}
-              candidateEmail={applicant?.email ?? null}
-            />
-            <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
-              </>
-            ) : null}
-
-            {loading ? (
-              <CandidateDetailLoader label="Loading attachments..." />
-            ) : (
-            <div className="w-full min-w-0 admin-recruiter-content-width">
-              {/* Top */}
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                    New Applicant
-                  </span>
-                  <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
-                </div>
-              </div>
-
-              {/* Tabs */}
-              <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
-
-              <div className="space-y-6 p-5">
-                <div className="max-w-md space-y-1.5">
-                  <label
-                    htmlFor="documents-profession"
-                    className="block text-sm font-medium text-[#374151]"
-                  >
-                    Profession
-                  </label>
-                  {professionLocked ? (
-                    <input
-                      id="documents-profession"
-                      value={professionName || "—"}
-                      readOnly
-                      disabled
-                      className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm font-semibold text-[#111827] outline-none"
+                {!chromeActive ? (
+                  <>
+                    <DetailedCandidateHeader
+                      name={candidateName}
+                      role={candidateRole}
+                      profilePhotoUrl={applicant?.profile_photo_url}
+                      workerId={applicantId}
+                      candidateEmail={applicant?.email ?? null}
                     />
-                  ) : (
-                    <select
-                      id="documents-profession"
-                      value={professionName}
-                      disabled={!settings?.canManage || professionOptions.length === 0}
-                      onChange={(event) => setProfessionByName(event.target.value)}
-                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat px-3 pr-10 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
-                      style={{
-                        backgroundImage:
-                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+                    <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
+                  </>
+                ) : null}
+
+                {loading ? (
+                  <CandidateDetailLoader label="Loading attachments..." />
+                ) : (
+                  <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+                    <div className="w-full min-w-0 max-w-md space-y-1.5">
+                      <label
+                        htmlFor="documents-profession"
+                        className="block text-sm font-medium text-[#374151]"
+                      >
+                        Profession
+                      </label>
+                      {professionLocked ? (
+                        <input
+                          id="documents-profession"
+                          value={professionName || "—"}
+                          readOnly
+                          disabled
+                          className="h-11 w-full cursor-not-allowed rounded-lg border border-[#D1D5DB] bg-[#F8FAFC] px-3 text-sm font-semibold text-[#111827] outline-none"
+                        />
+                      ) : (
+                        <select
+                          id="documents-profession"
+                          value={professionName}
+                          disabled={!settings?.canManage || professionOptions.length === 0}
+                          onChange={(event) => setProfessionByName(event.target.value)}
+                          className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat px-3 pr-10 text-sm text-[#0F172A] outline-none transition focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC]"
+                          style={{
+                            backgroundImage:
+                              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+                          }}
+                        >
+                          <option value="">
+                            {professionOptions.length === 0
+                              ? "No professions in settings"
+                              : "Select profession"}
+                          </option>
+                          {professionOptions.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <p className="text-xs text-[#64748B]">
+                        {professionLocked
+                          ? "Profession comes from the job and cannot be changed here."
+                          : "Select a profession from settings to add documents."}
+                      </p>
+                    </div>
+
+                    <CandidateDocumentsFilesTable
+                      rows={attachmentRows}
+                      uploadingKey={uploadingId}
+                      canManage={Boolean(settings?.canManage)}
+                      savingDocuments={savingDocuments}
+                      dateDrafts={dateDrafts}
+                      fileNameDrafts={fileNameDrafts}
+                      onPatchDateDraft={patchDateDraft}
+                      onOpenUpload={openUploadPicker}
+                      onDeleteFile={requestDeleteDocumentFile}
+                      onCommitFileName={(row, file, draftKey) =>
+                        void commitFileName(row, file, draftKey)
+                      }
+                      onFileNameDraftChange={(draftKey, value) =>
+                        setFileNameDrafts((current) => ({
+                          ...current,
+                          [draftKey]: value,
+                        }))
+                      }
+                      onTopUploadClick={openTopUploadPicker}
+                      topUploadDisabled={Boolean(uploadingId) || addingDocument || !settings?.canManage}
+                    />
+
+                    <AddDocumentModal
+                      open={addModalOpen}
+                      saving={addingDocument}
+                      error={addModalError}
+                      professionOptions={professionOptions}
+                      professionValue={professionName}
+                      professionLocked={professionLocked}
+                      onProfessionChange={setProfessionByName}
+                      onClose={() => {
+                        if (addingDocument) return;
+                        setAddModalOpen(false);
+                        setAddModalError(null);
                       }}
-                    >
-                      <option value="">
-                        {professionOptions.length === 0
-                          ? "No professions in settings"
-                          : "Select profession"}
-                      </option>
-                      {professionOptions.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <p className="text-xs text-[#64748B]">
-                    {professionLocked
-                      ? "Profession comes from the job and cannot be changed here."
-                      : "Select a profession from settings to add documents."}
-                  </p>
-                </div>
+                      onSubmit={(values) => void handleAddDocument(values)}
+                    />
 
-                <CandidateDocumentsFilesTable
-                  rows={attachmentRows}
-                  uploadingKey={uploadingId}
-                  canManage={Boolean(settings?.canManage)}
-                  savingDocuments={savingDocuments}
-                  dateDrafts={dateDrafts}
-                  fileNameDrafts={fileNameDrafts}
-                  onPatchDateDraft={patchDateDraft}
-                  onOpenUpload={openUploadPicker}
-                  onDeleteFile={requestDeleteDocumentFile}
-                  onCommitFileName={(row, file, draftKey) =>
-                    void commitFileName(row, file, draftKey)
-                  }
-                  onFileNameDraftChange={(draftKey, value) =>
-                    setFileNameDrafts((current) => ({
-                      ...current,
-                      [draftKey]: value,
-                    }))
-                  }
-                  onTopUploadClick={openTopUploadPicker}
-                  topUploadDisabled={Boolean(uploadingId) || addingDocument || !settings?.canManage}
-                />
-              </div>
-
-              <AddDocumentModal
-                open={addModalOpen}
-                saving={addingDocument}
-                error={addModalError}
-                professionOptions={professionOptions}
-                professionValue={professionName}
-                professionLocked={professionLocked}
-                onProfessionChange={setProfessionByName}
-                onClose={() => {
-                  if (addingDocument) return;
-                  setAddModalOpen(false);
-                  setAddModalError(null);
-                }}
-                onSubmit={(values) => void handleAddDocument(values)}
-              />
-
-              <BulkDeleteConfirmModal
-                open={pendingDelete != null}
-                busy={deletingDocument}
-                error={deleteError}
-                requireConfirmationText="DELETE"
-                title="Delete document?"
-                description={
-                  pendingDelete ? (
-                    <p>
-                      Are you sure you want to delete{" "}
-                      <span className="font-semibold text-[#101828]">
-                        {pendingDelete.file.filename || pendingDelete.row.title || "this file"}
-                      </span>
-                      ? This action cannot be undone.
-                    </p>
-                  ) : null
-                }
-                onCancel={() => {
-                  if (deletingDocument) return;
-                  setPendingDelete(null);
-                  setDeleteError(null);
-                }}
-                onConfirm={() => void confirmDeleteDocumentFile()}
-              />
-            </div>
-            )}
+                    <BulkDeleteConfirmModal
+                      open={pendingDelete != null}
+                      busy={deletingDocument}
+                      error={deleteError}
+                      requireConfirmationText="DELETE"
+                      title="Delete document?"
+                      description={
+                        pendingDelete ? (
+                          <p>
+                            Are you sure you want to delete{" "}
+                            <span className="font-semibold text-[#101828]">
+                              {pendingDelete.file.filename || pendingDelete.row.title || "this file"}
+                            </span>
+                            ? This action cannot be undone.
+                          </p>
+                        ) : null
+                      }
+                      onCancel={() => {
+                        if (deletingDocument) return;
+                        setPendingDelete(null);
+                        setDeleteError(null);
+                      }}
+                      onConfirm={() => void confirmDeleteDocumentFile()}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -927,4 +771,3 @@ export default function NewApplicantAttachmentsFilledPage() {
     </div>
   );
 }
-

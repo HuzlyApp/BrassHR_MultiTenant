@@ -232,7 +232,7 @@ export default function LegalPolicyEditor({ value, onChange, disabled = false, e
 
   return (
     <div>
-      <div className="overflow-hidden rounded-lg border border-[#CBD5E1]">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CBD5E1]">
         <div className="flex flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-[#F8FAFC] px-2 py-2">
           {formatTools.map(({ icon: Icon, label, onClick }) => (
             <button

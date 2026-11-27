@@ -34,8 +34,8 @@ export default function CompanyAccountSummaryCard() {
       className="rounded-lg border px-4 py-4 sm:px-5"
       style={{ borderColor: "#E2E8F0", backgroundColor: COLORS.bgPrimary }}
     >
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
+      <div className="flex flex-col gap-4 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between">
+        <div className="min-w-0 flex-1">
           <h2
             className="text-base font-semibold sm:text-lg"
             style={{ color: COLORS.headingTitleDark }}
@@ -51,18 +51,18 @@ export default function CompanyAccountSummaryCard() {
               />
               Account #{accountNumber}
             </p>
-            <p className="flex items-center gap-2 text-sm" style={{ color: COLORS.textLabels }}>
+            <p className="flex min-w-0 items-center gap-2 text-sm" style={{ color: COLORS.textLabels }}>
               <Link2
                 className="h-4 w-4 shrink-0"
                 style={{ color: "var(--brand-primary)" }}
                 aria-hidden
               />
-              {accountDomain}
+              <span className="truncate">{accountDomain}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 md:shrink-0">
+        <div className="flex shrink-0 items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E2E8F0] bg-[#F8FAFC]">
             {profileAvatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element

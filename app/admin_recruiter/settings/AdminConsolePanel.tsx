@@ -454,12 +454,12 @@ export default function AdminConsolePanel({
       style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
     >
       <div
-        className={`flex flex-col gap-3 sm:flex-row sm:items-start ${
+        className={`flex flex-col gap-3 min-[350px]:items-end sm:flex-row sm:items-start ${
           embedInSettingsPage ? "sm:justify-end" : "sm:justify-between"
         }`}
       >
         {embedInSettingsPage ? null : (
-          <div>
+          <div className="min-w-0 w-full min-[350px]:flex-1 sm:w-auto">
             <h1 className="text-lg font-semibold leading-6 text-black">User Management</h1>
             <p className="text-xs font-normal leading-4 text-[#6B7280]">
               Manage users, invitations, and administrative access for your organization.
@@ -471,7 +471,7 @@ export default function AdminConsolePanel({
             type="button"
             onClick={openInvite}
             disabled={loading}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60 min-[350px]:w-auto"
           >
             <UserPlus className="h-4 w-4" aria-hidden />
             Invite User
@@ -751,31 +751,35 @@ export default function AdminConsolePanel({
                   type="button"
                   onClick={() => setPage(currentPage - 1)}
                   disabled={currentPage <= 1}
-                  className={`rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-normal leading-4 ${
+                  className={`rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 text-xs font-normal leading-4 sm:px-3 ${
                     currentPage <= 1 ? "text-[#94A3B8]" : "text-[#374151]"
                   }`}
                 >
                   Previous
                 </button>
-                {pageNumbers(currentPage, pageCount).map((number) => (
-                  <button
-                    key={number}
-                    type="button"
-                    onClick={() => setPage(number)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-normal leading-4 ${
-                      number === currentPage
-                        ? "bg-[#001A46] text-white"
-                        : "border border-[#CBD5E1] bg-white text-[#374151]"
-                    }`}
-                  >
-                    {number}
-                  </button>
-                ))}
+                {pageNumbers(currentPage, pageCount).map((number) => {
+                  const isActive = number === currentPage;
+                  return (
+                    <button
+                      key={number}
+                      type="button"
+                      onClick={() => setPage(number)}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-normal leading-4 sm:px-3 ${
+                        isActive
+                          ? "bg-[color:var(--brand-secondary,#001A46)] text-white"
+                          : "hidden border border-[#CBD5E1] bg-white text-[#374151] sm:inline-flex"
+                      }`}
+                    >
+                      {number}
+                    </button>
+                  );
+                })}
                 <button
                   type="button"
                   onClick={() => setPage(currentPage + 1)}
                   disabled={currentPage >= pageCount}
-                  className={`rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-normal leading-4 ${
+                  className={`rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 text-xs font-normal leading-4 sm:px-3 ${
                     currentPage >= pageCount ? "text-[#94A3B8]" : "text-[#374151]"
                   }`}
                 >

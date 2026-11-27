@@ -10,6 +10,7 @@ describe("email template editing tools", () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ tenantName: "Zippy Corp", templates: [{ template_key: "welcome", name: "Welcome", variables: [{ key: "tenantName", sample: "[tenantName]" }, { key: "applicantName", sample: "[applicantName]" }, { key: "supportEmail", sample: "[supportEmail]" }], subject: "Welcome to {{tenantName}}", body_html: "<p>Hi {{applicantName}}. Questions? {{supportEmail}}</p>", defaults: { subject: "Default subject", body_html: "<p>Default welcome</p>", body_text: "Default welcome" } }] }) } as Response);
     vi.stubGlobal("confirm", vi.fn(() => true));
     render(<EmailTemplatesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: /Welcome email/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Preview email" }));
     expect(screen.getByRole("heading", { name: "Welcome to Zippy Corp" })).toBeInTheDocument();
     expect(screen.getByTitle("Email body preview")).toHaveAttribute("srcdoc", expect.stringContaining("Hi Alex Morgan. Questions? support@example.com"));
@@ -19,6 +20,7 @@ describe("email template editing tools", () => {
   });
   it("inserts a placeholder at the body cursor without replacing surrounding content", async () => {
     render(<EmailTemplatesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: /Welcome email/i }));
     const body = await screen.findByLabelText("Email body (HTML)");
     act(() => body.focus());
     (body as HTMLTextAreaElement).setSelectionRange(3, 3);
@@ -27,6 +29,7 @@ describe("email template editing tools", () => {
   });
   it("previews the draft with sample variables in a sandboxed frame", async () => {
     render(<EmailTemplatesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: /Welcome email/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Preview email" }));
     expect(screen.getByRole("heading", { name: "Hello Alice" })).toBeInTheDocument();
     expect(screen.getByTitle("Email body preview")).toHaveAttribute("sandbox", "");

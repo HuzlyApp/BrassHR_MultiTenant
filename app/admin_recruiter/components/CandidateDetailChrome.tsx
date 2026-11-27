@@ -232,8 +232,8 @@ function CandidateDetailChromeInner({
 
   return (
     <CandidateDetailChromeContext.Provider value={contextValue}>
-      <div className="admin-recruiter-page-pad admin-candidate-detail-chrome-active">
-        <div className="admin-recruiter-content-width">
+      <div className="admin-recruiter-page-pad admin-candidate-detail-chrome-active max-w-full overflow-x-hidden">
+        <div className="admin-recruiter-content-width min-w-0 max-w-full overflow-x-hidden">
           <DetailedCandidateHeader
             persistent
             name={name}

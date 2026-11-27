@@ -114,7 +114,7 @@ export function ListPaginationControls({
           return (
             <span
               key={`ellipsis-${index}`}
-              className="inline-flex h-8 min-w-8 items-center justify-center text-sm text-[#94A3B8]"
+              className="hidden h-8 min-w-8 items-center justify-center text-sm text-[#94A3B8] sm:inline-flex"
               aria-hidden
             >
               …
@@ -129,7 +129,9 @@ export function ListPaginationControls({
             type="button"
             onClick={() => onPageChange(item)}
             className={`${SURFACE} min-w-8 px-1.5 ${
-              active ? "border-transparent text-white hover:opacity-95" : ""
+              active
+                ? "border-transparent text-white hover:opacity-95"
+                : "hidden sm:inline-flex"
             }`}
             style={active ? resolvedActiveStyle : undefined}
             aria-current={active ? "page" : undefined}

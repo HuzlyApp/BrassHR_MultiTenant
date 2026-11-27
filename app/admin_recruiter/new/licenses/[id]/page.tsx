@@ -24,10 +24,10 @@ export default function CandidateLicensesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
-          <div className="admin-recruiter-content-width">
+    <div className="flex min-h-screen overflow-x-hidden bg-zinc-50">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+        <div className="admin-recruiter-page-pad w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="admin-recruiter-content-width min-w-0 max-w-full">
             {loading && !chromeActive ? (
               <CandidateDetailLoader label="Loading licenses..." />
             ) : (

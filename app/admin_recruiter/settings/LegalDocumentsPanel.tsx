@@ -39,7 +39,7 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 const inputClass =
-  "h-10 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/25 disabled:bg-[#F8FAFC]";
+  "box-border h-10 w-full min-w-0 max-w-full rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/25 disabled:bg-[#F8FAFC]";
 const labelClass = "text-sm font-medium text-[#667085]";
 
 export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: boolean }) {
@@ -308,9 +308,9 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
     mode === "view" && selected ? legalDocumentPublicPath(selected.document_key) : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[#667085]">
+    <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden">
+      <div className="flex flex-col gap-3 min-[600px]:flex-row min-[600px]:flex-wrap min-[600px]:items-center min-[600px]:justify-between">
+        <p className="min-w-0 text-sm break-words text-[#667085]">
           {tenantName ? (
             <>
               Managing policies for <span className="font-medium text-[#101828]">{tenantName}</span>.
@@ -324,7 +324,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
           <button
             type="button"
             onClick={startCreate}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95"
+            className="inline-flex h-10 w-auto shrink-0 items-center justify-center gap-2 self-end rounded-xl bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95"
           >
             <Plus className="h-4 w-4" />
             Add policy
@@ -332,8 +332,8 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-[#EAECF0] bg-white p-3">
+      <div className="grid w-full min-w-0 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="min-w-0 rounded-xl border border-[#EAECF0] bg-white p-3">
           <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
             Documents
           </p>
@@ -341,18 +341,18 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
             {documents.map((doc) => {
               const active = mode === "view" && doc.id === selectedId;
               return (
-                <li key={doc.id}>
+                <li key={doc.id} className="min-w-0">
                   <button
                     type="button"
                     onClick={() => selectDocument(doc.id)}
-                    className={`flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left transition ${
+                    className={`flex w-full min-w-0 items-start gap-2 rounded-xl px-3 py-2.5 text-left transition ${
                       active
                         ? "bg-[#F2F4F7] text-[#101828]"
                         : "text-[#344054] hover:bg-[#F9FAFB]"
                     }`}
                   >
                     <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[#667085]" />
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1 overflow-hidden">
                       <span className="block truncate text-sm font-medium">{doc.title}</span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#98A2B3]">
                         <span>{doc.is_system ? "System" : "Custom"}</span>
@@ -375,10 +375,10 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
           </ul>
         </aside>
 
-        <section className="rounded-xl border border-[#EAECF0] bg-white p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EAECF0] pb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-[#101828]">
+        <section className="min-w-0 max-w-full overflow-hidden rounded-xl border border-[#EAECF0] bg-white p-3 max-[599px]:p-3 sm:p-6">
+          <div className="flex flex-col gap-3 border-b border-[#EAECF0] pb-4 min-[600px]:flex-row min-[600px]:flex-wrap min-[600px]:items-start min-[600px]:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold break-words text-[#101828] min-[600px]:text-lg">
                 {mode === "create" ? "Add legal policy" : selected?.title ?? "Legal policy"}
               </h2>
               {previewPath ? (
@@ -392,16 +392,16 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                 </a>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 min-[600px]:w-auto">
               {mode === "view" && selected?.is_system && canEdit ? (
                 <button
                   type="button"
                   onClick={() => void resetToDefault()}
                   disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-60"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-60 min-[600px]:flex-none"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset default
+                  Reset
                 </button>
               ) : null}
               {mode === "view" && selected && !selected.is_system && canEdit ? (
@@ -409,7 +409,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                   type="button"
                   onClick={() => void removeCustom()}
                   disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#FECDCA] bg-white px-3 text-sm font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-60"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#FECDCA] bg-white px-3 text-sm font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-60 min-[600px]:flex-none"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete
@@ -420,7 +420,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                   type="button"
                   onClick={() => void save()}
                   disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-60 min-[600px]:flex-none"
                 >
                   <Save className="h-3.5 w-3.5" />
                   {saving ? "Saving…" : "Save"}
@@ -430,8 +430,8 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
           </div>
 
           <div className="mt-5 space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block space-y-1.5 sm:col-span-2">
+            <div className="grid min-w-0 gap-4 min-[600px]:grid-cols-2">
+              <label className="block min-w-0 space-y-1.5 min-[600px]:col-span-2">
                 <span className={labelClass}>Title</span>
                 <input
                   className={inputClass}
@@ -442,7 +442,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                 />
               </label>
 
-              <label className="block space-y-1.5">
+              <label className="block min-w-0 space-y-1.5">
                 <span className={labelClass}>Document key</span>
                 <input
                   className={inputClass}
@@ -451,12 +451,12 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                   disabled={!canEdit || mode === "view"}
                   placeholder="custom_worker_policy"
                 />
-                <span className="text-xs text-[#98A2B3]">
+                <span className="block text-xs break-words text-[#98A2B3]">
                   Used in `/legal/your_key`. System keys cannot be changed.
                 </span>
               </label>
 
-              <label className="block space-y-1.5">
+              <label className="block min-w-0 space-y-1.5">
                 <span className={labelClass}>Audience</span>
                 <select
                   className={inputClass}
@@ -474,7 +474,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                 </select>
               </label>
 
-              <label className="block space-y-1.5 sm:col-span-2">
+              <label className="block min-w-0 space-y-1.5 min-[600px]:col-span-2">
                 <span className={labelClass}>Last updated label</span>
                 <input
                   className={inputClass}
@@ -485,35 +485,39 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                 />
               </label>
 
-              <div className="sm:col-span-2">
+              <div className="min-w-0 min-[600px]:col-span-2">
                 <button
                   type="button"
                   disabled={!canEdit}
                   onClick={() => setIsPublished((v) => !v)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2 text-sm font-medium text-[#344054] disabled:opacity-60"
+                  className="inline-flex max-w-full items-center gap-2 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2 text-left text-sm font-medium text-[#344054] disabled:opacity-60"
                 >
                   {isPublished ? (
-                    <Eye className="h-4 w-4 text-[#039855]" />
+                    <Eye className="h-4 w-4 shrink-0 text-[#039855]" />
                   ) : (
-                    <EyeOff className="h-4 w-4 text-[#667085]" />
+                    <EyeOff className="h-4 w-4 shrink-0 text-[#667085]" />
                   )}
-                  {isPublished ? "Published on public screens" : "Draft (hidden from public screens)"}
+                  <span className="min-w-0 break-words">
+                    {isPublished ? "Published on public screens" : "Draft (hidden from public screens)"}
+                  </span>
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-col gap-1 min-[600px]:flex-row min-[600px]:items-center min-[600px]:justify-between min-[600px]:gap-3">
                 <h3 className="text-sm font-semibold text-[#101828]">Policy content</h3>
-                <p className="text-xs text-[#98A2B3]">
+                <p className="text-xs break-words text-[#98A2B3]">
                   Same rich editor as job description — paste, format, and copy.
                 </p>
               </div>
-              <LegalPolicyEditor
-                value={bodyHtml}
-                onChange={setBodyHtml}
-                disabled={!canEdit}
-              />
+              <div className="min-w-0 max-w-full overflow-hidden">
+                <LegalPolicyEditor
+                  value={bodyHtml}
+                  onChange={setBodyHtml}
+                  disabled={!canEdit}
+                />
+              </div>
             </div>
           </div>
         </section>

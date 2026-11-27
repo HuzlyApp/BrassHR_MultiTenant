@@ -44,7 +44,7 @@ const fieldClass =
   "h-10 w-full rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] transition focus:border-[#012352] focus:ring-2 focus:ring-[color:color-mix(in_srgb,#012352_16%,transparent)] disabled:bg-[#F8FAFC]";
 
 const iconBtnClass =
-  "inline-flex size-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-40";
+  "inline-flex size-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-40 max-[449px]:size-7";
 
 const secondaryBtnClass =
   "inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-3.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC] disabled:opacity-50";
@@ -388,7 +388,7 @@ export function StageConfigModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[220] bg-[#0F172A]/40" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[221] flex max-h-[min(860px,calc(100vh-2rem))] w-[min(94vw,40rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl outline-none"
+          className="fixed left-1/2 top-1/2 z-[221] flex max-h-[min(860px,calc(100vh-2rem))] w-[min(94vw,40rem)] max-w-[calc(100vw-1rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl outline-none"
           onEscapeKeyDown={(event) => {
             if (deleteTarget) {
               event.preventDefault();
@@ -416,12 +416,12 @@ export function StageConfigModal({
             if (content instanceof HTMLElement) content.focus();
           }}
         >
-          <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 max-[449px]:px-4">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#94A3B8]">
                 Pre-Hire stage
               </p>
-              <Dialog.Title className="mt-1 text-xl font-semibold tracking-tight text-[#0F172A]">
+              <Dialog.Title className="mt-1 text-xl font-semibold tracking-tight text-[#0F172A] max-[449px]:text-lg">
                 {stage}
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-sm leading-5 text-[#64748B]">
@@ -440,8 +440,8 @@ export function StageConfigModal({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
-            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm leading-5 text-[#64748B]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2 max-[449px]:px-4">
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm leading-5 text-[#64748B] max-[449px]:px-3">
               Renaming keeps the same status. Candidates and jobs stay on it, and each rename is saved with
               who made the change.
             </div>
@@ -467,9 +467,9 @@ export function StageConfigModal({
                       {draft.lanes[lane].map((status, index) => (
                         <li
                           key={status.id}
-                          className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5"
+                          className="min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 max-[449px]:px-2.5"
                         >
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <span className="w-4 shrink-0 text-center text-xs font-medium tabular-nums text-[#94A3B8]">
                               {index + 1}
                             </span>
@@ -507,7 +507,7 @@ export function StageConfigModal({
                               </span>
                             )}
                             {canManage ? (
-                              <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+                              <span className="flex w-full min-w-0 flex-wrap items-center gap-1 max-[449px]:gap-0.5 sm:ml-0 sm:w-auto sm:shrink-0 sm:gap-1.5">
                                 {renamingId === status.id ? (
                                   <>
                                     <button
@@ -538,7 +538,8 @@ export function StageConfigModal({
                                       value={lane}
                                       disabled={saving}
                                       size="sm"
-                                      className="w-[7.5rem]"
+                                      className="w-[5.5rem] shrink-0 sm:w-[7rem]"
+                                      triggerClassName="gap-1 px-2 pr-1.5"
                                       dropUp
                                       onChange={(next) =>
                                         changeLane(status.id, lane, next as StageStatusLane)
@@ -602,7 +603,7 @@ export function StageConfigModal({
                                         aria-label={`Delete ${status.name}`}
                                         disabled={saving}
                                         onClick={() => void openDeleteWarning(status)}
-                                        className="inline-flex size-8 items-center justify-center rounded-lg border border-[#FECACA] bg-white text-[#B91C1C] transition hover:bg-[#FEF2F2] disabled:opacity-40"
+                                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#FECACA] bg-white text-[#B91C1C] transition hover:bg-[#FEF2F2] disabled:opacity-40 max-[449px]:size-7"
                                       >
                                         <Trash2 className="size-3.5" aria-hidden />
                                       </button>
@@ -726,7 +727,7 @@ export function StageConfigModal({
             </div>
           </div>
 
-          <div className="border-t border-[#E5E7EB] bg-white px-6 py-4">
+          <div className="border-t border-[#E5E7EB] bg-white px-6 py-4 max-[449px]:px-4">
             {saveError || saveHint ? (
               <p className="mb-3 text-sm text-[#B42318]" role="alert">
                 {saveError || saveHint}

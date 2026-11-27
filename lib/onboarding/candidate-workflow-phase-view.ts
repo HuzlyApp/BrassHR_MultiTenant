@@ -616,15 +616,19 @@ export async function loadCandidateWorkflowPhaseView(
       documents: documentsForPhase("pre_hire", preHireSteps),
       assignment: preHireSteps.length ? preHireAssignment : null,
     },
-    postHire: postHireVisible
-      ? {
-          assigned: postHireSteps.length > 0,
-          progress: countsFromAssignedSteps(postHireSteps, "post_hire"),
-          steps: postHireSteps,
-          documents: documentsForPhase("post_hire", postHireSteps),
-          assignment: postHireSteps.length ? postHireAssignment : null,
-        }
-      : null,
+    // Always expose post-hire steps when the workflow has them so staff surfaces
+    // (e.g. profile "View more") can preview the full journey. Journey unlock
+    // still gates on postHireVisible / postHireLocked.
+    postHire:
+      postHireSteps.length > 0
+        ? {
+            assigned: true,
+            progress: countsFromAssignedSteps(postHireSteps, "post_hire"),
+            steps: postHireSteps,
+            documents: documentsForPhase("post_hire", postHireSteps),
+            assignment: postHireAssignment,
+          }
+        : null,
   };
 
   return view;

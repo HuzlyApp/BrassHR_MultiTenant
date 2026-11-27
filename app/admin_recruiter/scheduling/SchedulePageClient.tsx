@@ -211,6 +211,7 @@ export default function SchedulePageClient() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("this_week");
   const [calendarRangeView, setCalendarRangeView] = useState<CalendarRangeView>("week");
   const [employeeFilters, setEmployeeFilters] = useState<ScheduleEmployeeFilters>({ worker: "all", client: "all", position: "all", location: "all", status: "all" });
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(() => easternDateString(initialRange.start));
   const [draftEnd, setDraftEnd] = useState(() => easternDateString(initialRange.end));
@@ -837,18 +838,22 @@ export default function SchedulePageClient() {
     }
   };
 
+  const secondaryFilters = (
+    [
+      { key: "client", label: "Client", allLabel: "All clients", options: Array.from(new Set(employees.map((employee) => employee.client).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+      { key: "position", label: "Position", allLabel: "All positions", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
+      { key: "location", label: "Location", allLabel: "All locations", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+      { key: "status", label: "Status", allLabel: "All statuses", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+    ] as const
+  );
+  const activeSecondaryFilterCount =
+    secondaryFilters.filter((filter) => employeeFilters[filter.key] !== "all").length +
+    (selectedFacility !== "all" ? 1 : 0);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
-      <label className="mb-3 flex items-center gap-2 text-xs text-[#334155]">
-        <input type="checkbox" checked={openOnly} onChange={(event) => {
-          const params = new URLSearchParams(searchParams.toString());
-          if (event.target.checked) params.set("open", "1"); else params.delete("open");
-          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-        }} />
-        Open shifts only
-      </label>
-      <p role="status" className="mb-2 text-xs text-[#64748B]">{filteredShifts.length} shifts in this range · {filteredEmployees.length} employees · {scheduledHours.toLocaleString("en-US", { maximumFractionDigits: 2 })} scheduled hours</p>
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <p role="status" className="mb-3 text-center text-xs text-[#64748B] sm:text-left">{filteredShifts.length} shifts in this range · {filteredEmployees.length} employees · {scheduledHours.toLocaleString("en-US", { maximumFractionDigits: 2 })} scheduled hours</p>
+      <div className="mb-5 flex flex-col gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold leading-8 tracking-tight text-[#0F172A]">
             Schedules
@@ -858,7 +863,7 @@ export default function SchedulePageClient() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
           <button
             type="button"
             onClick={() => {
@@ -867,14 +872,14 @@ export default function SchedulePageClient() {
               setCreateShiftError(null);
               setAddShiftOpen(true);
             }}
-            className="inline-flex h-9 items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary,#012352)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
+            className="inline-flex h-9 w-full items-center justify-center rounded-[8px] bg-[color:var(--brand-secondary,#012352)] px-3 text-xs font-semibold text-white transition hover:brightness-95 sm:w-auto"
           >
             Post a Shift
           </button>
           <button
             type="button"
             onClick={handleExport}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[color:var(--brand-secondary,#012352)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-secondary,#012352)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_6%,white)]"
+            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[color:var(--brand-secondary,#012352)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-secondary,#012352)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_6%,white)] sm:w-auto"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
             Export
@@ -883,20 +888,53 @@ export default function SchedulePageClient() {
       </div>
 
       <div className="overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-[#E2E8F0] px-3.5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <SchedulingSubNav
-            activeView={scheduleView}
-            onViewChange={handleScheduleViewChange}
-          />
+        <div className="flex flex-col gap-3 border-b border-[#E2E8F0] px-3.5 py-3.5">
+          <div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-1.5 sm:gap-2">
+            <div className="shrink-0">
+              <SchedulingSubNav
+                activeView={scheduleView}
+                onViewChange={handleScheduleViewChange}
+              />
+            </div>
+            <div className="inline-flex min-w-0 shrink-0 items-center gap-1.5 text-[11px] font-medium text-[#334155] sm:gap-2 sm:text-xs">
+              <span id="open-shifts-only-label" className="whitespace-nowrap">
+                Open shifts only
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={openOnly}
+                aria-labelledby="open-shifts-only-label"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (openOnly) params.delete("open");
+                  else params.set("open", "1");
+                  router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+                }}
+                className={`relative inline-flex h-[22px] w-10 shrink-0 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_28%,transparent)] focus-visible:ring-offset-1 ${
+                  openOnly
+                    ? "bg-[color:var(--brand-secondary,#012352)]"
+                    : "bg-[#CBD5E1]"
+                }`}
+              >
+                <span
+                  className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition ${
+                    openOnly ? "translate-x-[20px]" : "translate-x-[2px]"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
 
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-2.5 md:justify-end">
+          {/* Always-visible timeframe + date filter */}
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
             <SettingsSelect
               aria-label="Calendar range view"
               value={calendarRangeView}
               onChange={(next) => {
                 if (next !== "custom") applyCalendarView(next as "day" | "week" | "month");
               }}
-              className="min-w-0 flex-1 sm:w-[96px] sm:flex-none"
+              className="min-w-0 w-[calc(50%-0.25rem)] sm:w-[96px]"
               size="sm"
               triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
               options={[
@@ -906,57 +944,19 @@ export default function SchedulePageClient() {
                 { value: "custom", label: "Custom range", disabled: true },
               ]}
             />
-            <button type="button" onClick={() => applyCalendarView(calendarRangeView === "custom" ? "week" : calendarRangeView, new Date())} className="h-[30px] rounded-lg border border-[#CBD5E1] px-3 text-xs font-semibold">Today</button>
-            {([
-              { key: "worker", label: "Worker", allLabel: "All workers", options: employees.map((employee) => ({ value: employee.id, label: employee.name })) },
-              { key: "client", label: "Client", allLabel: "All clients", options: Array.from(new Set(employees.map((employee) => employee.client).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-              { key: "position", label: "Position", allLabel: "All positions", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
-              { key: "location", label: "Location", allLabel: "All locations", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-              { key: "status", label: "Status", allLabel: "All statuses", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-            ] as const).map((filter) => (
-              <SettingsSelect
-                key={filter.key}
-                aria-label={`Filter by ${filter.label.toLowerCase()}`}
-                value={employeeFilters[filter.key]}
-                onChange={(next) =>
-                  setEmployeeFilters((current) => ({ ...current, [filter.key]: next }))
-                }
-                className="w-full sm:w-[140px] md:w-[160px]"
-                size="sm"
-                triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
-                options={[
-                  { value: "all", label: filter.allLabel },
-                  ...filter.options,
-                ]}
-              />
-            ))}
-            <SettingsSelect
-              aria-label="Filter by facility"
-              value={selectedFacility}
-              onChange={setSelectedFacility}
-              className="w-full sm:w-[140px] md:w-[160px]"
-              size="sm"
-              triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
-              options={[
-                { value: "all", label: "All Facilities" },
-                ...facilities.map((f) => ({
-                  value: f.id,
-                  label: f.name,
-                })),
-              ]}
-            />
+            <button type="button" onClick={() => applyCalendarView(calendarRangeView === "custom" ? "week" : calendarRangeView, new Date())} className="h-[30px] w-[calc(50%-0.25rem)] rounded-lg border border-[#CBD5E1] px-3 text-xs font-semibold sm:w-auto">Today</button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full min-w-0 items-center gap-2 sm:ml-auto sm:w-auto">
               <button
                 type="button"
                 onClick={handlePrevRange}
-                className="inline-flex h-[30px] w-8 cursor-pointer items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                className="inline-flex h-[30px] w-8 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
                 aria-label="Previous date range"
               >
                 <ChevronLeft className="h-3 w-3" />
               </button>
 
-              <div className="relative">
+              <div className="relative min-w-0 flex-1 sm:flex-none">
                 <button
                   ref={rangeTriggerRef}
                   type="button"
@@ -969,7 +969,7 @@ export default function SchedulePageClient() {
                   aria-haspopup="dialog"
                   aria-expanded={rangeMenuOpen}
                   aria-controls={rangeListId}
-                  className={`${controlClassName} inline-flex min-w-[160px] cursor-pointer items-center gap-2 px-2.5`}
+                  className={`${controlClassName} inline-flex w-full min-w-0 cursor-pointer items-center gap-2 px-2.5 sm:min-w-[180px]`}
                 >
                   <Calendar className="h-3 w-3 shrink-0 text-[#94A3B8]" aria-hidden />
                   <span className="truncate font-normal text-[#0F172A]">{rangeLabel}</span>
@@ -1072,11 +1072,89 @@ export default function SchedulePageClient() {
               <button
                 type="button"
                 onClick={handleNextRange}
-                className="inline-flex h-[30px] w-8 cursor-pointer items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                className="inline-flex h-[30px] w-8 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
                 aria-label="Next date range"
               >
                 <ChevronRight className="h-3 w-3" />
               </button>
+            </div>
+          </div>
+
+          {/* One primary filter always; remaining filters behind View more on mobile/tablet */}
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <SettingsSelect
+              aria-label="Filter by worker"
+              value={employeeFilters.worker}
+              onChange={(next) =>
+                setEmployeeFilters((current) => ({ ...current, worker: next }))
+              }
+              className="min-w-0 flex-1 sm:w-[160px] sm:flex-none"
+              size="sm"
+              triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
+              options={[
+                { value: "all", label: "All workers" },
+                ...employees.map((employee) => ({
+                  value: employee.id,
+                  label: employee.name,
+                })),
+              ]}
+            />
+
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded((open) => !open)}
+              aria-expanded={filtersExpanded}
+              className="inline-flex h-[30px] items-center gap-1 rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[10px] font-semibold text-[#334155] transition hover:bg-[#F8FAFC] lg:hidden"
+            >
+              {filtersExpanded ? "View less" : "View more"}
+              {activeSecondaryFilterCount > 0 ? (
+                <span className="rounded-full bg-[color:var(--brand-secondary,#012352)] px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white">
+                  {activeSecondaryFilterCount}
+                </span>
+              ) : null}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition ${filtersExpanded ? "rotate-180" : ""}`}
+                aria-hidden
+              />
+            </button>
+
+            <div
+              className={`w-full min-w-0 flex-wrap items-center gap-2 lg:flex lg:w-auto ${
+                filtersExpanded ? "flex" : "hidden"
+              }`}
+            >
+              {secondaryFilters.map((filter) => (
+                <SettingsSelect
+                  key={filter.key}
+                  aria-label={`Filter by ${filter.label.toLowerCase()}`}
+                  value={employeeFilters[filter.key]}
+                  onChange={(next) =>
+                    setEmployeeFilters((current) => ({ ...current, [filter.key]: next }))
+                  }
+                  className="min-w-0 w-[calc(50%-0.25rem)] sm:w-[140px] md:w-[160px]"
+                  size="sm"
+                  triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
+                  options={[
+                    { value: "all", label: filter.allLabel },
+                    ...filter.options,
+                  ]}
+                />
+              ))}
+              <SettingsSelect
+                aria-label="Filter by facility"
+                value={selectedFacility}
+                onChange={setSelectedFacility}
+                className="min-w-0 w-[calc(50%-0.25rem)] sm:w-[140px] md:w-[160px]"
+                size="sm"
+                triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
+                options={[
+                  { value: "all", label: "All Facilities" },
+                  ...facilities.map((f) => ({
+                    value: f.id,
+                    label: f.name,
+                  })),
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -1177,7 +1255,7 @@ export default function SchedulePageClient() {
             <table className="w-full min-w-[980px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                  <th className="sticky left-0 z-10 w-[140px] bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold text-[#64748B] sm:w-[180px]">
+                  <th className="w-[140px] bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold text-[#64748B] sm:w-[180px] md:sticky md:left-0 md:z-10">
                     Employees
                   </th>
                   {rangeDays.map((d, index) => {
@@ -1231,7 +1309,7 @@ export default function SchedulePageClient() {
                     return (
                       <tr key={emp.id} className="transition-colors hover:bg-[#F8FAFC]/60">
                         <td
-                          className="sticky left-0 z-10 w-[140px] bg-white px-3 py-2.5 align-middle sm:w-[180px]"
+                          className="w-[140px] bg-white px-3 py-2.5 align-middle sm:w-[180px] md:sticky md:left-0 md:z-10"
                           style={{ minHeight: rowMinHeight }}
                         >
                           {emp.id ? <Link

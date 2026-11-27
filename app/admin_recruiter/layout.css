@@ -147,6 +147,33 @@
   scrollbar-gutter: auto;
 }
 
+/*
+ * Fixed bottom action bars — pin to the content column on phone/tablet
+ * (not under the icon rail). Desktop stays full-bleed (left: 0) to preserve web UI.
+ */
+.admin-recruiter-fixed-content-bar {
+  left: 0;
+  right: 0;
+}
+
+@media (max-width: 999px) {
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) .admin-recruiter-fixed-content-bar {
+    left: var(--admin-sidebar-collapsed-width, 80px);
+  }
+}
+
+@media (max-width: 499px) {
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) .admin-recruiter-fixed-content-bar {
+    left: var(--admin-sidebar-collapsed-width-narrow, 64px);
+  }
+}
+
+@media (max-width: 429px) {
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) .admin-recruiter-fixed-content-bar {
+    left: var(--admin-sidebar-collapsed-width-mobile, 48px);
+  }
+}
+
 .admin-recruiter-sidebar-mobile-rail .admin-recruiter-sidebar-active-indicator {
   right: 2px;
 }

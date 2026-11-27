@@ -14,10 +14,14 @@ beforeEach(() => {
   vi.stubGlobal("fetch", mocks.fetch);
 });
 describe("schedule form feedback", () => {
-  it("offers day/month views, Today, and employee filters", async () => {
+  it("offers day/month views, Today, date range, and collapsed employee filters", async () => {
     render(<SchedulePageClient />);
     await screen.findByRole("status");
-    for (const filter of ["worker", "client", "position", "location", "status"]) expect(screen.getByRole("combobox", { name: `Filter by ${filter}` })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filter by worker" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select date range" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /View more/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /View more/i }));
+    for (const filter of ["client", "position", "location", "status", "facility"]) expect(screen.getByRole("combobox", { name: `Filter by ${filter}` })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Calendar range view" }), { target: { value: "day" } });
     await waitFor(() => {
       const latest = mocks.fetch.mock.calls.filter(([url]) => String(url).includes("/scheduling/week?")).at(-1);
@@ -55,8 +59,8 @@ describe("schedule form feedback", () => {
     expect(screen.getByText("Open shifts", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("1 shifts in this range");
     expect(screen.getByRole("status")).toHaveTextContent("9 scheduled hours");
-    expect(screen.getByRole("checkbox", { name: "Open shifts only" })).toBeChecked();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Open shifts only" }));
+    expect(screen.getByRole("switch", { name: "Open shifts only" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("switch", { name: "Open shifts only" }));
     expect(mocks.router.replace).toHaveBeenCalledWith("/admin_recruiter/calendar/shifts?", { scroll: false });
     fireEvent.click(screen.getByRole("button", { name: "Post a Shift" }));
     expect(screen.getByRole("combobox", { name: "Select employee" })).toHaveValue("");

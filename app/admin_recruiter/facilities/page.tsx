@@ -482,36 +482,49 @@ export default function FacilitiesPage() {
         ) : null}
       </div>
 
-      <div className="mb-4 flex flex-col gap-2 min-[500px]:flex-row min-[500px]:items-center sm:mb-5 sm:justify-between sm:gap-3">
-        <button type="button" aria-pressed={showArchived} className="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" onClick={() => { setShowArchived((value) => !value); setEditingFacility(false); setMutationError(null); }}>{showArchived ? "Show active facilities" : "Show archived facilities"}</button>
-        <div className="relative min-w-0 w-full min-[500px]:flex-1 sm:max-w-md">
+      <div className="mb-4 flex flex-col gap-2 sm:mb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        {/* Search first on mobile; middle on desktop */}
+        <div className="relative order-1 min-w-0 w-full sm:order-2 sm:max-w-md sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search locations"
-            className="h-11 w-full rounded-lg border border-[#D8E0EA] py-2 pl-9 pr-3 text-base text-[#0F172A] outline-none focus:border-(--brand-primary) sm:h-10 sm:text-sm"
+            className="h-11 w-full rounded-lg border border-[#D8E0EA] bg-white py-2 pl-9 pr-3 text-base text-black outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:bg-white focus:text-black sm:h-10 sm:text-sm"
           />
         </div>
-        {canEditOrganization ? (
+
+        {/* Mobile: Archive left + Create right on one row. Desktop: Archive only (Create stays in page header). */}
+        <div className="order-2 grid grid-cols-2 gap-2 sm:order-1 sm:contents">
           <button
             type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 min-[500px]:w-auto min-[500px]:px-4 sm:hidden"
-            aria-label="Create Facility"
+            aria-pressed={showArchived}
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-2 text-center text-xs font-medium text-[#0F172A] sm:h-auto sm:justify-start sm:px-3 sm:py-2 sm:text-left sm:text-sm"
+            onClick={() => {
+              setShowArchived((value) => !value);
+              setEditingFacility(false);
+              setMutationError(null);
+            }}
           >
-            <Plus className="h-4 w-4 shrink-0" />
-            <span>Create Facility</span>
+            {showArchived ? "Show active facilities" : "Show archived facilities"}
           </button>
-        ) : null}
-        <div className="hidden text-sm text-[#64748B] sm:block sm:shrink-0">
+          {canEditOrganization ? (
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-2 text-xs font-semibold text-white transition hover:opacity-90 sm:hidden"
+              aria-label="Create Facility"
+            >
+              <Plus className="h-4 w-4 shrink-0" />
+              <span>Create Facility</span>
+            </button>
+          ) : null}
+        </div>
+
+        <div className="order-3 text-sm text-[#64748B] sm:shrink-0">
           {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
         </div>
-      </div>
-
-      <div className="mb-4 text-sm text-[#64748B] sm:hidden">
-        {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
       </div>
 
       {facilitiesError ? (
@@ -586,8 +599,8 @@ export default function FacilitiesPage() {
           ) : (
             <>
               <div className="mb-4 border-b border-[#E5E7EB] pb-4 sm:mb-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 w-full flex-1">
                     <h2 className="text-base font-semibold break-words text-[#111827] sm:text-lg">
                       Assigned Workers for {selectedFacility.name}
                     </h2>
@@ -600,25 +613,54 @@ export default function FacilitiesPage() {
                       </p>
                     ) : null}
                   </div>
-                  {canEditOrganization ? <div className="flex flex-wrap gap-2">
-                    {!showArchived ? <button type="button" disabled={mutationBusy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => { setEditName(selectedFacility.name); setEditPhone(selectedFacility.phone || ""); setEditingFacility(true); setMutationError(null); }}>Edit facility</button> : null}
-                    <button type="button" disabled={mutationBusy} className="rounded-lg border px-3 py-2 text-sm" onClick={() => void updateFacility(showArchived ? "restore" : "archive")}>{showArchived ? "Restore facility" : "Archive facility"}</button>
-                  </div> : null}
-                  <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    {canEditOrganization && !showArchived ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowAssignCandidateModal(true)}
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
-                      >
-                        Assign Worker
-                      </button>
+
+                  <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:justify-end">
+                    {canEditOrganization ? (
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                        {!showArchived ? (
+                          <button
+                            type="button"
+                            disabled={mutationBusy}
+                            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#0F172A] disabled:opacity-50 sm:h-auto sm:py-2"
+                            onClick={() => {
+                              setEditName(selectedFacility.name);
+                              setEditPhone(selectedFacility.phone || "");
+                              setEditingFacility(true);
+                              setMutationError(null);
+                            }}
+                          >
+                            Edit facility
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={mutationBusy}
+                          className="inline-flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#0F172A] disabled:opacity-50 sm:h-auto sm:py-2"
+                          onClick={() => void updateFacility(showArchived ? "restore" : "archive")}
+                        >
+                          {showArchived ? "Restore facility" : "Archive facility"}
+                        </button>
+                      </div>
                     ) : null}
-                    <CandidatesViewToggle
-                      view={assignedCandidatesView}
-                      onViewChange={setAssignedCandidatesView}
-                      size="sm"
-                    />
+
+                    <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+                      {canEditOrganization && !showArchived ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowAssignCandidateModal(true)}
+                          className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:h-9 sm:flex-none"
+                        >
+                          Assign Worker
+                        </button>
+                      ) : null}
+                      <div className="shrink-0">
+                        <CandidatesViewToggle
+                          view={assignedCandidatesView}
+                          onViewChange={setAssignedCandidatesView}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { FileSignature, FolderPlus, Plus, Search } from "lucide-react";
+import { ArrowLeft, FileSignature, FolderPlus, Plus, Search } from "lucide-react";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import CreateFolderModal from "@/app/admin_recruiter/components/CreateFolderModal";
 import FolderCreateSuccessModal from "@/app/admin_recruiter/components/FolderCreateSuccessModal";
@@ -246,34 +246,42 @@ export default function RecruiterTemplatesList() {
     : null;
 
   return (
-    <div className="space-y-5 min-[700px]:space-y-6">
-      <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-start min-[640px]:justify-between">
+    <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden min-[700px]:space-y-6 max-[449px]:space-y-4">
+      <Link
+        href="/admin_recruiter/settings/templates"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        Back
+      </Link>
+
+      <div className="flex min-w-0 flex-col gap-3 min-[640px]:flex-row min-[640px]:items-start min-[640px]:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold leading-7 text-[#101828] min-[700px]:text-2xl">
+          <h1 className="text-xl font-semibold leading-7 text-[#101828] min-[700px]:text-2xl max-[449px]:text-lg">
             Templates
           </h1>
-          <p className="mt-1 text-sm leading-5 text-[#667085]">
+          <p className="mt-1 text-sm leading-5 text-[#667085] max-[449px]:text-xs">
             Create and organize recruiting document templates into libraries.
           </p>
         </div>
-        <div className="flex w-full flex-col gap-2 min-[480px]:flex-row min-[640px]:w-auto">
+        <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 min-[480px]:flex-row min-[640px]:w-auto">
           <button
             type="button"
             onClick={() => {
               setFolderError(null);
               setCreateFolderOpen(true);
             }}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#D0D5DD] bg-white px-3.5 text-sm font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+            className="inline-flex h-10 min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#D0D5DD] bg-white px-3.5 text-sm font-semibold leading-none text-[#344054] hover:bg-[#F9FAFB] min-[640px]:w-auto"
           >
-            <FolderPlus className="h-4 w-4" />
+            <FolderPlus className="h-4 w-4 shrink-0" />
             Create a folder
           </button>
           <Link
             href="/admin_recruiter/template-builder/new"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white hover:brightness-95"
+            className="inline-flex h-10 min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold leading-none text-white hover:brightness-95 min-[640px]:w-auto"
             style={{ backgroundColor: primary }}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 shrink-0" />
             New Template
           </Link>
         </div>
@@ -288,40 +296,42 @@ export default function RecruiterTemplatesList() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-5 border-b border-[#E5E7EB]">
-          {(
-            [
-              ["all", "All"],
-              ["esign", "Esign Documents"],
-              ["normal", "Normal Documents"],
-            ] as const
-          ).map(([key, label]) => {
-            const active = documentTab === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setDocumentTab(key)}
-                className={`-mb-px border-b-2 pb-2.5 text-sm font-medium ${
-                  active
-                    ? "border-[color:var(--brand-primary,#012352)] text-[#111827]"
-                    : "border-transparent text-[#6B7280]"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="-mx-1 min-w-0 overflow-x-auto border-b border-[#E5E7EB] px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max min-w-full gap-4 max-[449px]:gap-3 sm:gap-5">
+            {(
+              [
+                ["all", "All"],
+                ["esign", "Esign Documents"],
+                ["normal", "Normal Documents"],
+              ] as const
+            ).map(([key, label]) => {
+              const active = documentTab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setDocumentTab(key)}
+                  className={`-mb-px shrink-0 border-b-2 pb-2.5 text-sm font-medium whitespace-nowrap max-[449px]:text-xs ${
+                    active
+                      ? "border-[color:var(--brand-primary,#012352)] text-[#111827]"
+                      : "border-transparent text-[#6B7280]"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="flex h-10 w-full max-w-md items-center rounded-lg border border-[#D0D5DD] bg-white px-3 focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] sm:ml-auto">
+        <div className="flex h-10 w-full min-w-0 max-w-md items-center rounded-lg border border-[#D0D5DD] bg-white px-3 focus-within:border-[color:var(--brand-primary)] focus-within:ring-1 focus-within:ring-[color:var(--brand-primary)] max-[449px]:h-9 sm:ml-auto">
           <Search className="mr-2 h-4 w-4 shrink-0 text-[#98A2B3]" aria-hidden />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search templates or folders…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-[#101828] outline-none placeholder:text-[#98A2B3]"
+            className="min-w-0 flex-1 bg-transparent text-sm text-[#101828] outline-none placeholder:text-[#98A2B3] max-[449px]:text-xs"
           />
         </div>
       </div>
@@ -359,8 +369,8 @@ export default function RecruiterTemplatesList() {
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
-          <section>
+        <div className="min-w-0 space-y-8 max-[449px]:space-y-6">
+          <section className="min-w-0">
             <SectionHeading title="Uncategorized" count={uncategorized.length} />
             {uncategorized.length === 0 ? (
               <p className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#667085]">
@@ -369,7 +379,7 @@ export default function RecruiterTemplatesList() {
                   : "All matching templates are in a library folder."}
               </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {uncategorized.map((template) => (
                   <TemplateCard
                     key={template.id}
@@ -383,7 +393,7 @@ export default function RecruiterTemplatesList() {
             )}
           </section>
 
-          <section>
+          <section className="min-w-0">
             <SectionHeading title="Libraries" count={visibleFolders.length} />
             {visibleFolders.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-4 py-8 text-center">
@@ -400,7 +410,7 @@ export default function RecruiterTemplatesList() {
                 </button>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {visibleFolders.map((folder) => (
                   <FolderCard
                     key={folder.id}

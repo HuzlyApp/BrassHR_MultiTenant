@@ -640,12 +640,12 @@ export default function BusinessInfoTab() {
             </div>
           </SectionCard>
 
-          <div className="flex flex-col-reverse items-stretch gap-2 pt-1 min-[500px]:items-end sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse items-stretch gap-2 pt-1 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-end">
             <button
               type="button"
               onClick={resetFromOrganization}
               disabled={saving}
-              className="inline-flex h-10 w-full items-center justify-center rounded-lg border px-5 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-60 min-[500px]:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg border px-5 text-sm font-medium hover:bg-[#F8FAFC] disabled:opacity-60 min-[380px]:w-auto"
               style={{
                 color: "var(--brand-secondary, #012352)",
                 borderColor: "var(--brand-secondary, #012352)",
@@ -656,7 +656,7 @@ export default function BusinessInfoTab() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex h-10 w-full items-center justify-center rounded-lg px-5 text-sm font-semibold text-white disabled:opacity-60 min-[500px]:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg px-5 text-sm font-semibold text-white disabled:opacity-60 min-[380px]:w-auto"
               style={{ backgroundColor: "var(--brand-primary, #012352)" }}
             >
               {saving ? "Saving…" : "Save Changes"}

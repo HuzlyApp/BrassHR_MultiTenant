@@ -884,14 +884,14 @@ export default function CandidateLicenseCertificationsPanel({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden sm:space-y-8">
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
         </div>
       ) : null}
 
-      <div className="max-w-md space-y-1.5">
+      <div className="w-full min-w-0 max-w-md space-y-1.5">
         <label htmlFor="license-cert-profession" className="block text-sm font-medium text-[#374151]">
           Profession
         </label>
@@ -1060,6 +1060,157 @@ export default function CandidateLicenseCertificationsPanel({
   );
 }
 
+function CredentialRowActions({
+  row,
+  onEdit,
+  onDeleteField,
+  onDeleteFile,
+  canEditRow,
+  canDeleteField,
+  canDeleteFile,
+}: {
+  row: DisplayRow;
+  onEdit: (row: DisplayRow) => void;
+  onDeleteField: (row: DisplayRow) => void;
+  onDeleteFile: (row: DisplayRow) => void;
+  canEditRow: (row: DisplayRow) => boolean;
+  canDeleteField: (row: DisplayRow) => boolean;
+  canDeleteFile: (row: DisplayRow) => boolean;
+}) {
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-1.5">
+      {canDeleteFile(row) ? (
+        <button
+          type="button"
+          onClick={() => onDeleteFile(row)}
+          className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[#B91C1C] transition hover:bg-[#FEF2F2]"
+          aria-label={`Delete uploaded file for ${row.title}`}
+        >
+          Remove file
+        </button>
+      ) : null}
+      {canDeleteField(row) ? (
+        <button
+          type="button"
+          onClick={() => onDeleteField(row)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
+          aria-label={`Delete ${row.title} field`}
+        >
+          <BrandedDeleteIcon className="h-4 w-4" />
+        </button>
+      ) : null}
+      <button
+        type="button"
+        disabled={!canEditRow(row)}
+        onClick={() => onEdit(row)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] disabled:opacity-40"
+        aria-label={`Edit ${row.title}`}
+      >
+        <BrandedEditIcon className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function CredentialMobileCard({
+  row,
+  columns,
+  onEdit,
+  onDeleteField,
+  onDeleteFile,
+  canEditRow,
+  canDeleteField,
+  canDeleteFile,
+}: {
+  row: DisplayRow;
+  columns: LicenseCertKind;
+  onEdit: (row: DisplayRow) => void;
+  onDeleteField: (row: DisplayRow) => void;
+  onDeleteFile: (row: DisplayRow) => void;
+  canEditRow: (row: DisplayRow) => boolean;
+  canDeleteField: (row: DisplayRow) => boolean;
+  canDeleteFile: (row: DisplayRow) => boolean;
+}) {
+  const validity = resolveCredentialValidity(row.documentUrl, row.expiryDate);
+  const meta: Array<{ label: string; value: string }> = [
+    ...(columns === "certificate"
+      ? [
+          { label: "Issuing org", value: dash(row.issuingOrganization) },
+          { label: "Validity period", value: dash(row.validity) },
+        ]
+      : []),
+    { label: "Issued", value: formatDisplayDate(row.issuedDate) },
+    {
+      label: "Expiry",
+      value:
+        row.hasExpiration || row.expiryDate ? formatDisplayDate(row.expiryDate) : "—",
+    },
+    { label: "Scope", value: dash(row.scope) },
+    { label: "Uploaded by", value: dash(row.uploadedBy) },
+  ];
+
+  return (
+    <article className="rounded-xl border border-[#E5E7EB] bg-white p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-sm font-semibold text-[#111827]">{row.title}</h4>
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                row.isRequired
+                  ? "bg-[#FEF3C7] text-[#92400E]"
+                  : "bg-[#F3F4F6] text-[#4B5563]"
+              }`}
+            >
+              {row.isRequired ? "Required" : "Optional"}
+            </span>
+          </div>
+          <div className="mt-2">
+            <ValidityStatusBadge status={validity} />
+          </div>
+        </div>
+        <CredentialRowActions
+          row={row}
+          onEdit={onEdit}
+          onDeleteField={onDeleteField}
+          onDeleteFile={onDeleteFile}
+          canEditRow={canEditRow}
+          canDeleteField={canDeleteField}
+          canDeleteFile={canDeleteFile}
+        />
+      </div>
+
+      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+        {meta.map((item) => (
+          <div key={item.label} className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              {item.label}
+            </dt>
+            <dd className="mt-0.5 truncate text-sm text-[#374151]">{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="mt-3 border-t border-[#F1F5F9] pt-3">
+        {row.documentUrl ? (
+          <a
+            href={row.documentUrl}
+            download={row.filename || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden />
+            Download
+          </a>
+        ) : (
+          <span className="text-sm text-[#9CA3AF]">No file uploaded</span>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function CredentialSection({
   title,
   addLabel,
@@ -1088,23 +1239,47 @@ function CredentialSection({
   canDeleteFile: (row: DisplayRow) => boolean;
 }) {
   return (
-    <section>
+    <section className="w-full min-w-0 max-w-full">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-[#111827]">{title}</h3>
         <button
           type="button"
           onClick={onAdd}
           disabled={!canAdd}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden />
           {addLabel}
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-left">
+      {/* Mobile: stacked cards so wide tables do not blow out the page */}
+      <div className="space-y-3 md:hidden">
+        {rows.length === 0 ? (
+          <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-8 text-center text-sm text-[#6B7280]">
+            No {title.toLowerCase()} yet.
+          </div>
+        ) : (
+          rows.map((row) => (
+            <CredentialMobileCard
+              key={row.key}
+              row={row}
+              columns={columns}
+              onEdit={onEdit}
+              onDeleteField={onDeleteField}
+              onDeleteFile={onDeleteFile}
+              canEditRow={canEditRow}
+              canDeleteField={canDeleteField}
+              canDeleteFile={canDeleteFile}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop / tablet: table with contained horizontal scroll */}
+      <div className="hidden min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white md:block">
+        <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
@@ -1222,37 +1397,15 @@ function CredentialSection({
                       )}
                     </td>
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center justify-end gap-2">
-                        {canDeleteFile(row) ? (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteFile(row)}
-                            className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[#B91C1C] transition hover:bg-[#FEF2F2]"
-                            aria-label={`Delete uploaded file for ${row.title}`}
-                          >
-                            Remove file
-                          </button>
-                        ) : null}
-                        {canDeleteField(row) ? (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteField(row)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B]"
-                            aria-label={`Delete ${row.title} field`}
-                          >
-                            <BrandedDeleteIcon className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={!canEditRow(row)}
-                          onClick={() => onEdit(row)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] disabled:opacity-40"
-                          aria-label={`Edit ${row.title}`}
-                        >
-                          <BrandedEditIcon className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <CredentialRowActions
+                        row={row}
+                        onEdit={onEdit}
+                        onDeleteField={onDeleteField}
+                        onDeleteFile={onDeleteFile}
+                        canEditRow={canEditRow}
+                        canDeleteField={canDeleteField}
+                        canDeleteFile={canDeleteFile}
+                      />
                     </td>
                   </tr>
                 ))
