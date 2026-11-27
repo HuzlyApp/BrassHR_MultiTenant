@@ -28,7 +28,13 @@ export type StaffStepEmailResult = {
   nextStepTitle?: string | null;
   /** Set when the requested step was still locked, so the email opened `nextStepTitle` instead. */
   lockedStepTitle?: string | null;
+  recipientEmail?: string | null;
 };
+
+export function staffEmailRecipientSuffix(email: StaffStepEmailResult | null | undefined): string {
+  const address = email?.recipientEmail?.trim();
+  return address ? ` to ${address}` : "";
+}
 
 export const STAFF_REVIEW_NOTE_MAX_LENGTH = 2000;
 

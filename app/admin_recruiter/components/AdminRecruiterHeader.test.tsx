@@ -32,7 +32,7 @@ describe("shared recruiter header loading", () => {
     Object.assign(state.account, { user: { id: "hr" }, profile: { first_name: "Member", role: "hr" }, loading: false });
     Object.assign(state.header, { userId: "admin", roleLabel: "Admin", isLoading: false });
     render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);
-    expect(screen.queryByText("Admin")).toBeNull(); expect(screen.getByText("Loading role…")).toBeInTheDocument();
+    expect(screen.queryByText("Admin")).toBeNull(); expect(screen.getByText("Role unavailable")).toBeInTheDocument();
   });
   it("shows a skeleton without a fabricated name, role or avatar", () => {
     render(<QueryClientProvider client={new QueryClient()}><AdminRecruiterHeader /></QueryClientProvider>);

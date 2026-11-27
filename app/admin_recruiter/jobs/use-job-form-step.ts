@@ -4,9 +4,14 @@ import { useCallback, useLayoutEffect, useState } from "react";
 import type { JobFormStep } from "./job-form-shared";
 
 const STEPS: readonly JobFormStep[] = ["setup", "requisition", "msp-details", "compensation", "description", "review"];
+
+export function jobFormStepFromUrl(search = typeof window !== "undefined" ? window.location.search : ""): JobFormStep | null {
+  const value = new URLSearchParams(search).get("step");
+  return STEPS.includes(value as JobFormStep) ? (value as JobFormStep) : null;
+}
+
 function stepFromUrl(): JobFormStep | null {
-  const value = new URLSearchParams(window.location.search).get("step");
-  return STEPS.includes(value as JobFormStep) ? value as JobFormStep : null;
+  return jobFormStepFromUrl();
 }
 
 export function useJobFormStep(initialStep: JobFormStep, ready: boolean) {

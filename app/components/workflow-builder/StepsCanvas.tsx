@@ -843,9 +843,10 @@ export default function StepsCanvas({
         minZoom={useTouchCanvas ? 0.08 : 0.5}
         maxZoom={2}
         panOnDrag={!useTouchCanvas}
-        panOnScroll={useTouchCanvas}
+        panOnScroll
         panOnScrollMode={PanOnScrollMode.Free}
         selectNodesOnDrag={false}
+        zoomOnScroll={false}
         zoomOnPinch
         preventScrolling
         defaultEdgeOptions={{

@@ -86,6 +86,18 @@ export default function CandidateNotesPanel({
     setEditingNoteId(null);
   }
 
+  useEffect(() => {
+    if (!showNotePopup) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [showNotePopup]);
+
   async function handleSaveNote() {
     if (!workerId) return;
     const body = noteText.trim();
@@ -252,7 +264,10 @@ export default function CandidateNotesPanel({
         ) : null}
 
         {notesLoading ? (
-          <div className="py-12 text-center text-sm text-[#6B7280]">Loading notes...</div>
+          <div className="space-y-3 py-8" aria-busy>
+            <div className="h-20 animate-pulse rounded-xl bg-slate-100" />
+            <div className="h-20 animate-pulse rounded-xl bg-slate-100" />
+          </div>
         ) : notes.length === 0 ? (
           <div className="flex min-h-[480px] flex-col items-center justify-center gap-[30px] text-center">
             <div className="flex flex-col items-center gap-3">
@@ -301,7 +316,10 @@ export default function CandidateNotesPanel({
         ) : null}
 
         {notesLoading ? (
-          <div className="py-4 text-xs text-[#9CA3AF]">Loading notes...</div>
+          <div className="space-y-2 py-1" aria-busy>
+            <div className="h-14 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-14 animate-pulse rounded-lg bg-slate-100" />
+          </div>
         ) : notes.length === 0 ? (
           <div className="text-xs text-[#9CA3AF]">No notes yet. Click + Add to write one.</div>
         ) : (

@@ -189,15 +189,6 @@ const INTEGRATIONS: IntegrationItem[] = [
   },
 ];
 
-const WEBHOOK_EVENTS = [
-  { id: "new_application", label: "New application", defaultChecked: true },
-  { id: "application_status_changed", label: "Application status changed", defaultChecked: true },
-  { id: "new_hire", label: "New hire", defaultChecked: true },
-  { id: "shift_update", label: "Shift update", defaultChecked: false },
-  { id: "timesheet_approved", label: "Timesheet approved", defaultChecked: false },
-  { id: "custom_event", label: "Custom event", defaultChecked: false },
-] as const;
-
 const inputClassName =
   "h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] outline-none focus-visible:ring-2 focus-visible:ring-[#012352]/30 disabled:bg-[#F8FAFC]";
 
@@ -491,12 +482,6 @@ export default function IntegrationsSettingsPanel() {
   const [connectedIds, setConnectedIds] = useState<Set<string>>(
     () => new Set()
   );
-  const [webhookEnabled, setWebhookEnabled] = useState(true);
-  const [webhookUrl, setWebhookUrl] = useState("https://yourdomain.com/webhook/brasshr");
-  const [webhookEvents, setWebhookEvents] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(WEBHOOK_EVENTS.map((event) => [event.id, event.defaultChecked]))
-  );
-
   const connectedItems = useMemo(
     () => INTEGRATIONS.filter((item) => connectedIds.has(item.id)),
     [connectedIds]
@@ -525,19 +510,6 @@ export default function IntegrationsSettingsPanel() {
       return next;
     });
     toast.success("Integration disconnected");
-  }
-
-  async function copyWebhookUrl() {
-    try {
-      await navigator.clipboard.writeText(webhookUrl);
-      toast.success("Webhook URL copied");
-    } catch {
-      toast.error("Could not copy");
-    }
-  }
-
-  function saveWebhook() {
-    toast.error("Webhook delivery is not configured. These settings have not been saved.");
   }
 
   return (
@@ -652,88 +624,18 @@ export default function IntegrationsSettingsPanel() {
             </section>
 
             <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.02]">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#EEF2FF] text-[#012352]">
-                    <Webhook className="h-4 w-4" aria-hidden />
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-semibold text-[#0F172A]">Webhook</h2>
-                    <p className="mt-0.5 text-xs text-[#64748B]">
-                      Receive real-time notifications from BrassHR
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={webhookEnabled}
-                  onClick={() => setWebhookEnabled((value) => !value)}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                    webhookEnabled ? "bg-[#012352]" : "bg-[#CBD5E1]"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                      webhookEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <fieldset disabled={!webhookEnabled} className="space-y-4 disabled:opacity-60">
-                <label className="block text-xs font-medium text-[#374151]">
-                  Webhook URL
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <input
-                      className={inputClassName}
-                      value={webhookUrl}
-                      onChange={(event) => setWebhookUrl(event.target.value)}
-                      placeholder="https://yourdomain.com/webhook/brasshr"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void copyWebhookUrl()}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#64748B] hover:bg-[#F8FAFC]"
-                      aria-label="Copy webhook URL"
-                    >
-                      <Copy className="h-4 w-4" aria-hidden />
-                    </button>
-                  </div>
-                </label>
-
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#EEF2FF] text-[#012352]">
+                  <Webhook className="h-4 w-4" aria-hidden />
+                </span>
                 <div>
-                  <p className="text-xs font-medium text-[#374151]">Events to Send</p>
-                  <ul className="mt-2 space-y-2">
-                    {WEBHOOK_EVENTS.map((event) => (
-                      <li key={event.id}>
-                        <label className="flex cursor-pointer items-center gap-2 text-sm text-[#0F172A]">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(webhookEvents[event.id])}
-                            onChange={(change) =>
-                              setWebhookEvents((current) => ({
-                                ...current,
-                                [event.id]: change.target.checked,
-                              }))
-                            }
-                            className="h-4 w-4 rounded border-[#CBD5E1] text-[#012352] focus:ring-[#012352]/30"
-                          />
-                          {event.label}
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
+                  <h2 className="text-sm font-semibold text-[#0F172A]">Webhook</h2>
+                  <p className="mt-1 text-xs leading-5 text-[#64748B]">
+                    Webhook delivery is not available yet. You will be able to configure endpoints and
+                    event subscriptions here once it launches.
+                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={saveWebhook}
-                  className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#012352] px-4 text-sm font-medium text-white hover:brightness-95 min-[500px]:w-auto sm:self-end"
-                >
-                  Save Changes
-                </button>
-              </fieldset>
+              </div>
             </section>
 
             <section className="rounded-2xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">

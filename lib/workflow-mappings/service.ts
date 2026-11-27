@@ -18,6 +18,7 @@ import {
 } from "@/lib/workflow-mappings/validation";
 import { isRnrEmploymentType } from "@/lib/jobs/employment-type";
 import { resolveFlowProfessionId } from "@/lib/professions/service";
+import { resolveOnboardingLibraryForFlows } from "@/lib/onboarding/onboarding-libraries";
 
 type DbClient = SupabaseClient;
 
@@ -433,14 +434,23 @@ export async function deleteWorkflowMapping(
 export async function listPublishedWorkflowOptions(
   supabase: DbClient,
   tenantId: string,
-  filters?: { employmentType?: string }
+  filters?: { employmentType?: string; librarySlug?: string }
 ) {
-  const { data, error } = await supabase
+  const defaultLibrary = await resolveOnboardingLibraryForFlows(supabase, tenantId, {
+    librarySlug: filters?.librarySlug ?? "onboarding",
+  });
+
+  let flowsQuery = supabase
     .from("onboarding_flows")
-    .select("id, name, status, employment_type")
+    .select("id, name, status, employment_type, library_id")
     .eq("tenant_id", tenantId)
-    .eq("status", "published")
-    .order("name", { ascending: true });
+    .eq("status", "published");
+
+  if (defaultLibrary?.id) {
+    flowsQuery = flowsQuery.eq("library_id", defaultLibrary.id);
+  }
+
+  const { data, error } = await flowsQuery.order("name", { ascending: true });
 
   if (error) throw error;
 

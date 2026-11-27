@@ -43,6 +43,7 @@ import {
   staffStepVariantForLibraryId,
   type StaffStepAction,
   type StaffStepEmailResult,
+  staffEmailRecipientSuffix,
 } from "@/lib/onboarding/staff-step-review-shared";
 import { lifecyclePhaseLabel } from "@/lib/onboarding/workflow-phase-groups";
 import { workflowStepOwnershipCopy } from "@/lib/onboarding/workflow-step-ownership-copy";
@@ -179,18 +180,19 @@ function candidateEmailNotice(
       message: "Welcome email sent using your tenant Welcome email template.",
     };
   }
+  const recipientSuffix = staffEmailRecipientSuffix(email);
   if (email?.sent && email.lockedStepTitle && email.nextStepTitle) {
     return {
       tone: "success",
-      message: `Email sent. "${email.lockedStepTitle}" is still locked, so the link opens "${email.nextStepTitle}", which the candidate needs to complete first.`,
+      message: `Email sent${recipientSuffix}. "${email.lockedStepTitle}" is still locked, so the link opens "${email.nextStepTitle}", which the candidate needs to complete first.`,
     };
   }
   if (email?.sent) {
     return {
       tone: "success",
       message: email.nextStepTitle
-        ? `Email sent. The candidate received a link to complete "${email.nextStepTitle}".`
-        : "Email sent. The candidate received a link to continue.",
+        ? `Email sent${recipientSuffix}. The candidate received a link to complete "${email.nextStepTitle}".`
+        : `Email sent${recipientSuffix}. The candidate received a link to continue.`,
     };
   }
   if (email?.reason === "RESEND_NOT_CONFIGURED") {

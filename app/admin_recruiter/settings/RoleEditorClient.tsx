@@ -292,7 +292,13 @@ export default function RoleEditorClient({
           Back
         </Link>
         <h1 className="mt-3 text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
-          {mode === "edit" ? (editing?.isSystem ? "Edit Built-in Role" : "Edit Custom Role") : "Create Custom Role"}
+          {mode === "edit"
+            ? loading && !editing
+              ? "Edit Role"
+              : editing?.isSystem
+                ? "Edit Built-in Role"
+                : "Edit Custom Role"
+            : "Create Custom Role"}
         </h1>
         <p className="mt-1 text-sm leading-5 text-[#64748B]">
           {mode === "edit"

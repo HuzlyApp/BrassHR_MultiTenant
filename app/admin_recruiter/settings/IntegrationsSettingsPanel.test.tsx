@@ -16,10 +16,9 @@ describe("integration connection truthfulness", () => {
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Manage API access" })).toBeEnabled();
   });
-  it("does not claim webhook settings were persisted when delivery is unavailable", () => {
+  it("does not expose editable webhook settings when delivery is unavailable", () => {
     render(<Panel />);
-    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
-    expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining("have not been saved"));
-    expect(mocks.success).not.toHaveBeenCalled();
+    expect(screen.getByText(/Webhook delivery is not available yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).not.toBeInTheDocument();
   });
 });

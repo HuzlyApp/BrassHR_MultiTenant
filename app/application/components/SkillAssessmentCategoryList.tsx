@@ -31,6 +31,10 @@ export default function SkillAssessmentCategoryList({
   interactive = true,
 }: Props) {
   const categories = activeSkillCategories(catalog);
+  const categoriesRequiringCompletion = categories.filter((cat) => cat.questions.length > 0);
+  const allRequiredComplete =
+    categoriesRequiringCompletion.length === 0 ||
+    categoriesRequiringCompletion.every((cat) => completedSlugs?.has(cat.slug));
 
   return (
     <div className="flex flex-1 flex-col pt-6 sm:pt-8">
@@ -113,7 +117,13 @@ export default function SkillAssessmentCategoryList({
             <button
               type="button"
               onClick={onContinue}
-              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-6 sm:py-2 sm:text-[12px]"
+              disabled={interactive && !allRequiredComplete}
+              title={
+                interactive && !allRequiredComplete
+                  ? "Complete every skill category that has questions before continuing."
+                  : undefined
+              }
+              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-6 sm:py-2 sm:text-[12px]"
             >
               {continueLabel}
             </button>
