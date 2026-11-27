@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useSearchParams } from "next/navigation";
 import { Briefcase, Plus, X } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -55,6 +56,7 @@ export function CandidateJobAlertsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [keywords, setKeywords] = useState("");
 
@@ -96,21 +98,36 @@ export function CandidateJobAlertsClient() {
   }, [jobs, selected]);
 
   function saveAlerts(next: Alert[]) {
-    setAlerts(next);
-    if (applicantId) localStorage.setItem(storageKey(applicantId), JSON.stringify(next));
+    try {
+      if (!applicantId) throw new Error("Sign in again to save this alert.");
+      localStorage.setItem(storageKey(applicantId), JSON.stringify(next));
+      setAlerts(next);
+      setError(null);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save alert.");
+      return false;
+    }
+  }
+
+  function openNewAlert() {
+    setEditingId(null);
+    setName("");
+    setKeywords("");
+    setCreateOpen(true);
   }
 
   function createAlert() {
     const keywordList = keywords.split(",").map((item) => item.trim()).filter(Boolean);
     if (!name.trim()) return;
     const alert: Alert = {
-      id: crypto.randomUUID(),
+      id: editingId ?? crypto.randomUUID(),
       name: name.trim(),
       keywords: keywordList,
-      createdAt: new Date().toISOString(),
+      createdAt: alerts.find((item) => item.id === editingId)?.createdAt ?? new Date().toISOString(),
     };
-    const next = [...alerts, alert];
-    saveAlerts(next);
+    const next = editingId ? alerts.map((item) => item.id === editingId ? alert : item) : [...alerts, alert];
+    if (!saveAlerts(next)) return;
     setSelectedId(alert.id);
     setName("");
     setKeywords("");
@@ -123,13 +140,13 @@ export function CandidateJobAlertsClient() {
         title="Job Alerts"
         subtitle="Get notified about new job opportunities that match your skills, preferences, and career interests."
         action={
-          <button type="button" className={CANDIDATE_BTN_NAVY} onClick={() => setCreateOpen(true)}>
+          <button type="button" className={CANDIDATE_BTN_NAVY} onClick={openNewAlert}>
             Create New Alert
           </button>
         }
       />
 
-      <section className="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <section className="mb-5 rounded-xl border border-[#E5E7EB] bg-white p-5">
         <h2 className="text-sm font-semibold text-[#111827]">My Alerts</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {alerts.map((alert) => {
@@ -138,6 +155,7 @@ export function CandidateJobAlertsClient() {
               <button
                 key={alert.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => setSelectedId(alert.id)}
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
                   active
@@ -146,47 +164,48 @@ export function CandidateJobAlertsClient() {
                 }`}
               >
                 {alert.name}
-                <span className={active ? "text-white/80" : "text-[#94A3B8]"}>{alert.keywords.length}</span>
+                <span className={`rounded-full px-1.5 text-[10px] ${active ? "bg-white/15 text-white" : "bg-[#F3F4F6] text-[#6B7280]"}`}>{jobs.filter((job) => matchScore(job, alert) > 0).length}</span>
               </button>
             );
           })}
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#CBD5E1] px-3 py-1 text-xs text-[#374151]"
-            onClick={() => setCreateOpen(true)}
+            onClick={openNewAlert}
           >
             <Plus className="h-3 w-3" /> New Alert
           </button>
         </div>
         {selected ? (
-          <p className="mt-4 border-t border-[#F3F4F6] pt-3 text-xs text-[#6B7280]">
-            Filters: {[selected.name, ...selected.keywords].join(" · ")} · Created on{" "}
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E5E7EB] pt-3 text-xs text-[#6B7280]">
+            Filters: <span className="rounded-full bg-[#F3F4F6] px-3 py-1">{selected.keywords.join(", ") || selected.name} · Created on{" "}
             {new Date(selected.createdAt).toLocaleDateString("en-US", {
               timeZone: "America/New_York",
               month: "short",
               day: "numeric",
               year: "numeric",
-            })}
-          </p>
+            })}</span>
+            <button type="button" className="text-[#2563EB] hover:underline" onClick={() => { setEditingId(selected.id); setName(selected.name); setKeywords(selected.keywords.join(", ")); setCreateOpen(true); }}>Edit Filters</button>
+          </div>
         ) : (
           <p className="mt-4 text-xs text-[#6B7280]">Create an alert to match published jobs.</p>
         )}
       </section>
 
-      {error ? <p className="mb-3 text-sm text-[#B91C1C]">{error}</p> : null}
+      {error ? <p role="alert" className="mb-3 text-sm text-[#B91C1C]">{error}</p> : null}
       {loading ? <p className="text-sm text-[#6B7280]">Loading matches…</p> : null}
 
-      <div className="space-y-3">
+      <div className="space-y-5">
         {matches.map(({ job, score }, index) => {
           const title = publicJobDisplayTitle(job);
           const created = job.published_at || job.updated_at;
           return (
-            <article key={job.public_job_token} className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-4 sm:flex-row sm:items-center">
-              <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${COLORS[index % COLORS.length]}`}>
+            <article key={job.public_job_token} className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-5 sm:flex-row sm:items-center">
+              <span className={`inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg ${COLORS[index % COLORS.length]}`}>
                 <Briefcase className="h-4 w-4" aria-hidden />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#111827]">{title}</p>
+                <p className="text-sm font-semibold text-[#012352]">{title}</p>
                 <p className="text-xs text-[#6B7280]">
                   {branding.companyName}
                   {created
@@ -201,13 +220,13 @@ export function CandidateJobAlertsClient() {
               <div className="flex gap-2">
                 <Link
                   href={applicationPath(`/jobs/${job.public_job_token}`, tenant)}
-                  className={CANDIDATE_BTN_OUTLINE}
+                  className={`${CANDIDATE_BTN_OUTLINE} h-[30px] text-[10px]`}
                 >
                   Details
                 </Link>
                 <Link
-                  href={applicationPath("/application/candidate/jobs", tenant)}
-                  className={CANDIDATE_BTN_NAVY}
+                  href={applicationPath(`/application/candidate/jobs?job=${encodeURIComponent(job.public_job_token)}`, tenant)}
+                  className={`${CANDIDATE_BTN_NAVY} h-[30px] text-[10px]`}
                 >
                   Apply
                 </Link>
@@ -220,21 +239,24 @@ export function CandidateJobAlertsClient() {
         ) : null}
       </div>
 
-      {createOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[120] bg-black/40" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-[121] max-h-[90dvh] w-[calc(100%_-_32px)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[20px] bg-white p-5 shadow-xl">
           <form
-            className="w-full max-w-md rounded-[20px] bg-white p-5 shadow-[0_20px_50px_rgba(18,27,33,0.2)]"
             onSubmit={(event) => {
               event.preventDefault();
               createAlert();
             }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Create New Alert</h2>
+              <Dialog.Title className="text-xl font-semibold">{editingId ? "Edit Filters" : "Create New Alert"}</Dialog.Title>
               <button type="button" aria-label="Close" onClick={() => setCreateOpen(false)}>
                 <X className="h-4 w-4" />
               </button>
             </div>
+            <Dialog.Description className="mb-4 text-xs text-[#6B7280]">Choose a role and keywords to find matching jobs. Alerts are saved in this browser.</Dialog.Description>
+            {error ? <p role="alert" className="mb-3 text-xs text-red-700">{error}</p> : null}
             <label className="block text-xs text-[#6B7280]">
               Alert name
               <input
@@ -259,8 +281,9 @@ export function CandidateJobAlertsClient() {
               </button>
             </div>
           </form>
-        </div>
-      ) : null}
+        </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

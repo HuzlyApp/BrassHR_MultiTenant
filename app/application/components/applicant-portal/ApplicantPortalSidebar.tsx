@@ -34,6 +34,10 @@ import {
 } from "@/lib/sidebar/sidebar-nav-styles";
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
+const CANDIDATE_ICONS: Record<string, string> = {
+  "Find Jobs": "find-jobs", Applications: "applications", Resumes: "resumes",
+  "Job Alerts": "job-alerts", Notifications: "notifications", Profile: "profile",
+};
 
 /** First enabled child link for collapsed-rail navigation. */
 function getFirstNavigableChildHref(children: WorkerSidebarLink[]): string | null {
@@ -317,9 +321,7 @@ export function ApplicantPortalSidebar({
                 <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
                   {candidatePortal ? "Candidate Portal" : branding.companyName}
                 </p>
-                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
-                  {candidatePortal ? branding.companyName : "Dashboard"}
-                </p>
+                {!candidatePortal ? <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">Dashboard</p> : null}
               </div>
             ) : null}
           </div>
@@ -487,14 +489,15 @@ export function ApplicantPortalSidebar({
               </div>
             ) : (
               <Link
-                href={section.href}
+                href={candidatePortal ? applicationPath(section.href, tenantQuery) : section.href}
                 onClick={handleNavClick}
                 title={isCollapsed || isMobileRail ? section.label : undefined}
                 className={topLevelRowClass(section.active, isCollapsed, isMobileRail, false)}
+                aria-current={section.active ? "page" : undefined}
               >
-                <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
+                {candidatePortal ? <Image src={`/icons/candidate-portal/${CANDIDATE_ICONS[section.label]}.svg`} alt="" width={20} height={20} /> : <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />}
                 {!isCollapsed && !isMobileRail ? (
-                  <span className={topLevelLabelClass(section.active, false)}>{section.label}</span>
+                  <span className={candidatePortal ? "truncate text-sm font-normal text-[color:var(--brand-secondary,#012352)]" : topLevelLabelClass(section.active, false)}>{section.label}</span>
                 ) : null}
                 {section.showIndicator || ((isCollapsed || isMobileRail) && section.active) ? (
                   <span aria-hidden className="worker-sidebar-active-indicator" />
@@ -558,7 +561,7 @@ export function ApplicantPortalSidebar({
             title="Sign out"
             className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed || isMobileRail ? "" : "ml-auto"}`}
           >
-            <SidebarNavIcon iconType={WORKER_SIDEBAR_ICON_TYPES.logout} active={false} />
+            <SidebarNavIcon iconType={WORKER_SIDEBAR_ICON_TYPES.logout} active={false} colorHex={candidatePortal ? branding.primaryHex : undefined} />
           </button>
         </div>
       </div>

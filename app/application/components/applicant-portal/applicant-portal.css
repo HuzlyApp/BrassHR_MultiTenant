@@ -3,6 +3,56 @@
   --worker-portal-chrome-border: #e2e8f0;
 }
 
+.applicant-portal-shell[data-candidate-portal="true"] .applicant-portal-main > main > div {
+  padding: 24px;
+}
+
+.applicant-portal-shell[data-candidate-portal="true"] .worker-sidebar-nav {
+  padding-top: 20px;
+}
+
+.candidate-job-detail .job-description-html,
+.candidate-job-detail .job-description-html * {
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+.candidate-job-detail .job-description-html p + p {
+  margin-top: 12px;
+}
+
+.candidate-job-detail .job-description-html :is(h1, h2, h3, h4, h5, h6) {
+  margin: 16px 0 12px;
+  font-size: 14px !important;
+  line-height: 20px !important;
+  font-weight: 600;
+  color: #000;
+}
+
+.candidate-job-detail .job-description-html :is(ul, ol) {
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.candidate-job-detail .job-description-html ol {
+  list-style: decimal;
+}
+
+.applicant-portal-shell[data-candidate-portal="true"] .applicant-portal-sidebar[data-collapsed="false"] .worker-sidebar-nav {
+  padding-left: 20px;
+  padding-right: 4px;
+}
+
+.applicant-portal-shell[data-candidate-portal="true"] .worker-sidebar-nav > .mb-1 {
+  margin-bottom: 14px;
+}
+
+@media (max-width: 639px) {
+  .applicant-portal-shell[data-candidate-portal="true"] .applicant-portal-main > main > div {
+    padding: 20px 12px;
+  }
+}
+
 .worker-portal-topbar {
   position: sticky;
   top: 0;

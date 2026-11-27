@@ -19,6 +19,7 @@ const WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY = "workerPortalSidebarCollapsed";
 import { ApplicantPortalUiProvider } from "./ApplicantPortalUiContext";
 import type { ApplicantSession } from "./types";
 import "./applicant-portal.css";
+import { isCandidatePortalPath } from "./worker-sidebar-config";
 
 const GROUP_CHAT_HREF = "/application/applicant-dashboard/group-chat?tab=recruiter";
 
@@ -31,8 +32,10 @@ export function ApplicantPortalShell({ session, children }: Props) {
   const branding = useTenantBranding();
   const router = useRouter();
   const pathname = usePathname();
+  const candidatePortal = isCandidatePortalPath(pathname);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(!candidatePortal);
+  const sidebarStorageKey = candidatePortal ? "candidatePortalSidebarCollapsed" : WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY;
   const shellStyle: CSSProperties = brandingToCssVars(branding);
 
   useEffect(() => {
@@ -47,13 +50,14 @@ export function ApplicantPortalShell({ session, children }: Props) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY);
+      const stored = localStorage.getItem(sidebarStorageKey);
       if (stored === "true") setSidebarCollapsed(true);
       else if (stored === "false") setSidebarCollapsed(false);
+      else setSidebarCollapsed(!candidatePortal);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [candidatePortal, sidebarStorageKey]);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -76,7 +80,7 @@ export function ApplicantPortalShell({ session, children }: Props) {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem(WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+        localStorage.setItem(sidebarStorageKey, String(next));
       } catch {
         /* ignore */
       }
@@ -101,7 +105,7 @@ export function ApplicantPortalShell({ session, children }: Props) {
 
   return (
     <ApplicantPortalUiProvider openRecruiterMessages={openMessages}>
-      <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
+      <div style={shellCssVars} data-candidate-portal={candidatePortal} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
         <ApplicantPortalSidebar
           applicantName={session?.applicant.name ?? "Applicant"}
           mobileOpen={mobileNavOpen}
