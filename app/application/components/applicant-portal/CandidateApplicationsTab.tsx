@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Download } from "lucide-react";
+import Link from "next/link";
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -308,7 +310,9 @@ export function CandidateApplicationsTab({
                 const status = applicationStatusBadge(row);
                 return (
                   <tr key={row.id} className="border-b border-[#F3F4F6] last:border-b-0">
-                    <td className="px-4 py-4 text-sm font-medium text-[#111827]">{row.jobTitle}</td>
+                    <td className="px-4 py-4 text-sm font-medium text-[#111827]">
+                      <Link className="text-[#012352] hover:underline" href={applicationPath(`/application/candidate/applications?application=${encodeURIComponent(row.id)}`)}>{row.jobTitle}</Link>
+                    </td>
                     <td className="px-4 py-4">
                       {row.workType ? (
                         <span

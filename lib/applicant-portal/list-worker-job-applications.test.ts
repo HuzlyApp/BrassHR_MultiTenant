@@ -47,6 +47,21 @@ function supabaseFor(resumes: Array<Record<string, unknown>>) {
 }
 
 describe("candidate profile resume button", () => {
+  it("keeps other jobs and newer profile uploads out of candidate application resumes", async () => {
+    const resumes = [
+      { id: "other-job", job_application_id: OTHER_APPLICATION, uploaded_at: "2026-10-03T00:00:00.000Z" },
+      { id: "new-profile", job_application_id: null, uploaded_at: "2026-10-02T00:00:00.000Z" },
+      { id: "original-profile", job_application_id: null, uploaded_at: "2026-09-30T00:00:00.000Z" },
+    ];
+    const rows = await listWorkerJobApplications(supabaseFor(resumes) as never,
+      { workerId: WORKER_ID, tenantId: TENANT_ID }, { applicationScopedResumes: true });
+    expect(rows[0].resume?.id).toBe("original-profile");
+    const updated = await listWorkerJobApplications(supabaseFor([
+      { id: "job-replacement", job_application_id: THIS_APPLICATION }, ...resumes,
+    ]) as never, { workerId: WORKER_ID, tenantId: TENANT_ID }, { applicationScopedResumes: true });
+    expect(updated[0].resume?.id).toBe("job-replacement");
+  });
+
   it("shows a resume from another application and opens that resume's own application", async () => {
     const rows = await listWorkerJobApplications(supabaseFor([
       {
