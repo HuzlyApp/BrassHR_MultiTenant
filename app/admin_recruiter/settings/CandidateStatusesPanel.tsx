@@ -568,7 +568,7 @@ export default function CandidateStatusesPanel() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 sm:ml-auto sm:shrink-0 sm:justify-end">
+                <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto sm:shrink-0 sm:justify-end">
                   <StatusCountPills counts={view.counts} />
                   <button
                     type="button"
@@ -577,7 +577,7 @@ export default function CandidateStatusesPanel() {
                       setConfigStage(view.stage);
                     }}
                     aria-label={`Configure ${view.stage}`}
-                    className="inline-flex h-9 shrink-0 items-center rounded-lg border border-[#012352] bg-white px-3.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC]"
+                    className="ml-auto inline-flex h-9 shrink-0 items-center rounded-lg border border-[#012352] bg-white px-3.5 text-sm font-semibold text-[#012352] transition hover:bg-[#F8FAFC] sm:ml-0"
                   >
                     Configure
                   </button>

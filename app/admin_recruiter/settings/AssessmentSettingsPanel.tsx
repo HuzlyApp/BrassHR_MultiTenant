@@ -455,6 +455,8 @@ export default function AssessmentSettingsPanel({
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  /** Mobile full-page only: collapse the fixed action bar so content behind it is usable. */
+  const [mobileActionsVisible, setMobileActionsVisible] = useState(true);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(
     null
   );
@@ -777,9 +779,17 @@ export default function AssessmentSettingsPanel({
   const professionIsActive = selectedProfession?.isActive !== false && catalog.enabled;
 
   return (
-    <section className={`space-y-5 ${fullPage ? "pb-28" : ""}`}>
+    <section
+      className={`min-w-0 max-w-full space-y-5 ${
+        fullPage
+          ? mobileActionsVisible
+            ? "overflow-x-hidden pb-28 max-lg:pb-36"
+            : "overflow-x-hidden pb-16 max-lg:pb-14"
+          : ""
+      }`}
+    >
       {fullPage ? (
-        <div className="space-y-5">
+        <div className="min-w-0 max-w-full space-y-5">
           <Link
             href="/admin_recruiter/settings/assessment"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-[#64748B] hover:text-[#0F172A]"
@@ -788,23 +798,27 @@ export default function AssessmentSettingsPanel({
             Back
           </Link>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="min-w-0 truncate text-lg font-semibold leading-6 tracking-tight text-[#0F172A] max-[449px]:text-base">
                 {professionName || "Profession assessment"}
               </h1>
               {statusBadge}
             </div>
-            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-[#64748B]">{professionDescription}</p>
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-[#64748B] max-[449px]:text-xs">
+              {professionDescription}
+            </p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+            <div className="min-w-0 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm max-[639px]:p-3.5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-secondary)_12%,white)] text-[color:var(--brand-secondary)]">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-secondary)_12%,white)] text-[color:var(--brand-secondary)]">
                     <FileText className="h-4 w-4" aria-hidden />
                   </span>
-                  <h2 className="text-base font-semibold text-[#0F172A]">Basic Information</h2>
+                  <h2 className="text-base font-semibold text-[#0F172A] max-[449px]:text-sm">
+                    Basic Information
+                  </h2>
                 </div>
                 {professionIsActive ? activeStatusChip : inactiveStatusChip}
               </div>
@@ -859,8 +873,10 @@ export default function AssessmentSettingsPanel({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-              <h2 className="text-base font-semibold text-[#0F172A]">Additional Information</h2>
+            <div className="min-w-0 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm max-[639px]:p-3.5 sm:p-6">
+              <h2 className="text-base font-semibold text-[#0F172A] max-[449px]:text-sm">
+                Additional Information
+              </h2>
               <div className="mt-5 space-y-4">
                 <label className="block space-y-1.5">
                   <span className="text-sm font-medium text-[#64748B]">Department (optional)</span>
@@ -977,7 +993,7 @@ export default function AssessmentSettingsPanel({
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white px-5 py-3 shadow-sm">
+            <div className="flex min-w-0 flex-wrap items-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white px-5 py-3 shadow-sm max-[639px]:gap-3 max-[639px]:px-3.5">
               <label className="inline-flex items-center gap-2 text-sm text-[#0F172A]">
                 <span className="font-medium">Enable assessment</span>
                 <Toggle
@@ -1002,7 +1018,7 @@ export default function AssessmentSettingsPanel({
           <div
             className={
               fullPage
-                ? "rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6"
+                ? "min-w-0 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm max-[639px]:p-3.5 sm:p-6"
                 : "mt-5 space-y-3"
             }
           >
@@ -1117,9 +1133,9 @@ export default function AssessmentSettingsPanel({
         </>
       ) : null}
 
-      <div className={embedded ? "mt-1" : fullPage ? "space-y-3" : "mt-6"}>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-base font-semibold text-[#0F172A]">
+      <div className={embedded ? "mt-1" : fullPage ? "min-w-0 space-y-3" : "mt-6"}>
+        <div className="mb-1 flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <h4 className="text-base font-semibold text-[#0F172A] max-[449px]:text-sm">
             {fullPage
               ? "Question Categories"
               : professionId
@@ -1530,32 +1546,59 @@ export default function AssessmentSettingsPanel({
       <div
         className={
           fullPage
-            ? "fixed inset-x-0 bottom-0 z-20 border-t border-[#E5E7EB] bg-white/95 px-4 py-3 backdrop-blur sm:px-6"
+            ? "admin-recruiter-fixed-content-bar fixed bottom-0 z-20 box-border min-w-0 border-t border-[#E5E7EB] bg-white/95 px-3 py-3 backdrop-blur sm:px-6"
             : "mt-6 flex flex-col gap-2 border-t border-[#E2E8F0] pt-4 sm:flex-row sm:items-center sm:justify-between"
         }
       >
+        {fullPage && !mobileActionsVisible ? (
+          <div className="flex justify-end sm:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileActionsVisible(true)}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold text-[#012352] shadow-sm"
+            >
+              View
+            </button>
+          </div>
+        ) : null}
+
         <div
           className={
             fullPage
-              ? "mx-auto flex w-full max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+              ? `mx-auto w-full min-w-0 max-w-6xl flex-col gap-2 sm:flex sm:flex-row sm:items-center sm:justify-between ${
+                  mobileActionsVisible ? "flex" : "hidden sm:flex"
+                }`
               : "contents"
           }
         >
+          {fullPage ? (
+            <div className="flex justify-end sm:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileActionsVisible(false)}
+                className="inline-flex h-8 items-center justify-center rounded-md px-2.5 text-xs font-semibold text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+              >
+                Hide
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#012352]"
+            className="inline-flex h-10 w-full min-w-0 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#012352] sm:w-auto"
           >
-            <Eye className="h-4 w-4" />
-            {fullPage ? "Preview Questionnaires" : "Preview Applicant Experience"}
+            <Eye className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {fullPage ? "Preview Questionnaires" : "Preview Applicant Experience"}
+            </span>
           </button>
           {canManage ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-row">
               <button
                 type="button"
                 disabled={saving}
                 onClick={cancelEdits}
-                className="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#012352] disabled:opacity-50"
+                className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#012352] disabled:opacity-50 sm:w-auto"
               >
                 Cancel
               </button>
@@ -1563,7 +1606,7 @@ export default function AssessmentSettingsPanel({
                 type="button"
                 disabled={saving || scoreInvalid}
                 onClick={() => void saveDraft()}
-                className="h-10 rounded-lg border border-[color:var(--brand-secondary)] bg-white px-4 text-sm font-medium text-[color:var(--brand-secondary)] disabled:opacity-50"
+                className="h-10 w-full rounded-lg border border-[color:var(--brand-secondary)] bg-white px-4 text-sm font-medium text-[color:var(--brand-secondary)] disabled:opacity-50 sm:w-auto"
               >
                 Save Draft
               </button>
@@ -1571,7 +1614,7 @@ export default function AssessmentSettingsPanel({
                 type="button"
                 disabled={saving || scoreInvalid}
                 onClick={() => void publish()}
-                className="h-10 rounded-lg bg-[color:var(--brand-secondary)] px-4 text-sm font-medium text-white disabled:opacity-50"
+                className="h-10 w-full rounded-lg bg-[color:var(--brand-secondary)] px-4 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
               >
                 {fullPage ? "Publish" : "Publish Changes"}
               </button>

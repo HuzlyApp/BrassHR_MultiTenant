@@ -71,21 +71,23 @@ export function TemplateCard({
   const badgeLabel = showDefaultBadge && template.status === "active" ? "Default" : template.status;
 
   return (
-    <div className="group relative flex items-start gap-3 rounded-xl border border-[#EAECF0] bg-white p-4 transition hover:border-[#D0D5DD] hover:shadow-sm">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F2F4F7] text-[#012352]">
-        <FileText className="h-5 w-5" aria-hidden />
+    <div className="group relative z-0 flex min-w-0 max-w-full items-start gap-3 rounded-xl border border-[#EAECF0] bg-white p-4 transition hover:z-30 hover:border-[#D0D5DD] hover:shadow-sm max-[449px]:gap-2 max-[449px]:p-3 has-[[aria-expanded=true]]:z-30">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F2F4F7] text-[#012352] max-[449px]:h-8 max-[449px]:w-8">
+        <FileText className="h-5 w-5 max-[449px]:h-4 max-[449px]:w-4" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <Link
               href={`/admin_recruiter/template-builder/${template.id}`}
-              className="block truncate text-sm font-semibold text-[#101828] hover:text-[color:var(--brand-primary,#012352)]"
+              className="block truncate text-sm font-semibold text-[#101828] hover:text-[color:var(--brand-primary,#012352)] max-[449px]:text-xs"
             >
               {template.name}
             </Link>
             {template.description ? (
-              <p className="mt-0.5 line-clamp-1 text-xs text-[#667085]">{template.description}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs text-[#667085] max-[449px]:text-[0.65rem]">
+                {template.description}
+              </p>
             ) : null}
           </div>
           <div className="relative shrink-0" ref={menu.ref}>
@@ -100,7 +102,7 @@ export function TemplateCard({
               <MoreHorizontal className="h-4 w-4" />
             </button>
             {menu.open ? (
-              <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-40 mt-1 w-48 rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
                 <Link
                   href={`/admin_recruiter/template-builder/${template.id}`}
                   className="block px-3 py-2 text-sm text-[#344054] hover:bg-[#F9FAFB]"
@@ -205,20 +207,23 @@ export function FolderCard({
   const badge = folderPrimaryBadge(counts);
 
   return (
-    <div className="group relative rounded-xl border border-[#EAECF0] bg-white p-4 transition hover:border-[#D0D5DD] hover:shadow-sm">
-      <div className="flex items-start gap-3">
+    <div className="group relative z-0 min-w-0 max-w-full rounded-xl border border-[#EAECF0] bg-white p-4 transition hover:z-30 hover:border-[#D0D5DD] hover:shadow-sm max-[449px]:p-3 has-[[aria-expanded=true]]:z-30">
+      <div className="flex min-w-0 items-start gap-3 max-[449px]:gap-2">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg max-[449px]:h-8 max-[449px]:w-8"
           style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary, #012352) 10%, white)" }}
         >
-          <Folder className="h-5 w-5 text-[color:var(--brand-primary,#012352)]" aria-hidden />
+          <Folder
+            className="h-5 w-5 text-[color:var(--brand-primary,#012352)] max-[449px]:h-4 max-[449px]:w-4"
+            aria-hidden
+          />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
               <Link
                 href={href}
-                className="block truncate text-sm font-semibold text-[#101828] hover:text-[color:var(--brand-primary,#012352)]"
+                className="block truncate text-sm font-semibold text-[#101828] hover:text-[color:var(--brand-primary,#012352)] max-[449px]:text-xs"
               >
                 {folder.name}
               </Link>
@@ -236,7 +241,7 @@ export function FolderCard({
                 <MoreHorizontal className="h-4 w-4" />
               </button>
               {menu.open ? (
-                <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
+                <div className="absolute right-0 z-40 mt-1 w-40 rounded-lg border border-[#EAECF0] bg-white py-1 shadow-lg">
                   <Link
                     href={href}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-[#344054] hover:bg-[#F9FAFB]"
