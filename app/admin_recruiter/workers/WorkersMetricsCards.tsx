@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Users, UserX, Sparkles, UserCheck } from "lucide-react";
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 
 export type WorkersMetricsCardsProps = {
   loading?: boolean;
@@ -55,13 +56,13 @@ export function WorkersMetricsCards({ counts, loading = false }: WorkersMetricsC
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+    <MobileCollapsibleMetrics className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => {
         const IconComponent = card.icon;
         return (
           <div
             key={card.id}
-            className="flex items-center gap-3.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-xs"
+            className="flex h-full items-center gap-3.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-xs"
           >
             <div
               className={`flex size-[50px] shrink-0 items-center justify-center rounded-lg ${card.iconBg}`}
@@ -79,6 +80,6 @@ export function WorkersMetricsCards({ counts, loading = false }: WorkersMetricsC
           </div>
         );
       })}
-    </div>
+    </MobileCollapsibleMetrics>
   );
 }

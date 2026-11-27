@@ -127,7 +127,7 @@ type CandidateDocumentsFilesTableProps = {
     file: { id: string; filename: string },
     draftKey: string
   ) => void;
-  onFileNameDraftChange: (draftKey: string; value: string) => void;
+  onFileNameDraftChange: (draftKey: string, value: string) => void;
   onTopUploadClick: () => void;
   topUploadDisabled?: boolean;
 };
