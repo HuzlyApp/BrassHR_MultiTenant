@@ -4,6 +4,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 
 export type MetricCardKey = "total" | "shortlisted" | "review" | "hired";
 
@@ -185,7 +186,8 @@ export function ApplicantsMetricsCards({
   };
 
   return (
-    <div ref={containerRef} className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
+    <div ref={containerRef} className="w-full min-w-0">
+    <MobileCollapsibleMetrics className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
       {CARDS.map((card) => {
         const val = cardValues[card.id] ?? 0;
         const currentDisplay = getDisplayTimeframe(card.id);
@@ -195,7 +197,7 @@ export function ApplicantsMetricsCards({
         return (
           <div
             key={card.id}
-            className="relative flex min-w-0 items-center gap-3 overflow-visible rounded-lg border border-[#E5E7EB] bg-white px-3 py-3 shadow-xs sm:gap-3.5 sm:px-3.5"
+            className="relative flex h-full min-w-0 items-center gap-3 overflow-visible rounded-lg border border-[#E5E7EB] bg-white px-3 py-3 shadow-xs sm:gap-3.5 sm:px-3.5"
           >
             <div
               className={`flex size-[50px] shrink-0 items-center justify-center rounded-lg ${card.iconBg}`}
@@ -256,6 +258,7 @@ export function ApplicantsMetricsCards({
           </div>
         );
       })}
+    </MobileCollapsibleMetrics>
     </div>
   );
 }

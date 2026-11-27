@@ -1,6 +1,7 @@
 "use client";
 
 import { Users, UserCheck, UserX } from "lucide-react";
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 
 export type ManagersMetricsCardsProps = {
   loading?: boolean;
@@ -44,13 +45,13 @@ export function ManagersMetricsCards({ counts, loading = false }: ManagersMetric
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+    <MobileCollapsibleMetrics className="grid grid-cols-1 gap-5 sm:grid-cols-3">
       {cards.map((card) => {
         const IconComponent = card.icon;
         return (
           <div
             key={card.id}
-            className="flex items-center gap-3.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-xs"
+            className="flex h-full items-center gap-3.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-xs"
           >
             <div
               className={`flex size-[50px] shrink-0 items-center justify-center rounded-lg ${card.iconBg}`}
@@ -73,6 +74,6 @@ export function ManagersMetricsCards({ counts, loading = false }: ManagersMetric
           </div>
         );
       })}
-    </div>
+    </MobileCollapsibleMetrics>
   );
 }

@@ -16,6 +16,7 @@ import {
 import toast from "react-hot-toast";
 import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import type { ClientTableRow, ClientsMetrics } from "@/app/api/admin/clients/route";
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
@@ -345,17 +346,19 @@ export default function ClientsPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 md:px-8">
-      {/* Page Header */}
+      {/* Page Header — Add Client stays top-right on web */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">Clients</h1>
           <p className="mt-1 text-sm text-[#64748B]">Manage Clients</p>
         </div>
-
         <button
           type="button"
-          onClick={() => { setCreateError(null); setAddModalOpen(true); }}
-          className="flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 active:scale-[0.98]"
+          onClick={() => {
+            setCreateError(null);
+            setAddModalOpen(true);
+          }}
+          className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] sm:w-auto"
           style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
@@ -363,74 +366,109 @@ export default function ClientsPage() {
         </button>
       </div>
 
-      {/* 4 Metric / KPI Summary Cards */}
-      <form className="mb-4 flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(searchDraft.trim()); setPage(1); }}>
-        <label className="sr-only" htmlFor="client-search">Search clients</label>
-        <input id="client-search" type="search" className="h-10 rounded-lg border px-3 text-sm" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Search clients or contacts" />
-        <button className="rounded-lg border px-3 py-2 text-sm" type="submit">Search</button>
-        <button className="rounded-lg border px-3 py-2 text-sm" type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setPage(1); }}>{showArchived ? "Show active clients" : "Show archived clients"}</button>
+      {/* Mobile: search + Search on row 1, archive on row 2. Desktop: left-aligned compact search + archive. */}
+      <form
+        className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setQuery(searchDraft.trim());
+          setPage(1);
+        }}
+      >
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <label className="sr-only" htmlFor="client-search">
+            Search clients
+          </label>
+          <input
+            id="client-search"
+            type="search"
+            className="h-10 w-full min-w-0 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] sm:w-[280px] sm:max-w-[280px]"
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            placeholder="Search clients or contacts"
+          />
+          <button
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155]"
+            type="submit"
+          >
+            Search
+          </button>
+        </div>
+        <button
+          className="inline-flex h-10 w-full shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm whitespace-nowrap text-[#334155] sm:w-auto"
+          type="button"
+          aria-pressed={showArchived}
+          onClick={() => {
+            setShowArchived((value) => !value);
+            setPage(1);
+          }}
+        >
+          {showArchived ? "Show active clients" : "Show archived clients"}
+        </button>
       </form>
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Card 1: Active clients */}
-        <div className="flex items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F3E8FF] text-[#9333EA]">
-            <Users className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-[#64748B]">Active clients</div>
-            <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {loading ? "—" : metrics.activeClients}
+      <div className="mb-6">
+        <MobileCollapsibleMetrics className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Card 1: Active clients */}
+          <div className="flex h-full items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F3E8FF] text-[#9333EA]">
+              <Users className="h-6 w-6" />
             </div>
-            <div className="mt-0.5 text-[11px] text-[#94A3B8]">
-              {loading ? "—" : metrics.facilitiesCount} facilities
-              {metrics.directHireCount > 0 ? ` • ${metrics.directHireCount} direct hire` : ""}
+            <div>
+              <div className="text-xs font-medium text-[#64748B]">Active clients</div>
+              <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
+                {loading ? "—" : metrics.activeClients}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[#94A3B8]">
+                {loading ? "—" : metrics.facilitiesCount} facilities
+                {metrics.directHireCount > 0 ? ` • ${metrics.directHireCount} direct hire` : ""}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Card 2: Open orders */}
-        <div className="flex items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FEE2E2] text-[#EF4444]">
-            <FolderOpen className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-[#64748B]">Open orders</div>
-            <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {loading ? "—" : metrics.openOrders}
+          {/* Card 2: Open orders */}
+          <div className="flex h-full items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FEE2E2] text-[#EF4444]">
+              <FolderOpen className="h-6 w-6" />
             </div>
-            <div className="mt-0.5 text-[11px] text-[#94A3B8]">
-              {loading ? "—" : metrics.unfilledThisWeek} unfilled this week
+            <div>
+              <div className="text-xs font-medium text-[#64748B]">Open orders</div>
+              <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
+                {loading ? "—" : metrics.openOrders}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[#94A3B8]">
+                {loading ? "—" : metrics.unfilledThisWeek} unfilled this week
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Card 3: On assignment */}
-        <div className="flex items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E0F2FE] text-[#0284C7]">
-            <ClipboardList className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-[#64748B]">On assignment</div>
-            <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {loading ? "—" : metrics.onAssignment}
+          {/* Card 3: On assignment */}
+          <div className="flex h-full items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E0F2FE] text-[#0284C7]">
+              <ClipboardList className="h-6 w-6" />
             </div>
-            <div className="mt-0.5 text-[11px] text-[#94A3B8]">W2 + EOR</div>
+            <div>
+              <div className="text-xs font-medium text-[#64748B]">On assignment</div>
+              <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
+                {loading ? "—" : metrics.onAssignment}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[#94A3B8]">W2 + EOR</div>
+            </div>
           </div>
-        </div>
 
-        {/* Card 4: Direct-hire opens */}
-        <div className="flex items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FEF9C3] text-[#CA8A04]">
-            <UserCheck className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="text-xs font-medium text-[#64748B]">Direct-hire opens</div>
-            <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
-              {loading ? "—" : metrics.directHireOpens}
+          {/* Card 4: Direct-hire opens */}
+          <div className="flex h-full items-center gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FEF9C3] text-[#CA8A04]">
+              <UserCheck className="h-6 w-6" />
             </div>
-            <div className="mt-0.5 text-[11px] text-[#94A3B8]">Client will employ them</div>
+            <div>
+              <div className="text-xs font-medium text-[#64748B]">Direct-hire opens</div>
+              <div className="text-2xl font-bold tracking-tight text-[#0F172A]">
+                {loading ? "—" : metrics.directHireOpens}
+              </div>
+              <div className="mt-0.5 text-[11px] text-[#94A3B8]">Client will employ them</div>
+            </div>
           </div>
-        </div>
+        </MobileCollapsibleMetrics>
       </div>
 
       {/* Main Table */}

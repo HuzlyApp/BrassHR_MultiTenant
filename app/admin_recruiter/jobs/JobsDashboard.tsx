@@ -12,6 +12,7 @@ import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { closedGroupPickerLabel, groupStatuses } from "@/lib/jobs/application-statuses/groups";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 import { JobsAdvancedSearchBar } from "./JobsAdvancedSearchBar";
 import { JobsGridView, JOBS_GRID_INFINITE_PAGE_SIZE } from "./JobsGridView";
 import { JobsCardBulkSelectHeader } from "./JobsCardBulkSelectHeader";
@@ -329,11 +330,11 @@ export function JobsDashboard({
       </h1>
 
       <div className="flex w-full min-w-0 flex-col gap-5">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <MobileCollapsibleMetrics className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <JobsKpiCard key={card.label} {...card} />
           ))}
-        </div>
+        </MobileCollapsibleMetrics>
 
         {showKpiToggle ? (
           <div className="flex justify-end">

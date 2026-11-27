@@ -1,3 +1,4 @@
+import { MobileCollapsibleMetrics } from "@/app/admin_recruiter/components/MobileCollapsibleMetrics";
 import type { CandidateKpiCard, CandidateKpiIcon } from "./candidate-kpis";
 
 function CandidatesKpiIcon({ src, bg, leafWidth, leafHeight }: CandidateKpiIcon) {
@@ -88,13 +89,12 @@ export function CandidatesKpiRow({
   loading?: boolean;
 }) {
   return (
-    <div
-      className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4"
-      aria-busy={loading || undefined}
-    >
-      {cards.map((card) => (
-        <CandidatesKpiCard key={card.label} {...card} loading={loading} />
-      ))}
+    <div aria-busy={loading || undefined} className="w-full min-w-0">
+      <MobileCollapsibleMetrics className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <CandidatesKpiCard key={card.label} {...card} loading={loading} />
+        ))}
+      </MobileCollapsibleMetrics>
     </div>
   );
 }

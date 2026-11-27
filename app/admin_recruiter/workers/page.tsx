@@ -800,7 +800,7 @@ export default function WorkersPage() {
         <button
           type="button"
           disabled={loading || filteredWorkers.length === 0}
-          className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm disabled:opacity-50 sm:flex-none"
+          className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm disabled:opacity-50 sm:flex-none"
           onClick={() => exportWorkersCsv(filteredWorkers)}
         >
           Export CSV
@@ -809,7 +809,7 @@ export default function WorkersPage() {
           type="button"
           disabled={archiveBusy}
           aria-pressed={showArchived}
-          className="inline-flex w-full items-center justify-center rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm sm:w-auto"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm sm:w-auto"
           onClick={() => {
             setShowArchived((value) => !value);
             setSelectedIds(new Set());
