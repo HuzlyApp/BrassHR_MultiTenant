@@ -159,12 +159,12 @@ export default function RolePermissionsPanel({ canEdit }: { canEdit: boolean; ca
       className="flex flex-col gap-6"
       style={{ fontFamily: "var(--font-tenant-branding-inter), Inter, sans-serif" }}
     >
-      <div className="flex justify-end">
+      <div className="flex sm:justify-end">
         <button
           type="button"
           onClick={() => router.push("/admin_recruiter/settings/roles/new")}
           disabled={!canEdit || loading}
-          className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#012352] px-4 text-sm font-semibold text-white disabled:opacity-60"
+          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#012352] px-4 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto sm:shrink-0"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={ROLE_ICONS.plus} width={14} height={14} alt="" />
@@ -184,8 +184,8 @@ export default function RolePermissionsPanel({ canEdit }: { canEdit: boolean; ca
             className="min-w-0 flex-1 bg-transparent text-sm font-normal text-black outline-none placeholder:text-[#94A3B8]"
           />
         </label>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative w-[160px]">
+        <div className="grid w-full grid-cols-2 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="relative min-w-0 w-full sm:w-[160px]">
             <select
               value={roleTypeFilter}
               onChange={(event) => setRoleTypeFilter(event.target.value)}
@@ -208,7 +208,7 @@ export default function RolePermissionsPanel({ canEdit }: { canEdit: boolean; ca
               className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
             />
           </div>
-          <div className="relative w-[160px]">
+          <div className="relative min-w-0 w-full sm:w-[160px]">
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}
