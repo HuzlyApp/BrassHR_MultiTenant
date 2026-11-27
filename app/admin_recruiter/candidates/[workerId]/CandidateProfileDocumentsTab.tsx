@@ -20,6 +20,7 @@ import {
 } from "@/lib/resume/resume-upload-limit";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { uploadAdminJobResume } from "@/lib/resume/direct-resume-upload-client";
+import { isTerminalApplicationStatus } from "@/lib/onboarding/workflow-phase";
 import { resumeIconType } from "./candidate-profile-ui";
 
 const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
@@ -498,15 +499,20 @@ function UploadedByCell({ resume }: { resume: CandidateProfileSubmittedResume })
 
 function ResumeActions({
   busy,
+  locked,
   onView,
   onReupload,
   onDelete,
 }: {
   busy: boolean;
+  locked?: boolean;
   onView: () => void;
   onReupload: () => void;
   onDelete: () => void;
 }) {
+  const lockTitle = locked
+    ? "This application was frozen after the candidate accepted another offer."
+    : undefined;
   return (
     <div className="flex flex-nowrap items-center justify-end gap-1.5">
       <button type="button" disabled={busy} onClick={onView} className={TABLE_VIEW_BTN}>
@@ -514,14 +520,20 @@ function ResumeActions({
       </button>
       <button
         type="button"
-        disabled={busy}
-        title="Replace this resume file"
+        disabled={busy || locked}
+        title={lockTitle ?? "Replace this resume file"}
         onClick={onReupload}
         className={TABLE_OUTLINE_BTN}
       >
         Reupload
       </button>
-      <button type="button" disabled={busy} onClick={onDelete} className={TABLE_DELETE_BTN}>
+      <button
+        type="button"
+        disabled={busy || locked}
+        title={lockTitle}
+        onClick={onDelete}
+        className={TABLE_DELETE_BTN}
+      >
         Delete
       </button>
     </div>
@@ -533,6 +545,7 @@ type ResumeRowModel = {
   index: number;
   jobTitle: string;
   busy: boolean;
+  locked?: boolean;
   onView: () => void;
   onReupload: () => void;
   onDelete: () => void;
@@ -754,15 +767,36 @@ export function CandidateProfileDocumentsTab({
     setPendingUpload({ applicationId, file, resumeId });
   }
 
+  function isResumeApplicationFrozen(resume: CandidateProfileSubmittedResume): boolean {
+    const applicationId = applicationIdForResume(resume);
+    if (!applicationId) return false;
+    const application = applications.find((row) => row.id === applicationId);
+    return application ? isTerminalApplicationStatus(application.status) : false;
+  }
+
   function rowModelForResume(resume: CandidateProfileSubmittedResume, index: number): ResumeRowModel {
+    const locked = isResumeApplicationFrozen(resume);
     return {
       resume,
       index: index + 1,
       jobTitle: jobTitleForResume(resume),
       busy: uploading || busyResumeId === resume.id,
+      locked,
       onView: () => void viewResume(resume),
-      onReupload: () => beginRowReupload(resume),
-      onDelete: () => void deleteResume(resume),
+      onReupload: () => {
+        if (locked) {
+          toast.error("This application was frozen after the candidate accepted another offer.");
+          return;
+        }
+        beginRowReupload(resume);
+      },
+      onDelete: () => {
+        if (locked) {
+          toast.error("This application was frozen after the candidate accepted another offer.");
+          return;
+        }
+        void deleteResume(resume);
+      },
       onParse: () => void parseResume(resume),
     };
   }

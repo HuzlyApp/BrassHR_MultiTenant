@@ -343,6 +343,20 @@ export async function autoConvertCandidateAfterOfferAccepted(
       forceEmail: true,
     });
 
+    try {
+      const { freezeOtherApplicationsOnHire } = await import(
+        "@/lib/onboarding/freeze-other-applications-on-hire"
+      );
+      await freezeOtherApplicationsOnHire(supabase, {
+        tenantId: input.tenantId,
+        workerId: input.workerId,
+        acceptedApplicationId: input.applicationId,
+        origin: input.origin ?? null,
+      });
+    } catch (freezeError) {
+      console.error("[auto-convert-after-offer] freeze other applications failed", freezeError);
+    }
+
     return {
       ok: true,
       workerRecordId: input.workerId,

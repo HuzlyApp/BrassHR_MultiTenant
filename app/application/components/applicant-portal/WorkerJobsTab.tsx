@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { useSearchParams } from "next/navigation";
 import { MapPin, Search, X } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -797,6 +798,7 @@ export function WorkerJobsTab() {
         throw new Error(message);
       }
       setApplyJob(null);
+      toast.success("Application submitted.");
       await load();
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : "Could not apply for this job.");

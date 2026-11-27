@@ -458,7 +458,9 @@ export function MailComposePanel({
       setBody("");
       setBodyHtml(null);
       clearTemplate();
-      setSendSuccess("Email sent.");
+      setSendSuccess(
+        composeEmail ? `Email sent to ${composeEmail}.` : "Email sent."
+      );
       await onSent?.();
       await onDraftSaved?.();
     } catch {

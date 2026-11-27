@@ -111,6 +111,14 @@ async function sendWelcomeEmailFromPostHireStep(
     request: params.request,
   });
 
+  const welcomeCtx = await buildApplicantEmailContext(supabase, {
+    tenantId,
+    workerId,
+    origin: params.origin,
+    continuationReason: "welcome",
+    applicationId: ctx.applicationId,
+  });
+
   return {
     ok: true,
     email: {
@@ -119,6 +127,7 @@ async function sendWelcomeEmailFromPostHireStep(
       reason: sendResult.reason,
       nextStepTitle: ctx.mapped.title,
       lockedStepTitle: null,
+      recipientEmail: welcomeCtx?.applicantEmail ?? null,
     },
   };
 }
@@ -336,6 +345,7 @@ export async function sendCandidateStepEmail(
       reason: result.reason,
       nextStepTitle: emailStep.title,
       lockedStepTitle,
+      recipientEmail: emailCtx.applicantEmail,
     },
   };
 }

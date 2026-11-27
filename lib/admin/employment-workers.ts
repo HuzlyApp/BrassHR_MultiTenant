@@ -89,6 +89,16 @@ export function employmentWorkerStatusLabel(status: string | null | undefined): 
   return raw === "new" || raw === "onboarding" ? "Onboarding" : raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+/** True when an employment worker has no source application to carry a W2/1099 workflow. */
+export function employmentWorkerMissingOnboardingWorkflow(worker: {
+  source_job_application_id?: string | null;
+}): boolean {
+  return !String(worker.source_job_application_id ?? "").trim();
+}
+
+export const EMPLOYMENT_WORKER_ONBOARDING_GATE_MESSAGE =
+  "Onboarding gate: no W2 or 1099 onboarding workflow is assigned. Assign a matching Pre-Hire and Post-Hire workflow before activating this worker.";
+
 export function employmentWorkerClientName(input: { organization?: string | null; mspClient?: string | null; snapshotClient?: string | null }): string {
   return input.organization?.trim() || input.mspClient?.trim() || input.snapshotClient?.trim() || "—";
 }

@@ -67,7 +67,7 @@ import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { matchProfessionIdByName } from "@/lib/jobs/profession-text";
 import { validateJobCompensationFields, jobTitleValidationError, jobApplicationDeadlineError } from "@/lib/jobs/validation";
 import { locationFromFreeText } from "@/lib/service-area/normalize";
-import { useJobFormStep } from "./use-job-form-step";
+import { jobFormStepFromUrl, useJobFormStep } from "./use-job-form-step";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -289,7 +289,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           setOverrideWorkflowId(null);
           setWorkflow(null);
         }
-        setStep(loadedJob.sourceType === "MSP" ? "msp-details" : "requisition");
+        const urlStep = jobFormStepFromUrl();
+        if (!urlStep) {
+          setStep(loadedJob.sourceType === "MSP" ? "msp-details" : "requisition");
+        }
         setScreeningQuestions(
           Array.isArray(payload.screeningQuestions)
             ? (payload.screeningQuestions as JobScreeningQuestionInput[])
@@ -743,7 +746,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setWorkflow(null);
         setTermsAccepted(false);
         setScreeningQuestions([]);
-        setStep("setup");
       }
       invalidateJobsListCache();
       setWorkflowChangeModal(null);
@@ -1186,16 +1188,28 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             ) : null}
 
             {step === "review" ? (
-              <JobFormStepReview
-                job={buildPayloadJob()}
-                ui={ui}
-                professionName={professionLabel}
-                onEditField={setReviewEditField}
-                brandVars={brandVars}
-                fieldErrors={fieldErrors}
-                onServiceAreaBlockedChange={onServiceAreaBlockedChange}
-                screeningQuestions={screeningQuestions}
-              />
+              <>
+                <JobFormStepReview
+                  job={buildPayloadJob()}
+                  ui={ui}
+                  professionName={professionLabel}
+                  onEditField={setReviewEditField}
+                  brandVars={brandVars}
+                  fieldErrors={fieldErrors}
+                  onServiceAreaBlockedChange={onServiceAreaBlockedChange}
+                  screeningQuestions={screeningQuestions}
+                />
+                <JobFormWorkflowBanner
+                  workflowName={workflow?.workflowName}
+                  workflowWarning={workflowWarning}
+                  mappingCriteria={workflow?.mappingCriteria}
+                  mappingLink={mappingLink}
+                  canManageWorkflows={false}
+                  assignmentMode={assignmentMode}
+                  hideUnmappedDetails={job.sourceType === "MSP"}
+                  showMappingLink={false}
+                />
+              </>
             ) : null}
           </div>
 

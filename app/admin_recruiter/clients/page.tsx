@@ -207,6 +207,18 @@ export default function ClientsPage() {
     setCityOptions([]);
   }
 
+  useEffect(() => {
+    if (!addModalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAddModalOpen(false);
+        resetAddClientForm();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [addModalOpen]);
+
   function handleSelectAddressSuggestion(suggestion: AddressSuggestion) {
     const components = addressAutocomplete.selectSuggestion(suggestion);
     const stateName = components.state
@@ -615,6 +627,7 @@ export default function ClientsPage() {
                 <input
                   type="text"
                   required
+                  autoFocus
                   placeholder="e.g. SummitBridge Staffing"
                   maxLength={120}
                   aria-label="Company Name"

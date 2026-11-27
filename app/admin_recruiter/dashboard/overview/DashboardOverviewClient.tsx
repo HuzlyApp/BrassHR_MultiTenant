@@ -467,16 +467,16 @@ export default function DashboardOverviewClient() {
             Post new shifts, review submission and keep your clients covered.
           </p>
         </div>
-        <div className="relative flex flex-wrap gap-3.5">
+        <div className="relative flex w-full gap-3.5 sm:w-auto sm:flex-wrap">
           <Link
             href={SHIFTS_ROUTE}
-            className="inline-flex items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-semibold leading-4 text-white transition hover:brightness-95"
+            className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-semibold leading-4 text-white transition hover:brightness-95 sm:flex-none"
           >
             Post a Shift
           </Link>
           <Link
             href={`${SHIFTS_ROUTE}?open=1`}
-            className="inline-flex items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-semibold leading-4 text-white transition hover:bg-white/10"
+            className="inline-flex min-w-0 flex-1 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 py-2 text-[12px] font-semibold leading-4 text-white transition hover:bg-white/10 sm:flex-none"
           >
             View Open Shifts
           </Link>

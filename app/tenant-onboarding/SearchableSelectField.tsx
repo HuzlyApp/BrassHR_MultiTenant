@@ -102,6 +102,7 @@ export default function SearchableSelectField({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -148,6 +149,27 @@ export default function SearchableSelectField({
 
   useEffect(() => {
     if (!open) setQuery("")
+  }, [open])
+
+  useLayoutEffect(() => {
+    if (!open || !mounted) return
+    searchInputRef.current?.focus()
+  }, [open, mounted])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as Node
+      if (searchInputRef.current?.contains(target)) return
+      if (event.key.length !== 1) return
+      event.preventDefault()
+      setQuery((current) => current + event.key)
+      searchInputRef.current?.focus()
+    }
+    document.addEventListener("keydown", onKeyDown, true)
+    return () => document.removeEventListener("keydown", onKeyDown, true)
   }, [open])
 
   useLayoutEffect(() => {
@@ -226,7 +248,7 @@ export default function SearchableSelectField({
   }, [open, onBlur])
 
   const displayPlaceholder = loading ? "Loading…" : placeholder
-  const isDisabled = disabled || loading
+  const triggerDisabled = disabled || loading
   const labelClass = dense
     ? "mb-2 block text-[12px] font-normal leading-4 text-[#6B7280]"
     : compact
@@ -239,7 +261,7 @@ export default function SearchableSelectField({
       : "flex h-[56px] w-full cursor-pointer items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
 
   const menu =
-    open && !isDisabled && mounted
+    open && !disabled && mounted
       ? createPortal(
           <div
             ref={menuRef}
@@ -249,6 +271,7 @@ export default function SearchableSelectField({
             <div className="relative border-b border-[#e2e8f0] p-2">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -333,9 +356,9 @@ export default function SearchableSelectField({
         <button
           ref={triggerRef}
           type="button"
-          disabled={isDisabled}
+          disabled={triggerDisabled}
           onClick={() => {
-            if (isDisabled) return
+            if (triggerDisabled) return
             setOpen((prev) => !prev)
           }}
           onBlur={() => {
@@ -377,7 +400,7 @@ export default function SearchableSelectField({
               <button
                 type="button"
                 aria-label={`Remove ${item}`}
-                disabled={isDisabled}
+                disabled={triggerDisabled}
                 onClick={() => removeValue(item)}
                 className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#0F172A] disabled:opacity-50"
               >

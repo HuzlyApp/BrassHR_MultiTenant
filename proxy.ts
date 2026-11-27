@@ -287,7 +287,13 @@ async function proxyInner(request: NextRequest) {
     : { data: { user: null } };
   const isAnonymousUser = isAnonymousAuthUser(user);
   const staffPage = pathname.startsWith("/admin_recruiter") || pathname === "/godadmin" || pathname.startsWith("/godadmin/");
-  const loginPage = pathname === "/login" || pathname.startsWith("/login/") || pathname === "/signin" || pathname.startsWith("/signin/");
+  const loginPage =
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname === "/signin" ||
+    pathname.startsWith("/signin/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/");
   let staffSessionVerified = false;
   if (user && !isAnonymousUser && (staffPage || loginPage)) {
     try {
@@ -394,6 +400,18 @@ async function proxyInner(request: NextRequest) {
 
   /** `/admin` → login page (URL stays `/admin`, adds recruiter role). */
   if (pathname === "/admin" || pathname === "/admin/" || pathname.startsWith("/admin/")) {
+    if (user && !isAnonymousUser && staffSessionVerified) {
+      const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
+      const destination = resolvePostAuthRedirectForUser(
+        onboardingStatus,
+        user,
+        request.nextUrl.searchParams.get("next")
+      );
+      const destPath = destination.split("?")[0];
+      if (destPath !== pathname) {
+        return redirectAuthenticatedUser(request, response, user, destination);
+      }
+    }
     const rewriteUrl = request.nextUrl.clone();
     if (pathname !== "/admin" && pathname !== "/admin/") {
       const nextPath = `${pathname}${request.nextUrl.search}`;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, FileText, PanelRightClose } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import {
@@ -272,13 +272,15 @@ function SettingsBody({
             <span>{alienStageWarning}</span>
           </div>
         ) : null}
-        <TextField
+        <ControlledTextField
+          fieldKey={node.id}
           label="Step title"
           value={node.data.label}
           onChange={(v) => onUpdate(node.id, { label: v }, { skipHistory: true })}
           onCommit={(v) => onUpdate(node.id, { label: v })}
         />
-        <TextField
+        <ControlledTextField
+          fieldKey={`${node.id}:description`}
           label="Description"
           value={node.data.description ?? ""}
           onChange={(v) => onUpdate(node.id, { description: v }, { skipHistory: true })}
@@ -639,6 +641,65 @@ function TextField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={(e) => onCommit?.(e.target.value)}
+        className="h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+        style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+      />
+    </div>
+  );
+}
+
+function ControlledTextField({
+  fieldKey,
+  label,
+  value,
+  onChange,
+  onCommit,
+}: {
+  fieldKey: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const dirtyRef = useRef(false);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    setDraft(value);
+    dirtyRef.current = false;
+  }, [fieldKey]);
+
+  useEffect(() => {
+    if (dirtyRef.current || focusedRef.current) return;
+    setDraft(value);
+  }, [value]);
+
+  return (
+    <div>
+      <label
+        className="mb-1.5 block text-xs font-medium leading-4"
+        style={{ color: TEXT_SECONDARY }}
+      >
+        {label}
+      </label>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => {
+          const next = e.target.value;
+          dirtyRef.current = true;
+          setDraft(next);
+          onChange(next);
+        }}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onBlur={(e) => {
+          focusedRef.current = false;
+          dirtyRef.current = false;
+          onCommit?.(e.target.value);
+        }}
         className="h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
         style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
       />

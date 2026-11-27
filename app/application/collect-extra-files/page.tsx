@@ -73,6 +73,7 @@ const MAX_FILE_SIZE_MB = 10;
 const MAX_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ACCEPTED_FILE_TYPES =
   "image/png,image/jpeg,image/jpg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const ACCEPTED_FILE_TYPES_LABEL = "PDF, PNG, JPG, JPEG, WebP, DOC, or DOCX";
 
 export default function CollectExtraFilesPage() {
   const branding = useTenantBranding();
@@ -549,7 +550,9 @@ function BrandedFileDropzone({
       >
         Browse files
       </button>
-      <p className="mt-3 text-xs text-[#6B7280]">Max {MAX_FILE_SIZE_MB} MB files are allowed</p>
+      <p className="mt-3 text-xs text-[#6B7280]">
+        Accepted file types: {ACCEPTED_FILE_TYPES_LABEL}. Max {MAX_FILE_SIZE_MB} MB per file.
+      </p>
       <input
         ref={inputRef}
         id={inputId}

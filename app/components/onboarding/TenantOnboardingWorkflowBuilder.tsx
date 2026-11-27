@@ -338,6 +338,7 @@ export default function TenantOnboardingWorkflowBuilder({
       return;
     }
     if (!tenantId) return;
+    setEditingFlow(null);
     let cancelled = false;
 
     async function loadFlow() {
@@ -1179,10 +1180,12 @@ export default function TenantOnboardingWorkflowBuilder({
     setDismissedLoadError(null);
   }, [loadError]);
   const isTemplateLoading = Boolean(templateIdFromUrl && tenantId && !editingTemplate);
-  const isFlowLoading = Boolean(flowIdFromUrl && tenantId && !editingFlow);
+  const isFlowCanvasPending = Boolean(
+    flowIdFromUrl && tenantId && (!editingFlow || editingFlow.id !== flowIdFromUrl)
+  );
   const isBuilderReady = activeFlowKey != null;
   const isBuilderLoading =
-    !isBuilderReady && (isLoading || isFetching || isTemplateLoading || isFlowLoading);
+    !isBuilderReady && (isLoading || isFetching || isTemplateLoading || isFlowCanvasPending);
 
   const lastUpdated = useMemo(() => {
     const timestamp = editingTemplate ? templateUpdatedAt : updatedAt;
@@ -1390,7 +1393,25 @@ export default function TenantOnboardingWorkflowBuilder({
         </div>
       ) : null}
 
-      <div className={isDashboard ? "min-h-0 flex-1" : undefined}>
+      <div className={`relative ${isDashboard ? "min-h-0 flex-1" : ""}`}>
+        {isFlowCanvasPending ? (
+          <div
+            className={`pointer-events-none absolute inset-0 z-10 flex flex-col gap-3 bg-[#ECF1F9]/90 p-6 ${
+              isDashboard ? "" : "min-h-[360px]"
+            }`}
+            aria-hidden
+          >
+            <div className="h-8 w-48 animate-pulse rounded-lg bg-slate-200/80" />
+            <div className="flex flex-1 gap-4">
+              <div className="h-full w-52 animate-pulse rounded-xl bg-slate-200/70" />
+              <div className="flex flex-1 flex-col gap-3">
+                <div className="h-24 w-64 animate-pulse rounded-xl bg-white/80 shadow-sm" />
+                <div className="h-24 w-72 animate-pulse rounded-xl bg-white/80 shadow-sm" />
+                <div className="h-24 w-56 animate-pulse rounded-xl bg-white/80 shadow-sm" />
+              </div>
+            </div>
+          </div>
+        ) : null}
         <WorkflowBuilder
           embedded={!isDashboard}
           fillParent={isDashboard}

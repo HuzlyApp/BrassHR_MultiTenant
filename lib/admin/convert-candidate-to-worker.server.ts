@@ -9,6 +9,7 @@ import {
 import { changeApplicationStatusBySystemKey } from "@/lib/jobs/application-statuses/service";
 import { syncPortalRole } from "@/lib/auth/assign-portal-role";
 import { activatePostHire } from "@/lib/onboarding/activate-post-hire";
+import { freezeOtherApplicationsOnHire } from "@/lib/onboarding/freeze-other-applications-on-hire";
 
 export type ConvertCandidateResult =
   | {
@@ -280,6 +281,18 @@ export async function convertCandidateToWorker(
     actorUserId: input.actorUserId ?? null,
     origin: input.origin,
   });
+
+  try {
+    await freezeOtherApplicationsOnHire(supabase, {
+      tenantId: candidate.tenant_id,
+      workerId: candidate.id,
+      acceptedApplicationId: base.sourceJobApplicationId,
+      actorUserId: input.actorUserId ?? null,
+      origin: input.origin ?? null,
+    });
+  } catch (freezeError) {
+    console.error("[convert-candidate] freeze other applications failed", freezeError);
+  }
 
   return {
     ...base,

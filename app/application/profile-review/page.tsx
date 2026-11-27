@@ -63,10 +63,7 @@ import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-o
 
 type ContactConflictKind = "email" | "phone"
 
-function step1FormFromParsedRecord(
-  parsed: Record<string, unknown>,
-  urlJobTitle: string,
-): {
+type Step1ProfileForm = {
   firstName: string
   lastName: string
   address1: string
@@ -78,7 +75,35 @@ function step1FormFromParsedRecord(
   email: string
   jobRole: string
   sameAsAddress1: boolean
-} {
+}
+
+function mergeStep1FromParsed(
+  current: Step1ProfileForm,
+  parsed: Record<string, unknown>,
+  urlJobTitle: string,
+): Step1ProfileForm {
+  const loaded = step1FormFromParsedRecord(parsed, urlJobTitle)
+  const keep = (typed: string, parsedValue: string) =>
+    typed.trim() ? typed : parsedValue
+  return {
+    firstName: keep(current.firstName, loaded.firstName),
+    lastName: keep(current.lastName, loaded.lastName),
+    address1: keep(current.address1, loaded.address1),
+    address2: keep(current.address2, loaded.address2),
+    city: keep(current.city, loaded.city),
+    state: keep(current.state, loaded.state),
+    zipCode: keep(current.zipCode, loaded.zipCode),
+    phone: keep(current.phone, loaded.phone),
+    email: keep(current.email, loaded.email),
+    jobRole: keep(current.jobRole, loaded.jobRole),
+    sameAsAddress1: current.sameAsAddress1 || loaded.sameAsAddress1,
+  }
+}
+
+function step1FormFromParsedRecord(
+  parsed: Record<string, unknown>,
+  urlJobTitle: string,
+): Step1ProfileForm {
   const address1 = String(parsed.address1 || parsed.address || parsed.Address || "").trim()
   const address2 = String(parsed.address2 || "").trim()
   const sameAsAddress1 =
@@ -386,18 +411,20 @@ function Step1ReviewContent() {
   // Load parsed resume data from localStorage or background Grok parse.
   useEffect(() => {
     const applyParsed = (parsed: Record<string, unknown>) => {
-      const loaded = step1FormFromParsedRecord(parsed, urlJobTitle)
-      setForm(loaded)
-      const parsedAddressQuery = buildAddressQuery({
-        address1: loaded.address1,
-        address2: loaded.sameAsAddress1 ? "" : loaded.address2,
-        city: loaded.city,
-        state: loaded.state,
-        zipCode: loaded.zipCode,
+      setForm((prev) => {
+        const merged = mergeStep1FromParsed(prev, parsed, urlJobTitle)
+        const parsedAddressQuery = buildAddressQuery({
+          address1: merged.address1,
+          address2: merged.sameAsAddress1 ? "" : merged.address2,
+          city: merged.city,
+          state: merged.state,
+          zipCode: merged.zipCode,
+        })
+        if (parsedAddressQuery.trim()) {
+          addressValidation.captureOriginalParsedAddress(parsedAddressQuery)
+        }
+        return merged
       })
-      if (parsedAddressQuery.trim()) {
-        addressValidation.captureOriginalParsedAddress(parsedAddressQuery)
-      }
     }
 
     const saved = localStorage.getItem("parsedResume")

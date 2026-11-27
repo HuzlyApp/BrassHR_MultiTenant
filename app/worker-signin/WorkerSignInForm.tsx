@@ -171,7 +171,7 @@ function LoginFormOptions({
               checked={agree}
               onChange={(event) => setAgree(event.target.checked)}
               className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-              aria-label="Agree to Applicant Terms and Privacy Policy"
+              aria-label="Agree to Terms of Use and Privacy Policy"
             />
             {agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
           </span>
@@ -183,7 +183,7 @@ function LoginFormOptions({
               style={{ color: "var(--brand-secondary)" }}
               onClick={(event) => event.stopPropagation()}
             >
-              Applicant Terms
+              Terms of Use
             </Link>{" "}
             and{" "}
             <Link
