@@ -625,8 +625,8 @@ export default function FacilitiesPage() {
 
               {mutationError ? <p role="alert" className="mb-4 text-sm text-red-700">{mutationError}</p> : null}
               {editingFacility && canEditOrganization ? <form className="mb-4 space-y-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void updateFacility("edit"); }}>
-                <label className="block text-sm">Facility name<input required maxLength={200} className="mt-1 block w-full rounded border px-3 py-2" value={editName} onChange={(event) => setEditName(event.target.value)} /></label>
-                <label className="block text-sm">Phone<input type="tel" className="mt-1 block w-full rounded border px-3 py-2" value={editPhone} onChange={(event) => setEditPhone(event.target.value)} /></label>
+                <label className="block text-sm">Facility name<input required maxLength={120} className="mt-1 block w-full rounded border px-3 py-2" value={editName} onChange={(event) => { setEditName(event.target.value); setMutationError(null); }} /></label>
+                <label className="block text-sm">Phone<input type="tel" className="mt-1 block w-full rounded border px-3 py-2" value={editPhone} onChange={(event) => { setEditPhone(event.target.value); setMutationError(null); }} /></label>
                 <button type="submit" disabled={mutationBusy} className="rounded border px-3 py-2 text-sm">{mutationBusy ? "Saving…" : "Save facility"}</button>
                 <button type="button" disabled={mutationBusy} className="ml-3 text-sm underline" onClick={() => setEditingFacility(false)}>Cancel</button>
               </form> : null}

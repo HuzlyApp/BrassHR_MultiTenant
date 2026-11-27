@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { validateClientCompanyName } from "@/lib/clients/validation";
 import { X } from "lucide-react";
 import { readServiceAreaApiMessage } from "@/lib/service-area/copy";
 import toast from "react-hot-toast";
@@ -247,7 +248,8 @@ export default function CreateFacilityModal({
   function validateClient(): boolean {
     const nextErrors: Partial<Record<keyof FacilityFormInput, string>> = {};
     if (!form.clientId || !clientOptions.some((client) => client.id === form.clientId)) nextErrors.clientId = "Choose a client organization.";
-    if (!form.name.trim()) nextErrors.name = "Facility name is required.";
+    const nameError = validateClientCompanyName(form.name, "Facility name");
+    if (nameError) nextErrors.name = nameError;
     if (!form.streetAddress.trim()) nextErrors.streetAddress = "Street address is required.";
     if (!displayStateValue.trim()) nextErrors.state = "State is required.";
     if (!form.city.trim()) nextErrors.city = "City is required.";
@@ -393,6 +395,7 @@ export default function CreateFacilityModal({
           {clientLoadError ? <p role="alert" className="text-sm text-red-600">{clientLoadError}</p> : null}
           {!clientLoadError && clientOptions.length === 0 ? <p className="text-xs text-[#64748B]">Create a client organization before creating a facility.</p> : null}
 
+          <div>
           <TextField
             label="Facility Name"
             required
@@ -400,6 +403,8 @@ export default function CreateFacilityModal({
             onChange={(value) => updateField("name", value)}
             error={errors.name}
           />
+          <p className="text-xs text-slate-500">{form.name.length}/120 characters; plain text only</p>
+          </div>
 
           <AddressAutocompleteField
             variant="facility"

@@ -1,3 +1,4 @@
+import { validateClientCompanyName } from "@/lib/clients/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveStaffFacilityTenantContext } from "@/lib/facilities/staff-tenant-access";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
@@ -14,7 +15,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ facil
   if (body.action === "archive" || body.action === "restore") patch.archived_at = body.action === "archive" ? new Date().toISOString() : null;
   else if (body.action === "edit") {
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name || name.length > 200) return NextResponse.json({ error: "Facility name is required and must be 200 characters or fewer." }, { status: 400 });
+    const nameError = validateClientCompanyName(name, "Facility name");
+    if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
     const phone = typeof body.phone === "string" ? body.phone.trim() : "";
     const phoneError = phone ? phoneValidationMessage(phone) : null;
     if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 });

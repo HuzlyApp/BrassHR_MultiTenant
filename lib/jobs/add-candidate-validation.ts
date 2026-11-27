@@ -1,4 +1,4 @@
-import { normalizePhoneInput } from "@/lib/phone";
+import { normalizePhoneToE164 } from "@/lib/communication/phone";
 
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
@@ -57,13 +57,15 @@ export function validateAddCandidateField(
     case "email": {
       const email = String(value.email ?? "").trim();
       if (!email) return "Email address is required.";
-      if (!EMAIL_RE.test(email)) return "Enter a valid email address.";
+      if (!EMAIL_RE.test(email) || !/\.(?:[a-z]{2,}|xn--[a-z0-9-]{2,})$/i.test(email)) return "Enter a valid email address.";
       return null;
     }
     case "phone": {
-      const digits = normalizePhoneInput(String(value.phone ?? ""));
-      if (!digits) return "Phone is required.";
-      if (digits.length !== 10) return "Enter a valid 10-digit phone number.";
+      const phone = String(value.phone ?? "").trim();
+      if (!phone) return "Phone is required.";
+      if (!/^\+?[\d()\s.-]+$/.test(phone) || !normalizePhoneToE164(phone)) {
+        return "Enter a valid US phone number or international number with a + country code.";
+      }
       return null;
     }
     case "resume": {

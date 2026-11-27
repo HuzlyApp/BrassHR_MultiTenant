@@ -1,3 +1,5 @@
+import { normalizeWorkerPayRateAmount } from "@/lib/admin/worker-pay-rate"
+import { validateCandidateFieldInput } from "@/lib/admin/worker-profile-field-client"
 import "server-only"
 
 import { LICENSE_TYPES, type LicenseType } from "@/lib/applicant-portal/documents"
@@ -52,40 +54,14 @@ export function isWorkerProfileFieldKey(value: string): value is WorkerProfileFi
 }
 
 function parseDobToIso(value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed)
-  if (slash) {
-    const month = Number(slash[1])
-    const day = Number(slash[2])
-    const year = Number(slash[3])
-    const d = new Date(year, month - 1, day)
-    if (
-      d.getFullYear() !== year ||
-      d.getMonth() !== month - 1 ||
-      d.getDate() !== day
-    ) {
-      return null
-    }
-    const mm = String(month).padStart(2, "0")
-    const dd = String(day).padStart(2, "0")
-    return `${year}-${mm}-${dd}`
-  }
-
-  const iso = /^\d{4}-\d{2}-\d{2}$/.exec(trimmed)
-  if (iso) {
-    const d = new Date(`${trimmed}T12:00:00`)
-    if (Number.isNaN(d.getTime())) return null
-    return trimmed
-  }
-
-  const d = new Date(trimmed)
-  if (Number.isNaN(d.getTime())) return null
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
+  const parts = iso ? [iso[2], iso[3], iso[1]] : slash ? [slash[1], slash[2], slash[3]] : null
+  if (!parts) return null
+  const [month, day, year] = parts
+  const formatted = `${month.padStart(2, "0")}/${day.padStart(2, "0")}/${year}`
+  if (!validateCandidateFieldInput("date_of_birth", formatted).ok) return null
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 }
 
 export function normalizeWorkerFieldValue(
@@ -142,21 +118,14 @@ export function normalizeWorkerFieldValue(
     }
 
     case "zip": {
-      if (!value) return { ok: false, error: "Zip code is required." }
-      const digits = value.replace(/\D/g, "")
-      if (digits.length === 0) return { ok: false, error: "Zip code is required." }
-      if (digits.length > 9) {
-        return { ok: false, error: "Enter a valid 5-digit zip code." }
-      }
-      const normalized =
-        digits.length <= 5 ? digits.padStart(5, "0") : `${digits.slice(0, 5)}-${digits.slice(5, 9)}`
-      return { ok: true, dbValue: normalized }
+      const parsed = validateCandidateFieldInput("zip", value)
+      return parsed.ok ? { ok: true, dbValue: parsed.value } : parsed
     }
 
     case "date_of_birth": {
       if (!value) return { ok: true, dbValue: null }
       const iso = parseDobToIso(value)
-      if (!iso) return { ok: false, error: "Use MM/DD/YYYY format." }
+      if (!iso) return { ok: false, error: "Enter a valid date of birth on or before today (MM/DD/YYYY)." }
       return { ok: true, dbValue: iso }
     }
 
@@ -171,12 +140,8 @@ export function normalizeWorkerFieldValue(
 
     case "hourly_rate": {
       if (!value) return { ok: true, dbValue: null }
-      const cleaned = value.replace(/[^0-9.]/g, "")
-      const n = Number(cleaned)
-      if (!Number.isFinite(n) || n < 0) {
-        return { ok: false, error: "Enter a valid hourly rate." }
-      }
-      return { ok: true, dbValue: n.toFixed(2) }
+      const parsed = normalizeWorkerPayRateAmount(value)
+      return parsed.ok ? { ok: true, dbValue: parsed.value } : parsed
     }
 
     case "ssn_last_four": {

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import toast from "react-hot-toast";
+import { validateClientCompanyName } from "@/lib/clients/validation";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useModulePermission } from "@/lib/admin/hooks/use-staff-module-access";
@@ -35,6 +37,10 @@ export default function ClientDetailPage() {
 
   async function update(action: "edit" | "archive" | "restore") {
     if (!client || busy || !canEdit) return;
+    if (action === "edit") {
+      const nameError = validateClientCompanyName(name);
+      if (nameError) { setError(nameError); return; }
+    }
     if (action !== "edit" && !window.confirm(`${action === "archive" ? "Archive" : "Restore"} ${client.company_name}? Facilities and history will be preserved.`)) return;
     setBusy(true); setError(null);
     try {
@@ -42,6 +48,7 @@ export default function ClientDetailPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not update client.");
       setEditing(false); await load();
+      toast.success(action === "edit" ? "Client updated." : action === "archive" ? "Client archived." : "Client restored.");
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not update client."); }
     finally { setBusy(false); }
   }
@@ -58,7 +65,7 @@ export default function ClientDetailPage() {
         </div> : null}
       </div>
       {editing ? <form className="space-y-3 rounded-xl border bg-white p-4" onSubmit={(event) => { event.preventDefault(); void update("edit"); }}>
-        <label className="block text-sm">Company name<input className="mt-1 block w-full rounded border px-3 py-2" required maxLength={120} minLength={2} value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="block text-sm">Company name<input className="mt-1 block w-full rounded border px-3 py-2" required maxLength={120} minLength={2} value={name} onChange={(event) => { setName(event.target.value); setError(null); }} /></label>
         <button type="submit" disabled={busy} className="rounded border px-3 py-2">{busy ? "Saving…" : "Save client"}</button>
         <button type="button" disabled={busy} className="ml-3 underline" onClick={() => { setName(client.company_name); setEditing(false); }}>Cancel</button>
       </form> : null}
