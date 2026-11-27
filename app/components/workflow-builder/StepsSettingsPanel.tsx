@@ -617,6 +617,37 @@ function SelectField({
   );
 }
 
+function TextField({
+  label,
+  value,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label
+        className="mb-1.5 block text-xs font-medium leading-4"
+        style={{ color: TEXT_SECONDARY }}
+      >
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
+        className="h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+        style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+      />
+    </div>
+  );
+}
+
 function ControlledTextField({
   fieldKey,
   label,
