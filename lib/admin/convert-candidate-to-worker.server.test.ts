@@ -14,9 +14,18 @@ vi.mock("@/lib/onboarding/activate-post-hire", () => ({
   })),
 }));
 
+vi.mock("@/lib/onboarding/freeze-other-applications-on-hire", () => ({
+  freezeOtherApplicationsOnHire: vi.fn(async () => ({
+    frozenApplicationIds: ["app-other"],
+    skippedApplicationIds: [],
+    errors: [],
+  })),
+}));
+
 import { convertCandidateToWorker } from "./convert-candidate-to-worker.server";
 import { activatePostHire } from "@/lib/onboarding/activate-post-hire";
 import { changeApplicationStatusBySystemKey } from "@/lib/jobs/application-statuses/service";
+import { freezeOtherApplicationsOnHire } from "@/lib/onboarding/freeze-other-applications-on-hire";
 
 describe("convertCandidateToWorker server", () => {
   it("explains the missing assigned workflow without creating a worker or activating Post-Hire", async () => {
@@ -133,6 +142,14 @@ describe("convertCandidateToWorker server", () => {
     }
     expect(changeApplicationStatusBySystemKey).toHaveBeenCalled();
     expect(activatePostHire).toHaveBeenCalled();
+    expect(freezeOtherApplicationsOnHire).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "tenant-1",
+        workerId: "cand-1",
+        acceptedApplicationId: "app-1",
+      })
+    );
   });
 
   it("returns existing worker idempotently from RPC", async () => {

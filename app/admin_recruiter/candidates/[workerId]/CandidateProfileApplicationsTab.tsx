@@ -7,7 +7,7 @@ import {
   type CandidateProfileApplication,
 } from "@/lib/admin/candidate-profile-view";
 import { formatMatchScore } from "@/lib/jobs/match-analysis/display";
-import { jobStatusDisplayLabel } from "@/lib/jobs/job-status";
+import { isTerminalApplicationStatus } from "@/lib/onboarding/workflow-phase";
 import { applicationReviewHref } from "./candidate-profile-ui";
 
 const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
@@ -22,9 +22,12 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function jobStatusLabel(row: CandidateProfileApplication): string {
-  if (row.jobStatus?.trim()) return jobStatusDisplayLabel(row.jobStatus);
-  return displayValue(row.statusName);
+function applicationStatusLabel(row: CandidateProfileApplication): string {
+  return displayValue(row.statusName || row.status);
+}
+
+function isFrozenApplication(row: CandidateProfileApplication): boolean {
+  return isTerminalApplicationStatus(row.status);
 }
 
 type CandidateProfileApplicationsTabProps = {
@@ -36,6 +39,8 @@ export function CandidateProfileApplicationsTab({
   applications,
   onScheduleInterview,
 }: CandidateProfileApplicationsTabProps) {
+  const canScheduleInterview = applications.some((row) => !isFrozenApplication(row));
+
   return (
     <section className={`${CARD_CLASS} mt-5 overflow-hidden`}>
       <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
@@ -48,7 +53,12 @@ export function CandidateProfileApplicationsTab({
         <button
           type="button"
           onClick={onScheduleInterview}
-          disabled={applications.length === 0}
+          disabled={!canScheduleInterview}
+          title={
+            canScheduleInterview
+              ? undefined
+              : "No open applications left to schedule (others were frozen after offer accept)."
+          }
           className="inline-flex h-10 w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           <Plus className="h-4 w-4" aria-hidden />
@@ -82,6 +92,8 @@ export function CandidateProfileApplicationsTab({
                   row.matchFitLabel?.trim() ||
                   formatProfileMatchStatusLabel(row.matchCategory, row.matchScore);
                 const matchScore = formatMatchScore(row.matchScore);
+                const frozen = isFrozenApplication(row);
+                const statusNote = row.statusNote?.trim();
                 return (
                   <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
                     <td className={TABLE_CELL_CLASS}>
@@ -105,7 +117,16 @@ export function CandidateProfileApplicationsTab({
                     </td>
                     <td className={TABLE_CELL_CLASS}>{displayValue(row.billRate)}</td>
                     <td className={TABLE_CELL_CLASS}>{displayValue(row.agreedPayRate)}</td>
-                    <td className={TABLE_CELL_CLASS}>{jobStatusLabel(row)}</td>
+                    <td className={TABLE_CELL_CLASS}>
+                      <div className="min-w-0">
+                        <p className="font-medium">{applicationStatusLabel(row)}</p>
+                        {frozen && statusNote ? (
+                          <p className="mt-0.5 max-w-[220px] truncate text-xs text-[#64748B]" title={statusNote}>
+                            {statusNote}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className={TABLE_CELL_CLASS}>{matchStatus}</td>
                     <td className={`${TABLE_CELL_CLASS} font-semibold`}>{matchScore}</td>
                   </tr>
