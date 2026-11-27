@@ -38,7 +38,11 @@ import {
 import { WorkerProfileFilesPanel } from "./WorkerProfileFilesPanel";
 import { WorkerProfileSkillAssessmentPanel } from "./WorkerProfileSkillAssessmentPanel";
 import { formatShiftRange } from "@/lib/scheduling/employee-schedule";
-import type { EmploymentWorkerRecord } from "@/lib/admin/employment-workers";
+import {
+  EMPLOYMENT_WORKER_ONBOARDING_GATE_MESSAGE,
+  employmentWorkerMissingOnboardingWorkflow,
+  type EmploymentWorkerRecord,
+} from "@/lib/admin/employment-workers";
 
 type WorkerProfilePayload = {
   worker: {
@@ -440,6 +444,12 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
     return "Not started";
   }, [profile?.onboardingSubmission, profile?.onboardingCompletion]);
 
+  const missingOnboardingWorkflow = useMemo(() => {
+    if (!employment) return false;
+    if (employmentWorkerMissingOnboardingWorkflow(employment)) return true;
+    return (profile?.onboardingCompletion?.totalSteps ?? 0) === 0;
+  }, [employment, profile?.onboardingCompletion?.totalSteps]);
+
   const showSkillAssessmentTab = useMemo(
     () =>
       workerProfileHasSkillAssessmentStep({
@@ -566,6 +576,15 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
           </button>
         </div>
       </div>
+
+      {missingOnboardingWorkflow ? (
+        <div
+          role="status"
+          className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          {EMPLOYMENT_WORKER_ONBOARDING_GATE_MESSAGE}
+        </div>
+      ) : null}
 
       {/* Profile header card */}
       <section className={`${CARD_CLASS} p-4 sm:p-5`}>
@@ -749,8 +768,13 @@ export function AdminWorkerProfileClient({ workerId }: { workerId: string }) {
                   View Packet
                 </Link>
               </div>
-              <div className="px-4 py-4">
+              <div className="px-4 py-4 space-y-2">
                 <p className="text-sm font-medium text-[#374151]">{onboardingLabel}</p>
+                {missingOnboardingWorkflow ? (
+                  <p className="text-xs leading-5 text-amber-800">
+                    {EMPLOYMENT_WORKER_ONBOARDING_GATE_MESSAGE}
+                  </p>
+                ) : null}
               </div>
             </section>
           </div>
