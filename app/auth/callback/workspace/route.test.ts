@@ -1,3 +1,4 @@
+vi.mock("@/lib/auth/staff-session-activity", () => ({ checkStaffSessionActivity: async () => true }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { STAFF_SESSION_PROOF_COOKIE, verifyStaffSessionProof } from "@/lib/auth/login-otp-proof";

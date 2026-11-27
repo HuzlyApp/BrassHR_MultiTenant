@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 
 export type ApplicationSessionCheck = {
   owned: boolean;
@@ -23,7 +22,7 @@ function maskEmail(email: string | null): string | null {
 
 /**
  * Check whether the current auth user owns the job application, and whether a
- * job-token claim is allowed (previous owner was anonymous).
+ * reports that public job links never grant applicant ownership.
  */
 export async function checkApplicationSessionOwnership(
   supabase: SupabaseClient,
@@ -79,27 +78,8 @@ export async function checkApplicationSessionOwnership(
     }
   }
 
-  const jobToken = normalizeJobToken(params.jobToken);
-  let jobTokenMatches = false;
-  if (jobToken && app.job_requisition_id) {
-    const { data: job } = await supabase
-      .from("job_requisitions")
-      .select("id, public_job_token")
-      .eq("id", app.job_requisition_id)
-      .eq("tenant_id", app.tenant_id)
-      .maybeSingle();
-    jobTokenMatches =
-      normalizeJobToken(job?.public_job_token ? String(job.public_job_token) : null) === jobToken;
-  }
-
-  const inactive = ["rejected", "withdrawn"].includes(String(app.status ?? "").toLowerCase());
-  const canClaimWithJobToken =
-    !owned &&
-    !inactive &&
-    Boolean(jobToken) &&
-    jobTokenMatches &&
-    // Only reclaim from anonymous owners — never steal a verified email account.
-    (ownerAuthUserId == null || ownerIsAnonymous === true);
+  // A public job link carries no evidence that the visitor owns an application.
+  const canClaimWithJobToken = false;
 
   return {
     owned,
@@ -109,30 +89,4 @@ export async function checkApplicationSessionOwnership(
     ownerEmail: maskEmail(typeof worker.email === "string" ? worker.email : null),
     canClaimWithJobToken,
   };
-}
-
-/** Point the application + worker at the current auth user after a validated claim. */
-export async function claimApplicationSession(
-  supabase: SupabaseClient,
-  params: {
-    applicationId: string;
-    authUserId: string;
-    workerId: string;
-    tenantId: string;
-  }
-): Promise<void> {
-  const now = new Date().toISOString();
-  const { error: workerError } = await supabase
-    .from("worker")
-    .update({ user_id: params.authUserId, updated_at: now })
-    .eq("id", params.workerId)
-    .eq("tenant_id", params.tenantId);
-  if (workerError) throw workerError;
-
-  const { error: appError } = await supabase
-    .from("job_applications")
-    .update({ applicant_auth_user_id: params.authUserId, updated_at: now })
-    .eq("id", params.applicationId)
-    .eq("tenant_id", params.tenantId);
-  if (appError) throw appError;
 }

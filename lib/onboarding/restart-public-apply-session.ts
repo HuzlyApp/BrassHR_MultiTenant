@@ -27,6 +27,8 @@ export async function restartPublicApplyAsSomeoneElse(): Promise<void> {
   if (typeof window === "undefined") return;
   if (isOnboardingDraftPreview(window.location.search)) return;
 
+  const reset = await fetch("/api/onboarding/session", { method: "DELETE" });
+  if (!reset.ok) throw new Error("Could not end the previous applicant session. Please try again.");
   await getApplicantSupabaseClient().auth.signOut({ scope: "local" }).catch(() => undefined);
   clearScopedApplicantId();
   try {
@@ -41,9 +43,9 @@ export async function restartPublicApplyAsSomeoneElse(): Promise<void> {
   params.delete("applicationId");
   const tenant = params.get("tenant")?.trim().toLowerCase() || null;
   const jobToken = params.get("job_token")?.trim() || params.get("jobToken")?.trim() || "";
-  const restartParams = new URLSearchParams();
-  if (jobToken) restartParams.set("job_token", jobToken);
-  const href = applicationPath(APPLICATION_ROUTES.addResume, tenant);
-  const query = restartParams.toString();
-  window.location.assign(query ? `${href}${href.includes("?") ? "&" : "?"}${query}` : href);
+  const href = new URL(applicationPath(APPLICATION_ROUTES.addResume, tenant), window.location.origin);
+  href.searchParams.delete("applicationId");
+  href.searchParams.delete("jobToken");
+  if (jobToken) href.searchParams.set("job_token", jobToken);
+  window.location.assign(`${href.pathname}${href.search}`);
 }

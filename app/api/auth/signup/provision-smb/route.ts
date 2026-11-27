@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { sendOwnerOnboardingContinuationEmail } from "@/lib/onboarding/send-owner-onboarding-continuation-email";
@@ -174,6 +175,9 @@ export async function POST(req: Request) {
         if (claims.sub !== user.id || typeof claims.session_id !== "string" || !claims.session_id ||
           (user.factors?.some((factor) => factor.status === "verified") && claims.aal !== "aal2")) {
           return NextResponse.json({ error: "Sign in and verify your admin session." }, { status: 401 });
+        }
+        if (!(await checkStaffSessionActivity(user.id, claims.session_id, "start", refreshed.session.access_token))) {
+          return NextResponse.json({ error: "Please sign in and verify your session again." }, { status: 401 });
         }
         staffProof = createStaffSessionProof(user.id, claims.session_id);
       }

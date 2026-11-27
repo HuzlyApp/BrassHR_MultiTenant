@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import { NextResponse } from "next/server";
 import { isStaffRole } from "@/lib/auth/app-role";
 import {
@@ -79,6 +80,9 @@ export async function POST() {
     }
   }
 
+  if (!(await checkStaffSessionActivity(identity.user.id, identity.sessionId, "start", identity.accessToken))) {
+    return NextResponse.json({ error: "Session expired. Sign in again." }, { status: 401 });
+  }
   const res = NextResponse.json({
     ok: true,
     email: identity.user.email.trim().toLowerCase(),

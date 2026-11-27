@@ -301,6 +301,7 @@ export async function loadAdminAttachmentRequirements(
         .from("tenant_profession_documents")
         .select("profession_id")
         .eq("tenant_id", tenantId)
+        .or(`worker_id.is.null,worker_id.eq.${workerId}`)
         .eq("is_active", true);
       if (documentedError) throw documentedError;
       const professionIds = [
@@ -310,7 +311,7 @@ export async function loadAdminAttachmentRequirements(
     }
 
     const documents = professionId
-      ? await listActiveProfessionDocuments(supabase, tenantId, professionId)
+      ? await listActiveProfessionDocuments(supabase, tenantId, professionId, workerId)
       : [];
 
     type ProfessionUploadRow = {

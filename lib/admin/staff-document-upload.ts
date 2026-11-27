@@ -322,6 +322,7 @@ export async function saveStaffProfessionDocumentMeta(
     .select("id, has_expiration")
     .eq("id", professionDocumentId)
     .eq("tenant_id", tenantId)
+    .or(`worker_id.is.null,worker_id.eq.${workerId}`)
     .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;
@@ -405,6 +406,7 @@ export async function saveStaffProfessionDocumentUpload(
     .select("id, has_expiration")
     .eq("id", professionDocumentId)
     .eq("tenant_id", tenantId)
+    .or(`worker_id.is.null,worker_id.eq.${workerId}`)
     .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;

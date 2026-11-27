@@ -1,3 +1,4 @@
+import { candidateSignInHref } from "@/lib/auth/worker-sign-in";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
@@ -79,14 +80,9 @@ export async function GET(req: NextRequest) {
   destination.searchParams.delete("token");
   destination.searchParams.set("resume", "1");
 
-  const res = NextResponse.redirect(destination);
-  res.cookies.set("onboarding_tenant_slug", tenantSlug, { path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 3600 });
-  res.cookies.set(APPLICANT_CONTINUATION_SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60,
-  });
+  const res = NextResponse.redirect(new URL(candidateSignInHref({ tenant: tenantSlug, next: `${destination.pathname}${destination.search}` }), req.url));
+  res.headers.set("Cache-Control", "no-store");
+  res.headers.set("Referrer-Policy", "no-referrer");
+  res.cookies.delete(APPLICANT_CONTINUATION_SESSION_COOKIE);
   return res;
 }

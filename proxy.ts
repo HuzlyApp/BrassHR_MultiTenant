@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import { createServerClient } from "@supabase/ssr";
 import { STAFF_SESSION_PROOF_COOKIE, verifyStaffSessionProof } from "@/lib/auth/login-otp-proof";
 import { NextResponse, type NextRequest } from "next/server";
@@ -303,7 +304,8 @@ async function proxyInner(request: NextRequest) {
         const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
         staffSessionVerified = !verified.error && verified.data.user?.id === user.id && claims.sub === user.id
           && (!user.factors?.some(f => f.status === "verified") || claims.aal === "aal2")
-          && verifyStaffSessionProof(user.id, claims.session_id, request.cookies.get(STAFF_SESSION_PROOF_COOKIE)?.value);
+          && verifyStaffSessionProof(user.id, claims.session_id, request.cookies.get(STAFF_SESSION_PROOF_COOKIE)?.value)
+          && await checkStaffSessionActivity(user.id, claims.session_id, "check", token);
       }
     } catch { /* Fail closed when verification cannot be completed. */ }
   }
@@ -317,7 +319,7 @@ async function proxyInner(request: NextRequest) {
   }
 
   /** Idle timeout: end non-anonymous sessions after 2h without activity cookie updates. */
-  if (user && !isAnonymousUser) {
+  if (user && !isAnonymousUser && !isStaffRole(parseAppRole(user.app_metadata?.role) || "") && !isGodAdminUser(user)) {
     const lastActivity = parseLastActivityMs(request.cookies.get(IDLE_SESSION_COOKIE)?.value);
     if (lastActivity == null) {
       response.cookies.set(IDLE_SESSION_COOKIE, String(Date.now()), idleSessionCookieOptions());

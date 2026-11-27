@@ -1,10 +1,9 @@
+import { checkInitialApplicationSession } from "@/lib/onboarding/initial-application-session";
 import "server-only";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
-import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { authorizeStaffHttpAccess } from "@/lib/auth/module-access.server";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
@@ -143,19 +142,8 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
       }
     }
     let userId = "";
-    const continuation = readCookie(request, APPLICANT_CONTINUATION_SESSION_COOKIE);
-    if (continuation) {
-      const { data: link, error } = await svc.from("applicant_continuation_links")
-        .select("worker_id,tenant_id,applicant_user_id,expires_at,revoked_at,completed_at")
-        .eq("token_hash", hashContinuationToken(continuation)).maybeSingle();
-      if (error || !link || link.revoked_at || link.completed_at || Date.parse(link.expires_at) <= Date.now()) return denied();
-      if ((tenantId && tenantId !== link.tenant_id) || (workerId && workerId !== link.worker_id)) return denied();
-      tenantId = link.tenant_id;
-      workerId = link.worker_id;
-      const { data: worker } = await svc.from("worker").select("user_id").eq("id", workerId).eq("tenant_id", tenantId).maybeSingle();
-      userId = worker?.user_id || "";
-      if (!userId || (link.applicant_user_id && link.applicant_user_id !== userId)) return denied();
-    } else {
+
+    {
       const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
       const token = bearer || readCookie(request, APPLICANT_ACCESS_COOKIE);
       if (token && !isDraftPreviewApplicantId(applicantId)) {
@@ -163,6 +151,9 @@ export async function authorizeOnboardingRequest(request: Request): Promise<Next
           const { data, error } = await svc.auth.getUser(token);
           if (error || !data.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
           userId = data.user.id;
+          if (data.user.is_anonymous === true && !(await checkInitialApplicationSession(svc, data.user, token, tenantId || null, str("jobToken") || str("job_token") || null))) {
+            return NextResponse.json({ error: "Create an account or sign in to access your application.", reason: "sign_in_required" }, { status: 401 });
+          }
         } catch (error) {
           rethrowDynamicServerUsage(error);
           console.error(

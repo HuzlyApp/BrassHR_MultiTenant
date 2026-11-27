@@ -147,7 +147,7 @@ export async function loadProfessionDocumentChecklist(
         .eq("id", professionId)
         .eq("tenant_id", tenantId)
         .maybeSingle(),
-      listActiveProfessionDocuments(supabase, tenantId, professionId),
+      listActiveProfessionDocuments(supabase, tenantId, professionId, workerId),
       supabase
         .from("worker_profession_document_uploads")
         .select("id, profession_document_id, original_file_name, status")

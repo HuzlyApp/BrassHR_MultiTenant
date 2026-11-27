@@ -1,8 +1,7 @@
 import { APPLICANT_ACCESS_COOKIE } from "@/lib/onboarding/request-access";
-import { hashContinuationToken } from "@/lib/onboarding/applicant-continuation-link";
 import { authorizeOnboardingRequest } from "@/lib/onboarding/request-access";
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { resolveOrEnsureWorkerForApplicant } from "@/lib/onboarding/resolve-worker-context"
@@ -17,7 +16,6 @@ import {
 import { markTenantStepCompletedByType } from "@/lib/onboarding/mark-tenant-step-completed"
 import { isPersonNameTooLong, personNameTooLongMessage } from "@/lib/person-name"
 import { findApplicantByUserId } from "@/lib/applicant-portal"
-import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants"
 
 export const runtime = "nodejs"
 
@@ -28,31 +26,6 @@ function bearerToken(req: NextRequest): string | null {
   if (!header.toLowerCase().startsWith("bearer ")) return null
   const token = header.slice(7).trim()
   return token || null
-}
-
-/** Worker opened through an emailed continuation link, which sets a cookie instead of signing in. */
-async function continuationWorkerId(
-  supabase: SupabaseClient,
-  req: NextRequest,
-  tenantId: string,
-): Promise<string | null> {
-  const linkId = req.cookies.get(APPLICANT_CONTINUATION_SESSION_COOKIE)?.value?.trim()
-  if (!linkId) return null
-  const { data } = await supabase
-    .from("applicant_continuation_links")
-    .select("worker_id, tenant_id, expires_at, revoked_at, completed_at")
-    .eq("token_hash", hashContinuationToken(linkId))
-    .maybeSingle()
-  const link = data as {
-    worker_id: string
-    tenant_id: string
-    expires_at: string
-    revoked_at: string | null
-    completed_at: string | null
-  } | null
-  if (!link || link.tenant_id !== tenantId || link.revoked_at || link.completed_at) return null
-  if (new Date(link.expires_at).getTime() <= Date.now()) return null
-  return link.worker_id
 }
 
 /** The applicant's saved references, so the form can show what they already submitted. */
@@ -79,7 +52,7 @@ export async function GET(req: NextRequest) {
         workerId = (await findApplicantByUserId(supabase, auth.user.id, tenantRes.tenantId))?.id ?? null
       }
     }
-    workerId ??= await continuationWorkerId(supabase, req, tenantRes.tenantId)
+    workerId ??= null
     if (!workerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { data, error } = await supabase

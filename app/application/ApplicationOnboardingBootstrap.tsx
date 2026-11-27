@@ -36,6 +36,7 @@ function shouldOfferApplyAsSomeoneElse(pathname: string, search: string): boolea
 function ApplicantApplyAsSomeoneElseBanner() {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -46,18 +47,19 @@ function ApplicantApplyAsSomeoneElseBanner() {
 
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-950 sm:text-sm">
-      <span className="font-medium">Continuing as a previous applicant on this device.</span>{" "}
+      <span className="font-medium">Applying for this job.</span>{" "}
       <button
         type="button"
         disabled={busy}
         onClick={() => {
           setBusy(true);
-          void restartPublicApplyAsSomeoneElse();
+          void restartPublicApplyAsSomeoneElse().catch(() => { setBusy(false); setRestartError("Could not reset the application. Please try again."); });
         }}
         className="font-semibold text-[color:var(--brand-primary)] underline-offset-2 hover:underline disabled:opacity-60"
       >
         Not you? Apply as someone else
       </button>
+      {restartError ? <p role="alert" className="mt-1">{restartError}</p> : null}
     </div>
   );
 }
@@ -207,6 +209,11 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
               this page.
             </p>
           )}
+          {sessionErrorMeta?.reason === "sign_in_required" ? (
+            <button type="button" className="mt-4 block text-sm font-semibold underline" onClick={() => { void restartPublicApplyAsSomeoneElse().catch((err) => setError(err instanceof Error ? err.message : "Please try again.")); }}>
+              Different person? Start a new application
+            </button>
+          ) : null}
         </div>
       </TenantBrandingProvider>
     );

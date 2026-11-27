@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import "server-only";
 import { cookies, headers } from "next/headers";
 import type { User } from "@supabase/supabase-js";
@@ -16,12 +17,13 @@ export async function verifiedSessionIdentity() {
     const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
     if (claims.sub !== data.user.id || typeof claims.session_id !== "string" || !claims.session_id) return null;
     if (data.user.factors?.some(f => f.status === "verified") && claims.aal !== "aal2") return null;
-    return { user: data.user, sessionId: claims.session_id as string };
+    return { user: data.user, sessionId: claims.session_id as string, accessToken: token };
   } catch { return null; }
 }
 
 export async function hasVerifiedStaffSession(user: User): Promise<boolean> {
   const identity = await verifiedSessionIdentity();
   if (!identity || identity.user.id !== user.id) return false;
-  return verifyStaffSessionProof(user.id, identity.sessionId, (await cookies()).get(STAFF_SESSION_PROOF_COOKIE)?.value);
+  if (!verifyStaffSessionProof(user.id, identity.sessionId, (await cookies()).get(STAFF_SESSION_PROOF_COOKIE)?.value)) return false;
+  return checkStaffSessionActivity(user.id, identity.sessionId, "check", identity.accessToken);
 }

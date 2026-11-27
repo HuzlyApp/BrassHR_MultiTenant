@@ -1,7 +1,12 @@
 "use client";
 
+import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser";
+import { getBrowserSession } from "@/lib/auth/browser-session";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { isPortalRole } from "@/lib/auth/app-role";
+import { setAuthenticatedApplicantClient, getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser";
 import {
   DRAFT_PREVIEW_APPLICANT_ID,
   isOnboardingDraftPreview,
@@ -34,7 +39,7 @@ function readUrlApplicationContext(): {
   return {
     applicationId: params.get("applicationId")?.trim() || "",
     jobToken: params.get("job_token")?.trim() || params.get("jobToken")?.trim() || "",
-    tenantSlug: params.get("tenant")?.trim().toLowerCase() || "",
+    tenantSlug: resolveTenantSlugForClient(window.location.search, { path: window.location.pathname }).slug || "",
   };
 }
 
@@ -42,7 +47,7 @@ function readUrlApplicationContext(): {
  * Onboarding persists `worker.user_id` matching applicant auth user id.
  * Uses an isolated Supabase client so recruiter/admin login is never signed out.
  */
-export async function ensureApplicantMatchesAuthSession(
+async function bootstrapApplicantSession(
   _legacySupabase?: SupabaseClient
 ): Promise<ApplicantBootstrapResult> {
   void _legacySupabase;
@@ -51,28 +56,10 @@ export async function ensureApplicantMatchesAuthSession(
     return { applicantId: DRAFT_PREVIEW_APPLICANT_ID };
   }
 
-  if (typeof window !== "undefined") {
-    try {
-      const continuationRes = await fetch("/api/onboarding/continuation-session", {
-        cache: "no-store",
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (continuationRes.ok) {
-        const continuation = (await continuationRes.json()) as {
-          active?: boolean;
-          applicantId?: string;
-        };
-        const applicantId = continuation.applicantId?.trim();
-        if (continuation.active === true && applicantId) {
-          setScopedApplicantId(applicantId);
-          return { applicantId };
-        }
-      }
-    } catch {
-      // Fall through to anonymous applicant session bootstrap.
-    }
+  const portalSession = await getBrowserSession();
+  if (portalSession && !portalSession.user.is_anonymous && isPortalRole(portalSession.user.app_metadata?.role)) {
+    setAuthenticatedApplicantClient(supabaseBrowser);
   }
-
   const supabase = getApplicantSupabaseClient();
   const auth = supabase.auth as typeof supabase.auth & {
     signInAnonymously?: () => Promise<{
@@ -108,9 +95,13 @@ export async function ensureApplicantMatchesAuthSession(
     if (!token) return { error: "Applicant session expired. Please refresh." };
     const response = await fetch("/api/onboarding/session", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantSlug: readUrlApplicationContext().tenantSlug, jobToken: readUrlApplicationContext().jobToken || undefined }),
     });
-    if (!response.ok) return { error: "Could not verify applicant session. Please refresh." };
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      return { error: payload.error || "Could not verify applicant session. Please refresh.", reason: payload.reason, signInHref: candidateSignInHref({ tenant: readUrlApplicationContext().tenantSlug || null }) };
+    }
     const prev = getScopedApplicantId();
     if (prev && prev !== uid) {
       console.info("[onboarding] applicantId synced to applicant auth user id", { prev, uid });
@@ -171,4 +162,10 @@ export async function ensureApplicantMatchesAuthSession(
   }
 
   return { applicantId: uid };
+}
+
+let bootstrapPromise: Promise<ApplicantBootstrapResult> | null = null;
+export function ensureApplicantMatchesAuthSession(legacySupabase?: SupabaseClient): Promise<ApplicantBootstrapResult> {
+  if (!bootstrapPromise) bootstrapPromise = bootstrapApplicantSession(legacySupabase).finally(() => { bootstrapPromise = null; });
+  return bootstrapPromise;
 }

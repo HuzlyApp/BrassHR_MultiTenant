@@ -150,6 +150,7 @@ type ProfessionDocumentRow = {
   has_expiration?: boolean | null;
   sort_order: number;
   created_by?: string | null;
+  worker_id?: string | null;
 };
 
 function mapRow(row: ProfessionDocumentRow): ProfessionUploadDocument {
@@ -165,10 +166,10 @@ function mapRow(row: ProfessionDocumentRow): ProfessionUploadDocument {
 }
 
 const PROFESSION_DOCUMENT_SELECT =
-  "id, profession_id, name, document_kind, is_required, has_expiration, sort_order, created_by";
+  "id, profession_id, name, document_kind, is_required, has_expiration, sort_order, created_by, worker_id";
 
 const PROFESSION_DOCUMENT_SELECT_LEGACY =
-  "id, profession_id, name, document_kind, is_required, has_expiration, sort_order";
+  "id, profession_id, name, document_kind, is_required, has_expiration, sort_order, worker_id";
 
 async function selectProfessionDocumentRows(
   query: PromiseLike<{ data: unknown; error: { message?: string } | null }>
@@ -184,12 +185,13 @@ async function selectProfessionDocumentRows(
   return (result.data ?? []) as ProfessionDocumentRow[];
 }
 
-export async function listProfessionDocuments(supabase: Db, tenantId: string) {
+export async function listProfessionDocuments(supabase: Db, tenantId: string, workerId?: string) {
   let rows = await selectProfessionDocumentRows(
     supabase
       .from("tenant_profession_documents")
       .select(PROFESSION_DOCUMENT_SELECT)
       .eq("tenant_id", tenantId)
+      .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
       .eq("is_active", true)
       .order("sort_order", { ascending: true })
   );
@@ -199,6 +201,7 @@ export async function listProfessionDocuments(supabase: Db, tenantId: string) {
         .from("tenant_profession_documents")
         .select(PROFESSION_DOCUMENT_SELECT_LEGACY)
         .eq("tenant_id", tenantId)
+        .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
     );
@@ -217,13 +220,15 @@ export async function listProfessionDocuments(supabase: Db, tenantId: string) {
 export async function listActiveProfessionDocuments(
   supabase: Db,
   tenantId: string,
-  professionId: string
+  professionId: string,
+  workerId?: string
 ): Promise<ProfessionUploadDocument[]> {
   let rows = await selectProfessionDocumentRows(
     supabase
       .from("tenant_profession_documents")
       .select(PROFESSION_DOCUMENT_SELECT)
       .eq("tenant_id", tenantId)
+      .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
       .eq("profession_id", professionId)
       .eq("is_active", true)
       .order("sort_order", { ascending: true })
@@ -234,6 +239,7 @@ export async function listActiveProfessionDocuments(
         .from("tenant_profession_documents")
         .select(PROFESSION_DOCUMENT_SELECT_LEGACY)
         .eq("tenant_id", tenantId)
+        .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
         .eq("profession_id", professionId)
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
@@ -262,6 +268,7 @@ export async function readFlowProfessionId(
 export type SaveProfessionDocumentsOptions = {
   actorUserId?: string | null;
   actorIsAdmin?: boolean;
+  workerId?: string;
 };
 
 export async function saveProfessionDocuments(
@@ -273,6 +280,12 @@ export async function saveProfessionDocuments(
 ): Promise<ProfessionUploadDocument[]> {
   const actorUserId = options.actorUserId?.trim() || null;
   const actorIsAdmin = options.actorIsAdmin === true;
+  const workerId = options.workerId || null;
+  if (workerId) {
+    const { data, error } = await supabase.from("worker").select("id").eq("id", workerId).eq("tenant_id", tenantId).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Candidate was not found for this organization.");
+  }
 
   const { data: profession, error: professionError } = await supabase
     .from("tenant_professions")
@@ -285,38 +298,44 @@ export async function saveProfessionDocuments(
   if (!profession) throw new Error("Profession was not found for this organization.");
 
   let supportsCreatedBy = true;
-  let existingRows: Array<{ id: string; created_by?: string | null }> = [];
+  let existingRows: Array<{ id: string; created_by?: string | null; worker_id?: string | null }> = [];
   {
     const withCreatedBy = await supabase
       .from("tenant_profession_documents")
-      .select("id, created_by")
+      .select("id, created_by, worker_id")
       .eq("tenant_id", tenantId)
       .eq("profession_id", professionId)
+      .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
       .eq("is_active", true);
     if (withCreatedBy.error && /created_by/i.test(withCreatedBy.error.message)) {
       supportsCreatedBy = false;
       const legacy = await supabase
         .from("tenant_profession_documents")
-        .select("id")
+        .select("id, worker_id")
         .eq("tenant_id", tenantId)
         .eq("profession_id", professionId)
+        .or(workerId ? `worker_id.is.null,worker_id.eq.${workerId}` : "worker_id.is.null")
         .eq("is_active", true);
       if (legacy.error) throw legacy.error;
-      existingRows = (legacy.data ?? []).map((row) => ({ id: String(row.id) }));
+      existingRows = (legacy.data ?? []).map((row) => ({ id: String(row.id), worker_id: row.worker_id }));
     } else if (withCreatedBy.error) {
       throw withCreatedBy.error;
     } else {
       existingRows = (withCreatedBy.data ?? []).map((row) => ({
         id: String(row.id),
+        worker_id: row.worker_id,
         created_by: row.created_by ? String(row.created_by) : null,
       }));
     }
   }
 
   const existingById = new Map(
-    existingRows.map((row) => [row.id, row.created_by ?? null] as const)
+    existingRows.filter((row) => (row.worker_id || null) === workerId).map((row) => [row.id, row.created_by ?? null] as const)
   );
 
+  if (drafts.some((draft) => draft.id && !existingRows.some((row) => row.id === draft.id))) {
+    throw new Error("Document does not belong to this candidate or profession.");
+  }
   const kept = new Set(drafts.map((doc) => doc.id).filter((id): id is string => Boolean(id)));
   const removed = [...existingById.keys()].filter((id) => !kept.has(id));
 
@@ -346,6 +365,8 @@ export async function saveProfessionDocuments(
       is_active: true,
     };
     if (draft.id) {
+      // Candidate edits never change profession-wide requirements included by the UI.
+      if (!existingById.has(draft.id)) continue;
       const ownerId = existingById.get(draft.id) ?? null;
       if (!actorIsAdmin && ownerId !== actorUserId) {
         // Non-admins may keep admin/other fields in the payload, but not edit them.
@@ -363,6 +384,7 @@ export async function saveProfessionDocuments(
         ...row,
         tenant_id: tenantId,
         profession_id: professionId,
+        worker_id: workerId,
         ...(supportsCreatedBy && actorUserId ? { created_by: actorUserId } : {}),
       };
       const { error } = await supabase.from("tenant_profession_documents").insert(insertPayload);
@@ -370,7 +392,7 @@ export async function saveProfessionDocuments(
     }
   }
 
-  return listActiveProfessionDocuments(supabase, tenantId, professionId);
+  return listActiveProfessionDocuments(supabase, tenantId, professionId, workerId || undefined);
 }
 
 export async function savedWorkerProfessionId(

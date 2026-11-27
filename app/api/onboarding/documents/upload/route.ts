@@ -125,6 +125,7 @@ async function saveProfessionDocumentUpload(input: {
     .select("id, has_expiration")
     .eq("id", input.professionDocumentId)
     .eq("tenant_id", input.tenantId)
+    .or(`worker_id.is.null,worker_id.eq.${input.workerId}`)
     .eq("is_active", true)
     .maybeSingle();
   const professionDoc = data as { id: string; has_expiration?: boolean | null } | null;

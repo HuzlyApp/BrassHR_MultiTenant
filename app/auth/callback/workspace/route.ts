@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAuthCookieOptions } from "@/lib/auth/session-cookie";
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
     const claims = JSON.parse(Buffer.from(data.session.access_token.split(".")[1], "base64url").toString("utf8"));
     if (claims.sub !== data.user.id || typeof claims.session_id !== "string" || !claims.session_id ||
       (data.user.factors?.some((factor) => factor.status === "verified") && claims.aal !== "aal2")) return failure();
+    if (!(await checkStaffSessionActivity(data.user.id, claims.session_id, "start", data.session.access_token))) return failure();
     response.cookies.set(STAFF_SESSION_PROOF_COOKIE, createStaffSessionProof(data.user.id, claims.session_id), {
       httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: STAFF_SESSION_PROOF_SECONDS,
     });

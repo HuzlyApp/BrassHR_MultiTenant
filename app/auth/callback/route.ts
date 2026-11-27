@@ -1,3 +1,4 @@
+import { checkStaffSessionActivity } from "@/lib/auth/staff-session-activity";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { loadStaffAccessFlags, staffAccessDeniedMessage } from "@/lib/admin/staff-access";
@@ -145,7 +146,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (platformOk && staffOk) {
+      if (platformOk && staffOk && await checkStaffSessionActivity(user.id, sessionId, "start", data.session?.access_token)) {
         cookiesToSet.push({
           name: STAFF_SESSION_PROOF_COOKIE,
           value: createStaffSessionProof(user.id, sessionId),

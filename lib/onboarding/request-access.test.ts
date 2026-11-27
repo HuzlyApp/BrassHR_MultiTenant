@@ -73,21 +73,8 @@ describe("applicant request ownership", () => {
     const req = new NextRequest("https://example.test/api/upload-resume", {method:"POST",headers:{cookie:"brass_applicant_access=token"},body});
     expect((await authorizeOnboardingRequest(req))?.status).toBe(403);
   });
-  it("requires the continuation secret, not a link row ID", async () => {
-    expect((await authorizeOnboardingRequest(request({ applicantId: "owner" }, "applicant_continuation_session=row-id")))?.status).toBe(403);
-    expect(state.queries).toContainEqual(["applicant_continuation_links", "token_hash", "hashed:row-id"]);
-  });
-  it("accepts an active continuation token for its own worker", async () => {
-    state.rows.applicant_continuation_links = { worker_id: "worker-a", tenant_id: "tenant-a", applicant_user_id: "owner", expires_at: "2099-01-01" };
-    state.rows.worker = { id: "worker-a", user_id: "owner", tenant_id: "tenant-a" };
-    expect(await authorizeOnboardingRequest(request({ applicantId: "owner", tenantId: "tenant-a" }, "applicant_continuation_session=secret"))).toBeNull();
-  });
-  it("rejects continuation access to a different tenant", async () => {
-    state.rows.applicant_continuation_links = { worker_id: "worker-a", tenant_id: "tenant-a", applicant_user_id: "owner", expires_at: "2099-01-01" };
-    expect((await authorizeOnboardingRequest(request({ applicantId: "owner", tenantId: "tenant-b" }, "applicant_continuation_session=secret")))?.status).toBe(403);
-  });
-  it.each(["revoked_at", "completed_at"])("rejects %s continuation links", async (field) => {
-    state.rows.applicant_continuation_links = { worker_id: "worker-a", tenant_id: "tenant-a", expires_at: "2099-01-01", [field]: "2026-01-01" };
-    expect((await authorizeOnboardingRequest(request({ applicantId: "owner" }, "applicant_continuation_session=secret")))?.status).toBe(403);
+  it.each(["row-id", "active-secret", "completed-secret"])("requires sign-in instead of continuation link %s", async (secret) => {
+    expect((await authorizeOnboardingRequest(request({ applicantId: "owner" }, `applicant_continuation_session=${secret}`)))?.status).toBe(401);
+    expect(state.queries.some(([table]) => table === "applicant_continuation_links")).toBe(false);
   });
 });

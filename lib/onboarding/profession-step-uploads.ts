@@ -141,7 +141,7 @@ export async function loadProfessionStepFiles(
   if (!professionId) return { documents: [], files: [] };
 
   const [documents, uploadsResult] = await Promise.all([
-    listActiveProfessionDocuments(supabase, tenantId, professionId),
+    listActiveProfessionDocuments(supabase, tenantId, professionId, workerId),
     supabase
       .from("worker_profession_document_uploads")
       .select(

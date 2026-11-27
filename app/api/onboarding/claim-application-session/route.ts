@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { APPLICANT_ACCESS_COOKIE } from "@/lib/onboarding/request-access";
+import { authorizeOnboardingRequest, APPLICANT_ACCESS_COOKIE } from "@/lib/onboarding/request-access";
 import { candidateSignInHref } from "@/lib/auth/worker-sign-in";
 import {
   checkApplicationSessionOwnership,
-  claimApplicationSession,
 } from "@/lib/onboarding/verify-application-session";
 
 export const runtime = "nodejs";
@@ -31,6 +30,8 @@ function readCookie(request: Request, name: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await authorizeOnboardingRequest(req);
+  if (denied) return denied;
   const origin = req.headers.get("origin");
   if (origin && origin !== new URL(req.url).origin) {
     return NextResponse.json({ error: "Forbidden", reason: "origin_mismatch" }, { status: 403 });
@@ -107,34 +108,6 @@ export async function POST(req: NextRequest) {
 
     if (check.owned) {
       return NextResponse.json({ ok: true, owned: true, claimed: false });
-    }
-
-    if (check.canClaimWithJobToken && check.workerId && tenantId) {
-      await claimApplicationSession(supabase, {
-        applicationId,
-        authUserId,
-        workerId: check.workerId,
-        tenantId,
-      });
-      return NextResponse.json({ ok: true, owned: true, claimed: true });
-    }
-
-    // Job token present but tenantId missing — resolve tenant from the application row.
-    if (check.canClaimWithJobToken && check.workerId && !tenantId) {
-      const { data: app } = await supabase
-        .from("job_applications")
-        .select("tenant_id")
-        .eq("id", applicationId)
-        .maybeSingle();
-      if (app?.tenant_id) {
-        await claimApplicationSession(supabase, {
-          applicationId,
-          authUserId,
-          workerId: check.workerId,
-          tenantId: String(app.tenant_id),
-        });
-        return NextResponse.json({ ok: true, owned: true, claimed: true });
-      }
     }
 
     return NextResponse.json(

@@ -1,3 +1,4 @@
+import { parseRequiredUuid } from "@/lib/validation/uuid";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
@@ -46,10 +47,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const workerId = req.nextUrl.searchParams.get("workerId")?.trim() || "";
+    if (workerId && !parseRequiredUuid(workerId, "workerId").ok) return NextResponse.json({ error: "Invalid workerId" }, { status: 400 });
     const [catalog, documents, workerProfessionId, savedProfessionId, availableProfessions] =
       await Promise.all([
       listTenantProfessions(supabase, tenantId),
-      listProfessionDocuments(supabase, tenantId),
+      listProfessionDocuments(supabase, tenantId, workerId || undefined),
       workerId ? resolveWorkerTenantProfessionId(supabase, tenantId, workerId) : Promise.resolve(null),
       workerId ? savedWorkerProfessionId(supabase, tenantId, workerId) : Promise.resolve(null),
       listAvailableCatalogProfessions(supabase, tenantId, industryLabelForKey),
@@ -95,6 +97,7 @@ export async function PUT(req: NextRequest) {
     workerId?: string;
   } | null;
   const workerId = body?.workerId?.trim() || "";
+  if (workerId && !parseRequiredUuid(workerId, "workerId").ok) return NextResponse.json({ error: "Invalid workerId" }, { status: 400 });
   if (!isAdmin && !workerId) {
     const forbidden = requireWorkflowAdmin(auth);
     if (forbidden) return forbidden;
@@ -130,7 +133,7 @@ export async function PUT(req: NextRequest) {
       tenantId,
       professionId,
       normalized.documents,
-      { actorUserId: auth.userId, actorIsAdmin: isAdmin }
+      { actorUserId: auth.userId, actorIsAdmin: isAdmin, workerId: workerId || undefined }
     );
     if (workerId) await linkWorkerProfession(supabase, tenantId, workerId, professionId);
     return NextResponse.json({ professionId, documents });
