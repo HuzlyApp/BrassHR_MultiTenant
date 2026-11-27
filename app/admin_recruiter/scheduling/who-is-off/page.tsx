@@ -413,32 +413,39 @@ export default function WhoIsOffPage() {
             <span className="font-semibold text-[#0F172A]">{totalResults}</span> results
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             {/* Show N dropdown */}
-            <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
-              <span>Show</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="h-8 rounded-md border border-[#E2E8F0] bg-white px-2 text-xs font-medium text-[#0F172A] outline-none"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
+            <div className="flex items-center gap-2.5 text-xs text-[#64748B]">
+              <span className="whitespace-nowrap">Show</span>
+              <div className="relative">
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  aria-label="Rows per page"
+                  className="h-8 cursor-pointer appearance-none rounded-[8px] border border-[#CBD5E1] bg-white py-0 pl-3 pr-8 text-xs font-semibold text-[#0F172A] outline-none transition hover:border-[#94A3B8] focus-visible:border-[color:var(--brand-secondary,#012352)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_16%,transparent)]"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748B]"
+                  aria-hidden
+                />
+              </div>
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
-                className="rounded-md border border-[#E2E8F0] px-2.5 py-1 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-[8px] border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
@@ -446,10 +453,10 @@ export default function WhoIsOffPage() {
               <button
                 type="button"
                 onClick={() => setPage(1)}
-                className={`h-7 w-7 rounded-[8px] text-xs font-semibold transition ${
+                className={`h-8 w-8 rounded-[8px] text-xs font-semibold transition ${
                   page === 1
-                    ? "bg-[color:var(--brand-primary,#012352)] text-white"
-                    : "border border-[#E2E8F0] bg-white text-[#475569]"
+                    ? "bg-[color:var(--brand-secondary,#012352)] text-white"
+                    : "border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]"
                 }`}
               >
                 1
@@ -459,10 +466,10 @@ export default function WhoIsOffPage() {
                 <button
                   type="button"
                   onClick={() => setPage(2)}
-                  className={`h-7 w-7 rounded-[8px] text-xs font-semibold transition ${
+                  className={`h-8 w-8 rounded-[8px] text-xs font-semibold transition ${
                     page === 2
-                      ? "bg-[color:var(--brand-primary,#012352)] text-white"
-                      : "border border-[#E2E8F0] bg-white text-[#475569]"
+                      ? "bg-[color:var(--brand-secondary,#012352)] text-white"
+                      : "border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]"
                   }`}
                 >
                   2
@@ -473,7 +480,7 @@ export default function WhoIsOffPage() {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
-                className="rounded-md border border-[#E2E8F0] px-2.5 py-1 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-[8px] border border-[#E2E8F0] px-2.5 py-1.5 text-xs font-medium text-[#475569] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>

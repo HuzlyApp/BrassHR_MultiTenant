@@ -105,4 +105,15 @@ describe("sidebarLinkIsActive", () => {
       )
     ).toBe(false);
   });
+
+  it("does not activate Week View on who-is-off when scheduling prefix is excluded", () => {
+    const weekView = {
+      href: "/admin_recruiter/calendar/shifts",
+      matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/scheduling"],
+      matchExcludePrefixes: ["/admin_recruiter/scheduling/who-is-off"],
+    };
+    expect(sidebarLinkIsActive(weekView, "/admin_recruiter/scheduling/who-is-off", null)).toBe(false);
+    expect(sidebarLinkIsActive(weekView, "/admin_recruiter/calendar/shifts", null)).toBe(true);
+    expect(sidebarLinkIsActive(weekView, "/admin_recruiter/scheduling", null)).toBe(true);
+  });
 });

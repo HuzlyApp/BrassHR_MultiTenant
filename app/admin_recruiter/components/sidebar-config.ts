@@ -9,6 +9,8 @@ export type SidebarLink = {
   resourceKey?: string;
   matchPrefixes: string[];
   matchExact?: boolean;
+  /** Paths that should not activate this link even if a matchPrefix matches. */
+  matchExcludePrefixes?: string[];
   disabled?: boolean;
   /** Set while rendering so the current page can highlight this row. */
   active?: boolean;
@@ -133,6 +135,8 @@ const SCHEDULING_CHILDREN: SidebarLink[] = [
     label: "Week View",
     href: SHIFT_CALENDAR_ROUTE,
     matchPrefixes: [SHIFT_CALENDAR_ROUTE, "/admin_recruiter/scheduling"],
+    // `/admin_recruiter/scheduling` also prefixes who-is-off / requests — keep only Week View routes active.
+    matchExcludePrefixes: [WHO_IS_OFF_ROUTE, "/admin_recruiter/scheduling/requests"],
   },
   {
     label: "Who is off",

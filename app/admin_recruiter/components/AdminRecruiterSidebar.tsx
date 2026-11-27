@@ -109,7 +109,7 @@ function isNavigableHref(href: string | null | undefined): href is string {
 
 function linkOrNestedIsActive(
   link: SidebarLink,
-  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) => boolean
+  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact" | "matchExcludePrefixes">) => boolean
 ): boolean {
   if (isActive(link)) return true;
   return link.children?.some((child) => linkOrNestedIsActive(child, isActive)) ?? false;
@@ -122,7 +122,7 @@ type RenderedSidebarLink = SidebarLink & {
 
 function decorateSidebarLink(
   link: SidebarLink,
-  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) => boolean
+  isActive: (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact" | "matchExcludePrefixes">) => boolean
 ): RenderedSidebarLink {
   const children = link.children?.map((child) => decorateSidebarLink(child, isActive));
   return {
@@ -268,7 +268,7 @@ export const AdminRecruiterSidebar = memo(function AdminRecruiterSidebar({
   const sidebarCompanyName = getOrganizationDisplayName(organization, profile, user);
   const profilePhoto = profile?.avatar_url ?? null;
 
-  const isLinkActive = (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact">) =>
+  const isLinkActive = (link: Pick<SidebarLink, "href" | "matchPrefixes" | "matchExact" | "matchExcludePrefixes">) =>
     sidebarLinkIsActive(link, pathname, pendingHref);
 
   const activePath = pendingHref ?? pathname;
