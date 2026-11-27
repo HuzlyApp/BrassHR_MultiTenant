@@ -24,7 +24,7 @@ describe("checkRateLimit", () => {
     ).rejects.toThrow("Shared rate limit unavailable");
   });
 
-  it("fails closed when configured Redis is unavailable", async () => {
+  it("falls back to memory when failClosed but Redis URL is set and store is unavailable", async () => {
     // URL present (shared limiter expected) but not a usable redis:// / Upstash token setup.
     process.env.REDIS_URL = "https://example.invalid/redis";
     await expect(
@@ -35,7 +35,7 @@ describe("checkRateLimit", () => {
         windowMs: 60000,
         failClosed: true,
       })
-    ).rejects.toThrow("Shared rate limit unavailable");
+    ).resolves.toMatchObject({ allowed: true, store: "memory" });
   });
 
   it("allows requests under the limit", async () => {
