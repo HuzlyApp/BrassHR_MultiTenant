@@ -98,11 +98,11 @@ export async function mapDynamicAdminOnboardingProgress(
     const hasAssignment =
       phaseView.preHire.assigned || Boolean(phaseView.postHire?.assigned);
     if (hasAssignment) {
+      // Include post-hire steps whenever present (even if still locked) so profile
+      // can show pre-hire by default and expand post-hire via "View more".
       const assignedSteps = [
         ...phaseView.preHire.steps,
-        ...(phaseView.postHireVisible && phaseView.postHire
-          ? phaseView.postHire.steps
-          : []),
+        ...(phaseView.postHire?.steps ?? []),
       ];
       return mapAssignedStepsToDynamicProgress(assignedSteps);
     }

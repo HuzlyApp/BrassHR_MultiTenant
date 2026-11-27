@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
+import { createPortal } from "react-dom";
 import { Check, X } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
@@ -100,6 +101,7 @@ export default function AddLicenseCertModal({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [showExistingFile, setShowExistingFile] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const title =
     mode === "edit"
@@ -133,6 +135,10 @@ export default function AddLicenseCertModal({
   }, [open]);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !saving) onClose();
@@ -145,7 +151,7 @@ export default function AddLicenseCertModal({
     };
   }, [open, saving, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   function patch(partial: Partial<LicenseCertFormValues>) {
     setValues((current) => ({ ...current, ...partial }));
@@ -231,9 +237,9 @@ export default function AddLicenseCertModal({
         : "/icons/jpeg-icon.svg"
     : "/icons/pdf-icon.svg";
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[150] flex items-end justify-center bg-black/40 px-3 py-0 sm:items-center sm:px-4 sm:py-8"
+      className="fixed inset-0 z-[150] flex items-end justify-center bg-black/40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:items-center sm:px-4 sm:py-8"
       role="presentation"
       onClick={() => {
         if (!saving) onClose();
@@ -243,7 +249,7 @@ export default function AddLicenseCertModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="license-cert-modal-title"
-        className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[10px] border border-[#E5E7EB] bg-white shadow-xl sm:rounded-[10px]"
+        className="flex max-h-[min(92dvh,92vh)] w-full max-w-lg flex-col overflow-hidden rounded-[10px] border border-[#E5E7EB] bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-6 sm:py-5">
@@ -565,12 +571,12 @@ export default function AddLicenseCertModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] px-4 py-4 sm:px-6">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#E5E7EB] px-4 py-4 sm:px-6">
           <button
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] bg-white px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] bg-white px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             Cancel
           </button>
@@ -578,12 +584,13 @@ export default function AddLicenseCertModal({
             type="button"
             disabled={saving}
             onClick={handleSubmit}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             {saving ? "Saving…" : mode === "edit" ? "Save changes" : "Save"}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

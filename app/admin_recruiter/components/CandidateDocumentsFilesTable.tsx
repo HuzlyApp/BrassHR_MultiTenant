@@ -127,10 +127,232 @@ type CandidateDocumentsFilesTableProps = {
     file: { id: string; filename: string },
     draftKey: string
   ) => void;
-  onFileNameDraftChange: (draftKey: string, value: string) => void;
+  onFileNameDraftChange: (draftKey: string; value: string) => void;
   onTopUploadClick: () => void;
   topUploadDisabled?: boolean;
 };
+
+type ResolvedDocRow = {
+  row: DocumentsFileRow;
+  documentType: string;
+  lifecycleStatus: DocumentLifecycleStatus;
+  primaryUrl: string | null;
+  displayFilename: string | null;
+  uploadedBy: string | null;
+  primaryFile: {
+    id: string;
+    url: string | null;
+    filename: string;
+    status: string | null;
+    uploaded_by?: string | null;
+  } | null;
+  canAddAnotherFile: boolean;
+};
+
+function resolveDocRow(
+  row: DocumentsFileRow,
+  dateDrafts: Record<string, { issuedDate: string; expiryDate: string }>
+): ResolvedDocRow {
+  const files =
+    row.files.length > 0
+      ? row.files
+      : [
+          {
+            id: row.submittedDocumentId || row.id,
+            url: row.url,
+            filename: row.filename,
+            status: row.status,
+            uploaded_by: row.uploadedBy,
+          },
+        ];
+  const expiryValue = dateDrafts[row.key]?.expiryDate ?? row.expiryDate ?? "";
+  const primaryFile = files.find((file) => file.url) ?? null;
+  const primaryUrl = primaryFile?.url ?? row.url;
+  const displayFilename =
+    primaryFile?.filename ||
+    (row.filename && row.filename !== "—" ? row.filename : null) ||
+    null;
+  const uploadedBy =
+    primaryFile?.uploaded_by ||
+    files.find((file) => file.uploaded_by)?.uploaded_by ||
+    row.uploadedBy ||
+    null;
+  const isResume = row.stepType === "resume_upload" || row.id === "resume";
+  const documentType = unifiedDocumentTypeLabel(
+    isResume ? "resume" : row.documentKind
+  );
+  const lifecycleStatus = resolveDocumentLifecycleStatus(
+    Boolean(primaryUrl),
+    expiryValue || row.expiryDate
+  );
+  const canAddAnotherFile =
+    Boolean(primaryUrl) &&
+    !isResume &&
+    (row.files.length < 5 || !row.files.length);
+
+  return {
+    row,
+    documentType,
+    lifecycleStatus,
+    primaryUrl,
+    displayFilename,
+    uploadedBy,
+    primaryFile,
+    canAddAnotherFile,
+  };
+}
+
+function DocumentRowActions({
+  resolved,
+  uploadingKey,
+  canManage,
+  savingDocuments,
+  onOpenUpload,
+  onDeleteFile,
+}: {
+  resolved: ResolvedDocRow;
+  uploadingKey: string | null;
+  canManage: boolean;
+  savingDocuments: boolean;
+  onOpenUpload: (row: DocumentsFileRow) => void;
+  onDeleteFile?: (
+    row: DocumentsFileRow,
+    file: { id: string; filename: string; url: string | null }
+  ) => void;
+}) {
+  const { row, primaryUrl, displayFilename, primaryFile, canAddAnotherFile } = resolved;
+
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-1.5">
+      {canAddAnotherFile ? (
+        <button
+          type="button"
+          disabled={uploadingKey === row.key}
+          onClick={() => onOpenUpload(row)}
+          className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
+        >
+          {uploadingKey === row.key ? "Uploading…" : "+ Add file"}
+        </button>
+      ) : null}
+      {canManage && primaryUrl && onDeleteFile && primaryFile?.url ? (
+        <button
+          type="button"
+          disabled={savingDocuments || uploadingKey === row.key}
+          onClick={() => onDeleteFile(row, primaryFile)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B] disabled:opacity-40"
+          aria-label={`Delete ${displayFilename || row.title}`}
+        >
+          <BrandedDeleteIcon className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function DocumentMobileCard({
+  resolved,
+  uploadingKey,
+  canManage,
+  savingDocuments,
+  onOpenUpload,
+  onDeleteFile,
+}: {
+  resolved: ResolvedDocRow;
+  uploadingKey: string | null;
+  canManage: boolean;
+  savingDocuments: boolean;
+  onOpenUpload: (row: DocumentsFileRow) => void;
+  onDeleteFile?: (
+    row: DocumentsFileRow,
+    file: { id: string; filename: string; url: string | null }
+  ) => void;
+}) {
+  const { row, documentType, lifecycleStatus, primaryUrl, displayFilename, uploadedBy } =
+    resolved;
+
+  return (
+    <article className="rounded-xl border border-[#E5E7EB] bg-white p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DocTypeTag label={documentType} />
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                row.isRequired
+                  ? "bg-[#FEF3C7] text-[#92400E]"
+                  : "bg-[#F3F4F6] text-[#4B5563]"
+              }`}
+            >
+              {row.isRequired ? "Required" : "Optional"}
+            </span>
+          </div>
+          <h4 className="text-sm font-semibold text-[#111827]">{row.title}</h4>
+          <StatusBadge status={lifecycleStatus} />
+        </div>
+        <DocumentRowActions
+          resolved={resolved}
+          uploadingKey={uploadingKey}
+          canManage={canManage}
+          savingDocuments={savingDocuments}
+          onOpenUpload={onOpenUpload}
+          onDeleteFile={onDeleteFile}
+        />
+      </div>
+
+      <div className="mt-3 space-y-2 border-t border-[#F1F5F9] pt-3">
+        {primaryUrl && displayFilename ? (
+          <div className="flex min-w-0 items-center gap-2.5">
+            <BrandedFileTypeIcon
+              type={fileIconType(displayFilename, primaryUrl)}
+              className="h-7 w-7 shrink-0"
+            />
+            <button
+              type="button"
+              onClick={() => window.open(primaryUrl, "_blank", "noopener,noreferrer")}
+              className="min-w-0 truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
+            >
+              {displayFilename}
+            </button>
+          </div>
+        ) : (
+          <span className="text-sm text-[#9CA3AF]">No file uploaded</span>
+        )}
+
+        <p className="text-xs text-[#64748B]">
+          Uploaded by:{" "}
+          <span className="font-medium text-[#374151]">
+            {primaryUrl ? dash(uploadedBy) : "—"}
+          </span>
+        </p>
+
+        <div className="pt-1">
+          {primaryUrl ? (
+            <a
+              href={primaryUrl}
+              download={displayFilename || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              Download
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled={uploadingKey === row.key}
+              onClick={() => onOpenUpload(row)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Upload className="h-3.5 w-3.5" aria-hidden />
+              {uploadingKey === row.key ? "Uploading…" : "Upload"}
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
 
 function DocumentRows({
   rows,
@@ -164,42 +386,14 @@ function DocumentRows({
   return (
     <>
       {rows.map((row) => {
-        const files =
-          row.files.length > 0
-            ? row.files
-            : [
-                {
-                  id: row.submittedDocumentId || row.id,
-                  url: row.url,
-                  filename: row.filename,
-                  status: row.status,
-                  uploaded_by: row.uploadedBy,
-                },
-              ];
-        const expiryValue = dateDrafts[row.key]?.expiryDate ?? row.expiryDate ?? "";
-        const primaryFile = files.find((file) => file.url) ?? null;
-        const primaryUrl = primaryFile?.url ?? row.url;
-        const displayFilename =
-          primaryFile?.filename ||
-          (row.filename && row.filename !== "—" ? row.filename : null) ||
-          null;
-        const uploadedBy =
-          primaryFile?.uploaded_by ||
-          files.find((file) => file.uploaded_by)?.uploaded_by ||
-          row.uploadedBy ||
-          null;
-        const isResume = row.stepType === "resume_upload" || row.id === "resume";
-        const documentType = unifiedDocumentTypeLabel(
-          isResume ? "resume" : row.documentKind
-        );
-        const lifecycleStatus = resolveDocumentLifecycleStatus(
-          Boolean(primaryUrl),
-          expiryValue || row.expiryDate
-        );
-        const canAddAnotherFile =
-          Boolean(primaryUrl) &&
-          !isResume &&
-          (row.files.length < 5 || !row.files.length);
+        const resolved = resolveDocRow(row, dateDrafts);
+        const {
+          documentType,
+          lifecycleStatus,
+          primaryUrl,
+          displayFilename,
+          uploadedBy,
+        } = resolved;
 
         return (
           <tr key={row.key} className="border-b border-[#F3F4F6] last:border-b-0">
@@ -272,34 +466,115 @@ function DocumentRows({
               )}
             </td>
             <td className="px-4 py-3.5">
-              <div className="flex items-center justify-end gap-1.5">
-                {canAddAnotherFile ? (
-                  <button
-                    type="button"
-                    disabled={uploadingKey === row.key}
-                    onClick={() => onOpenUpload(row)}
-                    className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
-                  >
-                    {uploadingKey === row.key ? "Uploading…" : "+ Add file"}
-                  </button>
-                ) : null}
-                {canManage && primaryUrl && onDeleteFile && primaryFile?.url ? (
-                  <button
-                    type="button"
-                    disabled={savingDocuments || uploadingKey === row.key}
-                    onClick={() => onDeleteFile(row, primaryFile)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#64748B] disabled:opacity-40"
-                    aria-label={`Delete ${displayFilename || row.title}`}
-                  >
-                    <BrandedDeleteIcon className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </div>
+              <DocumentRowActions
+                resolved={resolved}
+                uploadingKey={uploadingKey}
+                canManage={canManage}
+                savingDocuments={savingDocuments}
+                onOpenUpload={onOpenUpload}
+                onDeleteFile={onDeleteFile}
+              />
             </td>
           </tr>
         );
       })}
     </>
+  );
+}
+
+function DocumentSection({
+  title,
+  rows,
+  uploadingKey,
+  canManage,
+  savingDocuments,
+  dateDrafts,
+  onOpenUpload,
+  onDeleteFile,
+}: {
+  title: string;
+  rows: DocumentsFileRow[];
+  uploadingKey: string | null;
+  canManage: boolean;
+  savingDocuments: boolean;
+  dateDrafts: Record<string, { issuedDate: string; expiryDate: string }>;
+  onOpenUpload: (row: DocumentsFileRow) => void;
+  onDeleteFile?: (
+    row: DocumentsFileRow,
+    file: { id: string; filename: string; url: string | null }
+  ) => void;
+}) {
+  const resolvedRows = rows.map((row) => resolveDocRow(row, dateDrafts));
+
+  return (
+    <section className="w-full min-w-0 max-w-full space-y-3">
+      <h4 className="text-sm font-semibold text-[#111827]">{title}</h4>
+
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {resolvedRows.length === 0 ? (
+          <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-8 text-center text-sm text-[#6B7280]">
+            No documents in this section yet.
+          </div>
+        ) : (
+          resolvedRows.map((resolved) => (
+            <DocumentMobileCard
+              key={resolved.row.key}
+              resolved={resolved}
+              uploadingKey={uploadingKey}
+              canManage={canManage}
+              savingDocuments={savingDocuments}
+              onOpenUpload={onOpenUpload}
+              onDeleteFile={onDeleteFile}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white md:block">
+        <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-[720px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Doc type
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Doc name
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  File name
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Uploaded by
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  Upload / Download
+                </th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <DocumentRows
+                rows={rows}
+                uploadingKey={uploadingKey}
+                canManage={canManage}
+                savingDocuments={savingDocuments}
+                dateDrafts={dateDrafts}
+                onOpenUpload={onOpenUpload}
+                onDeleteFile={onDeleteFile}
+              />
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -323,24 +598,15 @@ export default function CandidateDocumentsFilesTable({
     [rows]
   );
 
-  const rowProps = {
-    uploadingKey,
-    canManage,
-    savingDocuments,
-    dateDrafts,
-    onOpenUpload,
-    onDeleteFile,
-  };
-
   return (
-    <div className="w-full space-y-8">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden sm:space-y-8">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3 sm:mb-3">
         <h3 className="text-lg font-semibold text-[#111827]">Documents</h3>
         <button
           type="button"
           disabled={topUploadDisabled}
           onClick={onTopUploadClick}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3.5 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden />
           Add document
@@ -353,43 +619,17 @@ export default function CandidateDocumentsFilesTable({
           { title: "Post-Hire", rows: postHireRows },
         ] as const
       ).map((section) => (
-        <section key={section.title} className="space-y-3">
-          <h4 className="text-sm font-semibold text-[#111827]">{section.title}</h4>
-          <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Doc type
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Doc name
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      File name
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Uploaded by
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      Upload / Download
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <DocumentRows rows={section.rows} {...rowProps} />
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+        <DocumentSection
+          key={section.title}
+          title={section.title}
+          rows={section.rows}
+          uploadingKey={uploadingKey}
+          canManage={canManage}
+          savingDocuments={savingDocuments}
+          dateDrafts={dateDrafts}
+          onOpenUpload={onOpenUpload}
+          onDeleteFile={onDeleteFile}
+        />
       ))}
     </div>
   );

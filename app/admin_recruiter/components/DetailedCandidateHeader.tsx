@@ -119,10 +119,10 @@ export default function DetailedCandidateHeader({
 
   return (
     <div
-      className="mb-5 w-full min-w-0 space-y-3"
+      className="mb-5 w-full min-w-0 max-w-full space-y-3 overflow-x-hidden"
       {...(persistent ? { "data-candidate-detail-chrome": "header" } : { "data-candidate-page-header": "" })}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <Link
           href="/admin_recruiter/applications"
           className="inline-flex items-center gap-1 text-sm font-medium text-[#6B7280] transition-colors hover:text-[color:var(--brand-primary)]"
@@ -130,7 +130,7 @@ export default function DetailedCandidateHeader({
           <ChevronLeft className="size-4" aria-hidden />
           Back
         </Link>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
         {workerId?.trim() && !loading && hasApplication ? (
           <UpdateAssignedWorkflowControl
             workerId={workerId.trim()}
@@ -186,74 +186,76 @@ export default function DetailedCandidateHeader({
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(260px,350px)]">
-        <div className="rounded-lg border border-[#E5E7EB] bg-white p-3 sm:p-5">
-          <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+      <div className="grid min-w-0 max-w-full gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(260px,350px)]">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white p-3 max-[599px]:p-3 sm:p-5">
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3 max-[599px]:gap-2.5 sm:gap-4">
               <div className="relative shrink-0">
                 <CandidateAvatarIcon
                   photoUrl={profilePhotoUrl}
                   name={displayName}
-                  className="h-16 w-16 rounded-full text-2xl sm:h-[100px] sm:w-[100px] sm:text-3xl"
+                  className="h-16 w-16 rounded-full text-2xl max-[599px]:h-14 max-[599px]:w-14 max-[599px]:text-xl sm:h-[100px] sm:w-[100px] sm:text-3xl"
                 />
               </div>
-              <div className="min-w-0 space-y-3">
-                <div className="flex flex-wrap items-start gap-3">
-                  <div className="min-w-0">
+              <div className="min-w-0 flex-1 overflow-hidden space-y-3">
+                <div className="flex min-w-0 flex-wrap items-start gap-2 sm:gap-3">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     {resolvedNameHref ? (
                       <Link
                         href={resolvedNameHref}
-                        className="block truncate text-xl font-semibold leading-7 text-[#012352] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                        className="block truncate text-xl font-semibold leading-7 text-[#012352] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none max-[599px]:text-lg max-[599px]:leading-6"
                         title="View applicant profile"
                       >
                         {displayName}
                       </Link>
                     ) : (
-                      <h1 className="truncate text-xl font-semibold leading-7 text-[#012352]">
+                      <h1 className="truncate text-xl font-semibold leading-7 text-[#012352] max-[599px]:text-lg max-[599px]:leading-6">
                         {displayName}
                       </h1>
                     )}
                     {resolvedRoleHref ? (
                       <Link
                         href={resolvedRoleHref}
-                        className="mt-0.5 block truncate text-sm font-medium text-[#001A46] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                        className="mt-0.5 block truncate text-sm font-medium text-[#001A46] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none max-[599px]:text-xs"
                         title="View job details"
                       >
                         {displayRole}
                       </Link>
                     ) : (
-                      <p className="mt-0.5 truncate text-sm text-[#6B7280]">{displayRole}</p>
+                      <p className="mt-0.5 truncate text-sm text-[#6B7280] max-[599px]:text-xs">
+                        {displayRole}
+                      </p>
                     )}
                   </div>
-                  <span className="inline-flex rounded bg-[#EFF6FF] px-2.5 py-1 text-xs font-medium text-[#1D4ED8]">
+                  <span className="inline-flex shrink-0 rounded bg-[#EFF6FF] px-2.5 py-1 text-xs font-medium text-[#1D4ED8]">
                     Applicant
                   </span>
                 </div>
-                <div className="space-y-1.5 text-sm text-[#374151]">
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 space-y-1.5 text-sm text-[#374151] max-[599px]:text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Mail className="size-[18px] shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
-                    <span className="truncate">{displayEmail}</span>
+                    <span className="min-w-0 truncate">{displayEmail}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Phone className="size-[18px] shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
-                    <span className="truncate">{displayPhone}</span>
+                    <span className="min-w-0 truncate">{displayPhone}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <MapPin className="size-[18px] shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
-                    <span className="truncate">{displayLocation}</span>
+                    <span className="min-w-0 truncate">{displayLocation}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="w-full shrink-0 space-y-2.5 border-t border-[#E5E7EB] pt-4 text-sm lg:w-[280px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+            <div className="w-full min-w-0 max-w-full shrink-0 space-y-2.5 overflow-hidden border-t border-[#E5E7EB] pt-4 text-sm max-[599px]:text-xs lg:w-[280px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <MetaRow label="Application Date" value={applicationDate?.trim() || "—"} />
-              {jobId?.trim() ? <MetaRow label="Job ID" value={jobId.trim()} /> : null}
+              {jobId?.trim() ? <MetaRow label="Job ID" value={jobId.trim()} breakAll /> : null}
               <MetaRow label="Source" value={source?.trim() && source.trim() !== "—" ? source.trim() : "—"} />
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[#6B7280]">Current Status</span>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <span className="shrink-0 text-[#6B7280]">Current Status</span>
                 {displayStatus && displayStatus !== "—" ? (
-                  <span className="inline-flex rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-medium text-[#166534]">
+                  <span className="inline-flex max-w-[60%] truncate rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-medium text-[#166534]">
                     {displayStatus}
                   </span>
                 ) : (
@@ -264,10 +266,12 @@ export default function DetailedCandidateHeader({
           </div>
         </div>
 
-        <div className="rounded-lg border border-[#E5E7EB] bg-white p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-[#012352]">Overall Hiring Progress</h2>
-          <div className="mt-4">
-            <div className="h-3 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white p-4 max-[599px]:p-3 sm:p-5">
+          <h2 className="text-base font-semibold text-[#012352] max-[599px]:text-sm">
+            Overall Hiring Progress
+          </h2>
+          <div className="mt-4 min-w-0">
+            <div className="h-3 w-full max-w-full overflow-hidden rounded-full bg-[#E5E7EB]">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
@@ -276,15 +280,17 @@ export default function DetailedCandidateHeader({
                 }}
               />
             </div>
-            <p className="mt-2 text-sm text-[#6B7280]">
+            <p className="mt-2 break-words text-sm text-[#6B7280] max-[599px]:text-xs">
               {progressInProgress != null ? `${progressInProgress} In Progress` : "—"}
               {" • "}
               {progressUpcoming != null ? `${progressUpcoming} Upcoming` : "—"}
             </p>
           </div>
-          <div className="mt-6 flex items-center justify-between gap-3 text-sm">
-            <span className="font-semibold text-[#012352]">{progressPercent == null ? "Progress available on Profile" : `${percent}% Completed`}</span>
-            <span className="text-[#6B7280]">{progressDate?.trim() || "—"}</span>
+          <div className="mt-6 flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm max-[599px]:mt-4 max-[599px]:text-xs sm:gap-3">
+            <span className="min-w-0 font-semibold text-[#012352]">
+              {progressPercent == null ? "Progress available on Profile" : `${percent}% Completed`}
+            </span>
+            <span className="shrink-0 text-[#6B7280]">{progressDate?.trim() || "—"}</span>
           </div>
         </div>
       </div>
@@ -292,11 +298,26 @@ export default function DetailedCandidateHeader({
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function MetaRow({
+  label,
+  value,
+  breakAll = false,
+}: {
+  label: string;
+  value: string;
+  breakAll?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-[#6B7280]">{label}</span>
-      <span className="font-semibold text-[#012352]">{value}</span>
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <span className="shrink-0 text-[#6B7280]">{label}</span>
+      <span
+        className={`min-w-0 max-w-[65%] text-right font-semibold text-[#012352] ${
+          breakAll ? "break-all" : "truncate"
+        }`}
+        title={value}
+      >
+        {value}
+      </span>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   MATCH_PROGRESSION_STEPS,
   canSelectMatchProgressionStep,
@@ -109,6 +110,8 @@ function StepButton({
   canAdvance,
   onSelect,
   compact = false,
+  mobileRow = false,
+  itemRef,
 }: {
   step: MatchProgressionStep;
   index: number;
@@ -117,6 +120,9 @@ function StepButton({
   canAdvance: boolean;
   onSelect: (index: number) => void;
   compact?: boolean;
+  /** Fixed-width card in a horizontal mobile track */
+  mobileRow?: boolean;
+  itemRef?: (node: HTMLLIElement | null) => void;
 }) {
   const tone = stepTone(index, viewedIndex);
   const enabled = canSelectMatchProgressionStep({
@@ -138,22 +144,28 @@ function StepButton({
       : "cursor-pointer hover:brightness-[0.97]";
   const labelColor = tone === "upcoming" ? "text-[#374151]" : "text-white";
 
+  const liClass = mobileRow
+    ? "w-[min(17.5rem,78vw)] shrink-0 snap-center"
+    : compact
+      ? "w-full"
+      : "min-w-[12.5rem] flex-1 sm:min-w-[13.75rem] lg:min-w-0";
+
   return (
-    <li className={compact ? "w-full" : "min-w-[12.5rem] flex-1 sm:min-w-[13.75rem] lg:min-w-0"}>
+    <li ref={itemRef} className={liClass}>
       <button
         type="button"
         disabled={!enabled}
         aria-current={tone === "current" ? "step" : undefined}
         onClick={() => onSelect(index)}
         className={`flex h-full w-full items-center justify-center rounded-lg px-3 py-3 text-left transition sm:px-3.5 ${
-          compact ? "min-h-[72px]" : "min-h-[86px]"
+          compact || mobileRow ? "min-h-[72px]" : "min-h-[86px]"
         } ${cardClass} ${hoverClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
       >
         <span className="flex w-full items-center gap-3 sm:gap-3.5">
           <span className="flex shrink-0 items-center justify-center">
             <span
               className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full p-2 ${
-                compact ? "size-9" : "size-10"
+                compact || mobileRow ? "size-9" : "size-10"
               } ${tone === "completed" ? "bg-[#001A46]" : "bg-[color:var(--brand-primary)]"}`}
             >
               <StepGlyph stepId={step.id} />
@@ -180,29 +192,71 @@ function StepButton({
   );
 }
 
+function centerStepInScroller(
+  scroller: HTMLElement | null,
+  stepEl: HTMLElement | null,
+  behavior: ScrollBehavior = "smooth"
+) {
+  if (!scroller || !stepEl) return;
+  const scrollerRect = scroller.getBoundingClientRect();
+  const stepRect = stepEl.getBoundingClientRect();
+  const nextLeft =
+    scroller.scrollLeft +
+    (stepRect.left - scrollerRect.left) -
+    (scrollerRect.width - stepRect.width) / 2;
+  scroller.scrollTo({ left: Math.max(0, nextLeft), behavior });
+}
+
 export function MatchProgressionStepper({
   viewedIndex,
   unlockedIndex,
   canAdvance,
   onSelect,
 }: MatchProgressionStepperProps) {
+  const mobileScrollerRef = useRef<HTMLDivElement>(null);
+  const mobileStepRefs = useRef<Array<HTMLLIElement | null>>([]);
+  const didCenterOnMount = useRef(false);
+
+  useEffect(() => {
+    const scroller = mobileScrollerRef.current;
+    const stepEl = mobileStepRefs.current[viewedIndex] ?? null;
+    if (!scroller || !stepEl) return;
+
+    // Instant center on first paint so the active step is mid-screen when opening AI Analysis.
+    const behavior: ScrollBehavior = didCenterOnMount.current ? "smooth" : "auto";
+    didCenterOnMount.current = true;
+
+    const frame = window.requestAnimationFrame(() => {
+      centerStepInScroller(scroller, stepEl, behavior);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [viewedIndex]);
+
   return (
     <nav aria-label="AI match progression" className="w-full min-w-0">
-      {/* Mobile / narrow: stack steps so the whole progression fits without sideways page scroll */}
-      <ol className="flex flex-col gap-2 md:hidden">
-        {MATCH_PROGRESSION_STEPS.map((step, index) => (
-          <StepButton
-            key={step.id}
-            step={step}
-            index={index}
-            viewedIndex={viewedIndex}
-            unlockedIndex={unlockedIndex}
-            canAdvance={canAdvance}
-            onSelect={onSelect}
-            compact
-          />
-        ))}
-      </ol>
+      {/* Mobile: horizontal row; active step centered in the viewport */}
+      <div
+        ref={mobileScrollerRef}
+        className="w-full min-w-0 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+      >
+        <ol className="flex w-max items-stretch gap-2 px-[max(0.75rem,calc((100%-min(17.5rem,78vw))/2))]">
+          {MATCH_PROGRESSION_STEPS.map((step, index) => (
+            <StepButton
+              key={step.id}
+              step={step}
+              index={index}
+              viewedIndex={viewedIndex}
+              unlockedIndex={unlockedIndex}
+              canAdvance={canAdvance}
+              onSelect={onSelect}
+              mobileRow
+              itemRef={(node) => {
+                mobileStepRefs.current[index] = node;
+              }}
+            />
+          ))}
+        </ol>
+      </div>
 
       {/* Tablet+: horizontal track with scroll only when needed */}
       <div className="hidden w-full min-w-0 overflow-x-auto pb-1 md:block">

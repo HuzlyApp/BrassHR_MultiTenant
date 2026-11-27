@@ -339,7 +339,9 @@ export function HireStageAccordion({
                   return (
                     <div
                       key={step.id}
-                      className={`mx-3 mb-3 flex flex-col gap-3 rounded-xl border px-3 py-3 last:mb-4 sm:mx-5 sm:flex-row sm:items-center sm:px-4 ${lockedByScreening ? "opacity-60" : ""}`}
+                      className={`relative mx-3 mb-3 flex flex-row items-center gap-3 rounded-xl border px-3 py-3 last:mb-4 sm:mx-5 sm:px-4 ${
+                        showSchedule ? "" : "max-sm:pr-12"
+                      } ${lockedByScreening ? "opacity-60" : ""}`}
                       style={{
                         backgroundColor: settled
                           ? "var(--hj-completed-bg, #FFFFFF)"
@@ -385,12 +387,19 @@ export function HireStageAccordion({
                         </div>
                       </button>
 
-                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+                      {/* Mobile: pin status/check/clock to the right end; desktop keeps normal row flow. */}
+                      <div
+                        className={
+                          showSchedule
+                            ? "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2"
+                            : "absolute right-3 top-1/2 z-10 flex -translate-y-1/2 items-center justify-end gap-2 sm:static sm:right-auto sm:top-auto sm:ml-auto sm:translate-y-0 sm:shrink-0"
+                        }
+                      >
                       {showSchedule ? (
                         <button
                           type="button"
                           onClick={() => onScheduleInterview?.(step)}
-                          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold leading-5 text-white sm:h-9 sm:w-auto sm:min-w-[191px]"
+                          className="inline-flex h-9 w-auto items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold leading-5 text-white sm:min-w-[191px]"
                           style={{
                             backgroundColor: "var(--brand-primary)",
                           }}
