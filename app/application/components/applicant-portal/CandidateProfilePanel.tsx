@@ -9,15 +9,10 @@ import { formatPhoneNumber } from "@/lib/phone";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
 import {
-  WORKER_BTN_OUTLINE,
-  WORKER_BTN_PRIMARY,
-  WORKER_BTN_PRIMARY_SM,
-} from "./worker-portal-buttons";
-import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
 } from "./worker-schedule-typography";
-import { CandidatePageIntro, CandidateSettingsTabs } from "./candidate-portal-ui";
+import { CANDIDATE_BTN_NAVY, CANDIDATE_BTN_OUTLINE, CandidatePageIntro, CandidateSettingsTabs } from "./candidate-portal-ui";
 
 type ProfileForm = {
   firstName: string;
@@ -60,18 +55,18 @@ const EMPTY_FORM: ProfileForm = {
 };
 
 const FIELD_CLASS =
-  "h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
+  "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
 
 function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+    <label htmlFor={htmlFor} className="mb-2 block text-xs font-normal text-[#6B7280]">
       {children}
     </label>
   );
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-base font-semibold text-[#0F172A]">{children}</h2>;
+  return <h2 className="-mx-5 -mt-5 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-black">{children}</h2>;
 }
 
 export function CandidateProfilePanel() {
@@ -282,7 +277,7 @@ export function CandidateProfilePanel() {
             <div className="h-40 rounded-xl bg-[#F1F5F9] motion-safe:animate-pulse" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -291,7 +286,7 @@ export function CandidateProfilePanel() {
 
             <div className="flex flex-col gap-4 rounded-xl border border-[#E5E7EB] bg-white p-5 sm:flex-row sm:items-center">
               <div
-                className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-2xl font-semibold text-white"
+                className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-2xl font-semibold text-white"
                 style={!photoUrl ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex) : undefined}
               >
                 {photoUrl ? (
@@ -308,7 +303,7 @@ export function CandidateProfilePanel() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className={WORKER_BTN_PRIMARY_SM}
+                    className={`${CANDIDATE_BTN_NAVY} h-[30px] text-[10px]`}
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -323,7 +318,7 @@ export function CandidateProfilePanel() {
                   </button>
                   <button
                     type="button"
-                    className={WORKER_BTN_OUTLINE}
+                    className={CANDIDATE_BTN_OUTLINE}
                     disabled={uploading || !photoUrl}
                     onClick={() => void handleRemovePhoto()}
                   >
@@ -430,10 +425,10 @@ export function CandidateProfilePanel() {
             </div>
 
             <div className="flex flex-col-reverse justify-end gap-2 border-t border-[#E5E7EB] pt-5 sm:flex-row">
-              <button type="button" className={WORKER_BTN_OUTLINE} onClick={handleCancel} disabled={saving}>
+              <button type="button" className={CANDIDATE_BTN_OUTLINE} onClick={handleCancel} disabled={saving}>
                 Cancel
               </button>
-              <button type="submit" className={WORKER_BTN_PRIMARY} disabled={saving}>
+              <button type="submit" className={CANDIDATE_BTN_NAVY} disabled={saving}>
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>

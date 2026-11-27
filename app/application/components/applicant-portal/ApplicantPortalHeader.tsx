@@ -414,7 +414,7 @@ export function ApplicantPortalHeader({
         </div>
 
         <div className="ml-0 flex shrink-0 items-center gap-1 sm:gap-3">
-          <div ref={actionsAreaRef} className="relative flex items-center gap-0">
+          <div ref={actionsAreaRef} className={`relative items-center gap-0 ${candidatePortal ? "hidden" : "flex"}`}>
             <button
               type="button"
               onClick={() => {
@@ -535,18 +535,21 @@ export function ApplicantPortalHeader({
                 setNotificationsOpen(false);
                 setProfileOpen((prev) => !prev);
               }}
-              className="flex max-w-full items-center gap-1 rounded-xl border border-[#E5E7EB] bg-white px-1.5 py-1 transition hover:bg-[#F8FAFC] max-[319px]:gap-0.5 max-[319px]:px-1 sm:gap-2 sm:px-2.5 sm:py-1.5"
+              className={`flex max-w-full items-center gap-1 rounded-xl border ${candidatePortal ? "border-transparent" : "border-[#E5E7EB]"} bg-white px-1.5 py-1 transition hover:bg-[#F8FAFC] max-[319px]:gap-0.5 max-[319px]:px-1 sm:gap-2 sm:px-2.5 sm:py-1.5`}
               aria-label="Open profile menu"
               aria-expanded={profileOpen}
             >
-              <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
+              <span className="relative inline-flex shrink-0">
+                <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
+                {candidatePortal ? <span className="absolute right-[3px] bottom-0"><Image src="/icons/candidate-portal/online.svg" alt="" width={6} height={6} /></span> : null}
+              </span>
               <div className="hidden min-w-0 leading-tight text-left sm:block">
                 <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
                   {applicantName}
                 </p>
                 <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{roleLabel}</p>
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
+              {candidatePortal ? <Image src="/icons/candidate-portal/profile-chevron.svg" alt="" width={12} height={12} /> : <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />}
             </button>
 
             {profileOpen ? (
