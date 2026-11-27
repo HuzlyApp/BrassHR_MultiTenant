@@ -477,28 +477,28 @@ export default function DepartmentsPanel() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-left">
+            <table className="w-full min-w-[960px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-[#EEF2F6] bg-[#F8FAFC]">
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Dept No.
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="min-w-[160px] whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Department
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="min-w-[320px] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Description
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Employees
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Status
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="min-w-[160px] whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Primary Contact
                   </th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                  <th className="whitespace-nowrap px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#64748B]">
                     Action
                   </th>
                 </tr>
@@ -515,14 +515,16 @@ export default function DepartmentsPanel() {
                 ) : (
                   pageRows.map((department) => (
                     <tr key={department.id} className="border-b border-[#EEF2F6] last:border-b-0">
-                      <td className="px-5 py-4 text-sm tabular-nums text-[#64748B]">
+                      <td className="whitespace-nowrap px-5 py-4 text-sm tabular-nums text-[#64748B]">
                         {department.code?.trim() || "—"}
                       </td>
-                      <td className="px-5 py-4 text-sm font-semibold text-[#0F172A]">
+                      <td className="min-w-[160px] px-5 py-4 text-sm font-semibold text-[#0F172A]">
                         {department.name}
                       </td>
-                      <td className="max-w-md px-5 py-4 text-sm text-[#64748B]">
-                        {department.description?.trim() || "—"}
+                      <td className="min-w-[320px] max-w-[420px] px-5 py-4 text-sm leading-5 text-[#64748B]">
+                        <span className="line-clamp-2 break-words">
+                          {department.description?.trim() || "—"}
+                        </span>
                       </td>
                       <td className="px-5 py-4 text-sm tabular-nums text-[#64748B]">
                         <button
@@ -573,13 +575,13 @@ export default function DepartmentsPanel() {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-[#EEF2F6] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-[#64748B]">
+          <div className="flex flex-col gap-3 border-t border-[#EEF2F6] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <p className="w-full text-sm text-[#64748B] sm:w-auto">
               {filtered.length === 0
                 ? "Showing 0 results"
                 : `Showing ${pageStart}-${pageEnd} of ${filtered.length} results`}
             </p>
-            <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
               <ListPaginationShowLabel
                 pageSize={pageSize}
                 options={PAGE_SIZE_OPTIONS}
@@ -907,7 +909,7 @@ function DepartmentFormModal({
                 checked={isActive}
                 disabled={saving}
                 onChange={(event) => onActiveChange(event.target.checked)}
-                className="size-4 rounded border-[#CBD5E1] text-[#012352]"
+                className="h-[18px] w-[18px] shrink-0 cursor-pointer appearance-none rounded-[6px] border border-[#CBD5E1] bg-white transition checked:border-[color:var(--brand-secondary,#012352)] checked:bg-[color:var(--brand-secondary,#012352)] checked:bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27 fill=%27none%27%3E%3Cpath d=%27M3.5 8.2 6.4 11l6.1-6.2%27 stroke=%27%23fff%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E')] checked:bg-[length:12px_12px] checked:bg-center checked:bg-no-repeat focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary,#012352)_28%,transparent)] disabled:cursor-not-allowed disabled:opacity-60"
               />
               Active
             </label>
@@ -1001,12 +1003,12 @@ function DepartmentFormModal({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] px-5 py-4">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#E5E7EB] px-5 py-4 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-end min-[380px]:gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="inline-flex h-10 items-center rounded-xl border border-[#012352] bg-white px-4 text-sm font-semibold text-[#012352] disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#012352] bg-white px-4 text-sm font-semibold text-[#012352] disabled:opacity-50 min-[380px]:w-auto"
           >
             Cancel
           </button>
@@ -1014,7 +1016,7 @@ function DepartmentFormModal({
             type="button"
             onClick={onSave}
             disabled={!canSave}
-            className="inline-flex h-10 items-center rounded-xl bg-[#012352] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[#012352] px-4 text-sm font-semibold text-white disabled:opacity-50 min-[380px]:w-auto"
           >
             {saving ? "Saving…" : mode === "create" ? "Add Department" : "Save Changes"}
           </button>

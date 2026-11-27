@@ -191,7 +191,7 @@ function WorkflowsHubContent() {
     <div className="w-full min-w-0 overflow-x-hidden">
       <header className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[28px] font-semibold leading-9 tracking-tight text-[#101828] sm:text-[30px]">
+          <h1 className="text-[22px] font-semibold leading-7 tracking-tight text-[#101828] sm:text-[30px] sm:leading-9">
             {pageTitle}
           </h1>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#667085] sm:text-[15px]">
@@ -202,7 +202,7 @@ function WorkflowsHubContent() {
       </header>
 
       <nav
-        className="mb-6 flex items-center gap-6 border-b border-[#E4E7EC]"
+        className="mb-6 flex items-center gap-4 border-b border-[#E4E7EC] sm:gap-6"
         aria-label="Workflow sections"
       >
         {TABS.map((tab) => {
@@ -212,7 +212,7 @@ function WorkflowsHubContent() {
               key={tab.id}
               type="button"
               onClick={() => setTab(tab.id)}
-              className={`relative -mb-px pb-3 text-sm font-semibold transition ${
+              className={`relative -mb-px pb-3 text-[11px] font-semibold transition sm:text-sm ${
                 selected ? "text-[color:var(--brand-primary)]" : "text-[#667085] hover:text-[#344054]"
               }`}
               aria-current={selected ? "page" : undefined}
