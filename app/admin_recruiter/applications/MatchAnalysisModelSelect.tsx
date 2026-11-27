@@ -98,14 +98,16 @@ export function MatchAnalysisModelSelect({
   }, [claudeAvailable, value, onChange]);
 
   return (
-    <label className={`inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap ${className}`}>
-      <span className="text-xs font-medium text-[#64748B]">Model</span>
+    <label
+      className={`flex h-8 min-w-0 items-center gap-2 whitespace-nowrap ${className}`}
+    >
+      <span className="shrink-0 text-xs font-medium text-[#64748B]">Model</span>
       <select
         value={value}
         disabled={disabled}
         aria-label="Analysis model"
         onChange={(event) => onChange(parseAnalysisProvider(event.target.value))}
-        className={`${heightClass} appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat py-0 pl-2.5 pr-8 text-xs font-semibold text-[#0F172A] outline-none transition hover:bg-[#F8FAFC] focus:border-[color:var(--brand-primary)] disabled:opacity-60`}
+        className={`${heightClass} min-w-0 flex-1 appearance-none rounded-lg border border-[#CBD5E1] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat py-0 pl-2.5 pr-8 text-xs font-semibold text-[#0F172A] outline-none transition hover:bg-[#F8FAFC] focus:border-[color:var(--brand-primary)] disabled:opacity-60 sm:flex-none sm:w-auto`}
         style={{ backgroundImage: SELECT_CHEVRON }}
       >
         <option value="grok">{ANALYSIS_PROVIDER_LABELS.grok}</option>

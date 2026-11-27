@@ -152,7 +152,7 @@ export default function NewApplicantProfileResumePage() {
   );
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
+    <div className="flex min-h-screen min-w-0 overflow-x-hidden bg-zinc-50">
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
           chromeActive ? "hidden" : sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -209,30 +209,32 @@ export default function NewApplicantProfileResumePage() {
         </div>
       </div>
 
-      <div className={`flex-1 flex flex-col ${chromeActive ? "" : "lg:pl-72"}`}>
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
+      <div className={`flex min-w-0 flex-1 flex-col overflow-x-hidden ${chromeActive ? "" : "lg:pl-72"}`}>
+        {!chromeActive ? (
+        <header className="flex h-16 items-center justify-between border-b bg-white px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden w-10 h-10 rounded-2xl border border-zinc-200 flex items-center justify-center"
+              className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200"
               aria-label="Open menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="h-5 w-5" />
             </button>
-            <div className="font-semibold text-2xl">{isWorkerRoute ? "Worker" : "New Applicant"}</div>
+            <div className="text-2xl font-semibold">{isWorkerRoute ? "Worker" : "New Applicant"}</div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-zinc-200 overflow-hidden" />
+            <div className="h-10 w-10 overflow-hidden rounded-full bg-zinc-200" />
             <div className="text-sm">
               <div className="font-medium text-gray-600">Sean Smith</div>
-              <div className="text-xs text-gray-600 -mt-0.5">Administrator</div>
+              <div className="-mt-0.5 text-xs text-gray-600">Administrator</div>
             </div>
           </div>
         </header>
+        ) : null}
 
-        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
-          <div className="admin-recruiter-content-width">
+        <div className="admin-recruiter-page-pad w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="admin-recruiter-content-width w-full min-w-0 max-w-full">
             {error ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {error}
@@ -271,35 +273,7 @@ export default function NewApplicantProfileResumePage() {
             {pageLoading ? (
               <CandidateDetailLoader label="Loading resume..." />
             ) : (
-            <div className="w-full min-w-0 admin-recruiter-content-width">
-            <div className="hidden p-6 items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 grid place-items-center text-gray-600">
-                  {initials(candidateName)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading…" : candidateName}
-                    </div>
-                    <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                      {candidateStatus}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-600">{candidateRole}</div>
-                  <div className="text-xs text-gray-600">{candidateLocation}</div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden w-10 h-10 rounded-2xl border border-zinc-200 flex items-center justify-center"
-                aria-label="Close menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+            <div className="w-full min-w-0 max-w-full">
               {!loading && !error && !resumePath ? (
                 <div className="rounded-2xl border border-zinc-200 bg-white/80 px-5 py-8 text-center text-sm text-gray-600">
                   No resume found in{" "}
@@ -317,9 +291,9 @@ export default function NewApplicantProfileResumePage() {
               ) : null}
 
               {!loading && resumeUrl ? (
-                <div className="w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-                  <div className="flex h-14 items-center justify-between gap-3 border-b border-[#E5E7EB] px-4">
-                    <span className="min-w-0 truncate text-sm font-medium text-[#374151]">
+                <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+                  <div className="flex min-w-0 flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3 sm:h-14 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-0">
+                    <span className="min-w-0 truncate text-sm font-medium text-[#374151]" title={resumeDisplayFileName(resumePath, w)}>
                       {resumeDisplayFileName(resumePath, w)}
                     </span>
                     <a
@@ -327,7 +301,7 @@ export default function NewApplicantProfileResumePage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       download
-                      className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white"
+                      className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-white sm:h-8 sm:w-auto"
                       style={{ backgroundColor: "var(--brand-primary)" }}
                     >
                       Download Resume
@@ -336,7 +310,7 @@ export default function NewApplicantProfileResumePage() {
                   {canEmbedPreview ? (
                     <>
                       {/* Mobile: prefer native/new-tab PDF viewer — iframe preview clips badly */}
-                      <div className="block space-y-4 bg-white px-5 py-8 text-center md:hidden">
+                      <div className="block space-y-4 bg-white px-4 py-8 text-center sm:px-5 md:hidden">
                         <p className="text-sm text-[#374151]">
                           On mobile, the resume opens in a new tab for a clearer view.
                         </p>
@@ -344,7 +318,7 @@ export default function NewApplicantProfileResumePage() {
                           href={embedUrl ?? resumeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white"
+                          className="inline-flex w-full max-w-xs items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white"
                         >
                           Open resume
                         </a>

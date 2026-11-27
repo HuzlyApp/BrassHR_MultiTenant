@@ -271,8 +271,8 @@ function DocumentMobileCard({
     resolved;
 
   return (
-    <article className="rounded-xl border border-[#E5E7EB] bg-white p-3.5">
-      <div className="flex items-start justify-between gap-3">
+    <article className="box-border w-full min-w-0 max-w-full rounded-xl border border-[#E5E7EB] bg-white p-3.5">
+      <div className="flex w-full min-w-0 items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <DocTypeTag label={documentType} />
@@ -286,7 +286,7 @@ function DocumentMobileCard({
               {row.isRequired ? "Required" : "Optional"}
             </span>
           </div>
-          <h4 className="text-sm font-semibold text-[#111827]">{row.title}</h4>
+          <h4 className="break-words text-sm font-semibold text-[#111827]">{row.title}</h4>
           <StatusBadge status={lifecycleStatus} />
         </div>
         <DocumentRowActions
@@ -299,9 +299,9 @@ function DocumentMobileCard({
         />
       </div>
 
-      <div className="mt-3 space-y-2 border-t border-[#F1F5F9] pt-3">
+      <div className="mt-3 w-full min-w-0 space-y-2 border-t border-[#F1F5F9] pt-3">
         {primaryUrl && displayFilename ? (
-          <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex w-full min-w-0 items-center gap-2.5">
             <BrandedFileTypeIcon
               type={fileIconType(displayFilename, primaryUrl)}
               className="h-7 w-7 shrink-0"
@@ -309,7 +309,7 @@ function DocumentMobileCard({
             <button
               type="button"
               onClick={() => window.open(primaryUrl, "_blank", "noopener,noreferrer")}
-              className="min-w-0 truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
+              className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
             >
               {displayFilename}
             </button>
@@ -332,7 +332,7 @@ function DocumentMobileCard({
               download={displayFilename || undefined}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:underline"
+              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white text-sm font-semibold text-[color:var(--brand-primary)] underline-offset-2 transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
             >
               <Download className="h-3.5 w-3.5" aria-hidden />
               Download
@@ -342,7 +342,7 @@ function DocumentMobileCard({
               type="button"
               disabled={uploadingKey === row.key}
               onClick={() => onOpenUpload(row)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-sm font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Upload className="h-3.5 w-3.5" aria-hidden />
               {uploadingKey === row.key ? "Uploading…" : "Upload"}
@@ -510,10 +510,10 @@ function DocumentSection({
     <section className="w-full min-w-0 max-w-full space-y-3">
       <h4 className="text-sm font-semibold text-[#111827]">{title}</h4>
 
-      {/* Mobile cards */}
-      <div className="space-y-3 md:hidden">
+      {/* Mobile / narrow: stacked full-width cards (desktop table unchanged below lg) */}
+      <div className="flex w-full min-w-0 flex-col gap-3 lg:hidden">
         {resolvedRows.length === 0 ? (
-          <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-8 text-center text-sm text-[#6B7280]">
+          <div className="w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-8 text-center text-sm text-[#6B7280]">
             No documents in this section yet.
           </div>
         ) : (
@@ -531,8 +531,8 @@ function DocumentSection({
         )}
       </div>
 
-      {/* Desktop table */}
-      <div className="hidden min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white md:block">
+      {/* Desktop table — lg+ only so it never leaves empty right space on phones */}
+      <div className="hidden w-full min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white lg:block">
         <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
           <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>

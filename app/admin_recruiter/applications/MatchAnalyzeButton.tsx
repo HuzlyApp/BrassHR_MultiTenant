@@ -452,16 +452,16 @@ export function MatchAnalyzeButton({
 
   const isPrimary = variant === "primary";
   const mainClass = isPrimary
-    ? `inline-flex h-8 items-center gap-1.5 rounded-l-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60 ${buttonClassName}`
+    ? `inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-l-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60 ${buttonClassName}`
     : `inline-flex items-center gap-1.5 rounded-l-lg border border-[#CBD5E1] border-r-0 bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A] shadow-sm transition hover:bg-[#F8FAFC] disabled:opacity-60 ${buttonClassName}`;
   const chevronClass = isPrimary
-    ? "inline-flex h-8 items-center justify-center rounded-r-lg border-l border-white/25 bg-[color:var(--brand-primary)] px-2 text-white transition hover:brightness-95 disabled:opacity-60"
+    ? "inline-flex h-8 shrink-0 items-center justify-center rounded-r-lg border-l border-white/25 bg-[color:var(--brand-primary)] px-2 text-white transition hover:brightness-95 disabled:opacity-60"
     : "inline-flex items-center justify-center rounded-r-lg border border-[#CBD5E1] bg-white px-2 py-1.5 text-[#0F172A] shadow-sm transition hover:bg-[#F8FAFC] disabled:opacity-60";
 
   return (
     <div
       ref={rootRef}
-      className={`relative inline-flex shrink-0 items-stretch ${isPrimary ? "h-8" : ""} ${className}`}
+      className={`relative flex items-stretch ${isPrimary ? "h-8" : ""} ${className}`}
     >
       <button
         type="button"

@@ -269,8 +269,8 @@ export function HireStageBoard({
   return (
     <>
       <div className="flex w-full min-w-0 flex-col gap-3 sm:gap-4">
-        {/* Centered under Pre Hire / Post Hire tabs */}
-        <div className="flex w-full min-w-0 justify-center">
+        {/* Centered under Pre Hire / Post Hire tabs — overflow-visible so circle tops aren't clipped */}
+        <div className="flex w-full min-w-0 justify-center overflow-visible pt-1">
           <HireStageStepper stages={stages} />
         </div>
 
