@@ -401,7 +401,7 @@ export default function LegalDocumentsPanel({ canEdit = true }: { canEdit?: bool
                   className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] disabled:opacity-60 min-[600px]:flex-none"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset default
+                  Reset
                 </button>
               ) : null}
               {mode === "view" && selected && !selected.is_system && canEdit ? (

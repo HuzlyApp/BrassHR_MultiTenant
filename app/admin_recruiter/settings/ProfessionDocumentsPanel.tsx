@@ -1660,13 +1660,13 @@ export default function ProfessionDocumentsPanel({
   ).padStart(3, "0")}`;
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden max-[449px]:space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 max-[449px]:gap-2">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#0F172A]">
+          <h1 className="text-lg font-semibold leading-6 tracking-tight text-[#0F172A] max-[449px]:text-base">
             Professions
           </h1>
-          <p className="mt-1 text-sm leading-5 text-[#64748B]">
+          <p className="mt-1 text-sm leading-5 text-[#64748B] max-[449px]:text-xs">
             Organize job industry and manage their positions.
           </p>
         </div>
@@ -1674,7 +1674,7 @@ export default function ProfessionDocumentsPanel({
           <button
             type="button"
             onClick={() => setAddIndustryOpen(true)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95"
+            className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white hover:brightness-95 max-[449px]:h-9 max-[449px]:px-3 max-[449px]:text-xs"
           >
             <Plus className="h-4 w-4" aria-hidden />
             Add Industry
@@ -1688,9 +1688,9 @@ export default function ProfessionDocumentsPanel({
         </p>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-4 overflow-visible">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden max-[449px]:space-y-3">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
@@ -1701,16 +1701,16 @@ export default function ProfessionDocumentsPanel({
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search job categories and positions..."
                 aria-label="Search job categories and positions"
-                className="h-10 w-full rounded-xl border border-[#E2E8F0] bg-white py-0 pl-9 pr-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)]"
+                className="h-10 w-full min-w-0 rounded-xl border border-[#E2E8F0] bg-white py-0 pl-9 pr-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus-visible:border-[#012352] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,#012352_16%,transparent)] max-[449px]:h-9 max-[449px]:text-xs"
               />
             </div>
-            <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="flex w-full min-w-0 items-center gap-2 max-[449px]:gap-1.5 sm:w-auto">
               <SettingsSelect
                 aria-label="Filter industries"
                 value={industryFilterKey}
                 onChange={(next) => applyIndustryFilter(next || "all")}
                 className="min-w-0 flex-1 sm:w-[240px]"
-                triggerClassName="rounded-xl border-[#E2E8F0]"
+                triggerClassName="rounded-xl border-[#E2E8F0] max-[449px]:h-9 max-[449px]:text-xs"
                 options={[
                   { value: "all", label: "All Industry" },
                   ...industries.map((industry) => ({
@@ -1727,7 +1727,7 @@ export default function ProfessionDocumentsPanel({
                   aria-haspopup="menu"
                   title={filtersActive ? "Filters active — open to change or clear" : "Filter by industry or profession"}
                   onClick={() => setFilterMenuOpen((current) => !current)}
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition max-[449px]:h-9 max-[449px]:w-9 ${
                     filtersActive
                       ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
                       : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
@@ -1739,7 +1739,7 @@ export default function ProfessionDocumentsPanel({
                   <div
                     role="menu"
                     aria-label="Profession filters"
-                    className="absolute right-0 top-[calc(100%+4px)] z-50 w-[260px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg"
+                    className="absolute right-0 top-[calc(100%+4px)] z-50 w-[min(260px,calc(100vw-5.5rem))] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg"
                   >
                     <div className="flex border-b border-[#F1F5F9] p-1">
                       <button
@@ -1918,11 +1918,11 @@ export default function ProfessionDocumentsPanel({
               return (
                 <div
                   key={industry.key}
-                  className={`relative rounded-2xl border bg-white shadow-sm shadow-slate-900/[0.03] ${
+                  className={`relative min-w-0 max-w-full rounded-2xl border bg-white shadow-sm shadow-slate-900/[0.03] ${
                     isSelectedIndustry ? "border-[#CBD5E1] z-[1]" : "border-[#E5E7EB]"
                   }`}
                 >
-                  <div className="flex items-center gap-1 px-3 py-3 sm:gap-2 sm:px-4">
+                  <div className="flex min-w-0 items-center gap-1 px-3 py-3 max-[449px]:gap-0.5 max-[449px]:px-2 max-[449px]:py-2.5 sm:gap-2 sm:px-4">
                     <button
                       type="button"
                       onClick={() => {
@@ -1932,27 +1932,30 @@ export default function ProfessionDocumentsPanel({
                           [industry.key]: !(current[industry.key] ?? false),
                         }));
                       }}
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 text-left hover:bg-[#F8FAFC]"
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 text-left hover:bg-[#F8FAFC] max-[449px]:gap-1.5 max-[449px]:px-0"
                       aria-expanded={listExpanded}
                     >
                       {industryMeta?.iconId ? (
-                        <IndustryIconBadge iconId={industryMeta.iconId} />
+                        <IndustryIconBadge
+                          iconId={industryMeta.iconId}
+                          className="max-[449px]:h-8 max-[449px]:w-8 [&_svg]:max-[449px]:h-4 [&_svg]:max-[449px]:w-4"
+                        />
                       ) : (
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF2FF] text-[#012352]">
-                          <Briefcase className="h-5 w-5" aria-hidden />
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF2FF] text-[#012352] max-[449px]:h-8 max-[449px]:w-8">
+                          <Briefcase className="h-5 w-5 max-[449px]:h-4 max-[449px]:w-4" aria-hidden />
                         </span>
                       )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-[#0F172A]">
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate text-sm font-semibold text-[#0F172A] max-[449px]:text-[0.7rem] max-[449px]:leading-4">
                           {industry.label}
                         </span>
-                        <span className="block text-xs text-[#64748B]">
+                        <span className="block truncate text-xs text-[#64748B] max-[449px]:text-[0.65rem]">
                           {totalCount} {totalCount === 1 ? "position" : "positions"} available
                         </span>
                       </span>
                     </button>
 
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div className="flex shrink-0 items-center gap-0 max-[449px]:-mr-0.5">
                       <button
                         type="button"
                         aria-label={listExpanded ? `Collapse ${industry.label}` : `Expand ${industry.label}`}
@@ -1963,7 +1966,7 @@ export default function ProfessionDocumentsPanel({
                             [industry.key]: !(current[industry.key] ?? false),
                           }));
                         }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9] max-[449px]:h-7 max-[449px]:w-7"
                       >
                         {listExpanded ? (
                           <ChevronUp className="h-4 w-4" aria-hidden />
@@ -1986,7 +1989,7 @@ export default function ProfessionDocumentsPanel({
                               current === industry.key ? null : industry.key
                             );
                           }}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9] max-[449px]:h-7 max-[449px]:w-7"
                         >
                           <MoreHorizontal className="h-4 w-4" aria-hidden />
                         </button>
@@ -2163,21 +2166,24 @@ export default function ProfessionDocumentsPanel({
           )}
         </div>
 
-        <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
+        <aside className="min-w-0 space-y-3 xl:sticky xl:top-4 xl:self-start">
           {selectedIndustry ? (
-            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.03] sm:p-5">
-              <div className="flex items-start gap-3">
+            <div className="min-w-0 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm shadow-slate-900/[0.03] max-[449px]:p-3 sm:p-5">
+              <div className="flex min-w-0 items-start gap-3 max-[449px]:gap-2">
                 {industryMetaByKey[selectedIndustry.key]?.iconId ? (
-                  <IndustryIconBadge iconId={industryMetaByKey[selectedIndustry.key]?.iconId} />
+                  <IndustryIconBadge
+                    iconId={industryMetaByKey[selectedIndustry.key]?.iconId}
+                    className="max-[449px]:h-8 max-[449px]:w-8 [&_svg]:max-[449px]:h-4 [&_svg]:max-[449px]:w-4"
+                  />
                 ) : (
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EEF2FF] text-[#012352]">
-                    <Briefcase className="h-5 w-5" aria-hidden />
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EEF2FF] text-[#012352] max-[449px]:h-8 max-[449px]:w-8">
+                    <Briefcase className="h-5 w-5 max-[449px]:h-4 max-[449px]:w-4" aria-hidden />
                   </span>
                 )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold text-[#0F172A]">
+                      <h2 className="truncate text-base font-semibold text-[#0F172A] max-[449px]:text-[0.7rem] max-[449px]:leading-4">
                         {selectedIndustry.label}
                       </h2>
                       <p className="mt-0.5 text-xs leading-5 text-[#64748B]">

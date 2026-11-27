@@ -219,7 +219,7 @@ export default function AdminRecruiterShell({
                   {inSettingsArea ? (
                     <div className="flex min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-hidden">
                       {showSettingsSecondColumn ? <SettingsSidebar /> : null}
-                      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 pb-8 pt-5 sm:px-5 lg:px-8">
+                      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 pb-8 pt-5 max-[449px]:px-2 sm:px-5 lg:px-8">
                         <CandidateDetailFrame>{children}</CandidateDetailFrame>
                       </div>
                     </div>
