@@ -202,7 +202,7 @@ function WorkflowsHubContent() {
       </header>
 
       <nav
-        className="mb-6 flex items-center gap-4 border-b border-[#E4E7EC] sm:gap-6"
+        className="mb-6 flex items-center gap-6 border-b border-[#E4E7EC]"
         aria-label="Workflow sections"
       >
         {TABS.map((tab) => {
@@ -212,7 +212,7 @@ function WorkflowsHubContent() {
               key={tab.id}
               type="button"
               onClick={() => setTab(tab.id)}
-              className={`relative -mb-px pb-3 text-[11px] font-semibold transition sm:text-sm ${
+              className={`relative -mb-px pb-3 text-sm font-semibold transition ${
                 selected ? "text-[color:var(--brand-primary)]" : "text-[#667085] hover:text-[#344054]"
               }`}
               aria-current={selected ? "page" : undefined}
