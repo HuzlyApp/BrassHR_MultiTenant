@@ -362,11 +362,12 @@ export function JobFormStepRequisition({
             </label>
             <input
               id="job-title"
-              maxLength={200}
+              aria-describedby="job-title-limit"
               className={JOB_FORM_INPUT_CLASS}
               value={job.publicTitle ?? ""}
               onChange={(event) => onJobChange("publicTitle", event.target.value)}
             />
+            <p id="job-title-limit" className="mt-1 text-xs text-slate-500">{(job.publicTitle ?? "").length}/200 characters</p>
             <FieldError error={fieldErrors.publicTitle} />
           </div>
         </div>

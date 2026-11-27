@@ -225,8 +225,9 @@ export function phoneValidationMessage(
   const required = options?.required !== false;
   if (!trimmed) return required ? "Business phone is required." : null;
   if (/[a-zA-Z]/.test(trimmed)) return "Phone number cannot contain letters.";
-  const digits = normalizeBusinessPhoneDigits(trimmed);
-  if (digits.length !== 10) {
+  const rawDigits = trimmed.replace(/\D/g, "");
+  const digits = rawDigits.length === 11 && rawDigits.startsWith("1") ? rawDigits.slice(1) : rawDigits;
+  if (!/^\+?[\d() .-]+$/.test(trimmed) || digits.length !== 10) {
     return "Enter a valid 10-digit US phone number.";
   }
   if (FAKE_PHONE_PATTERNS.some((pattern) => pattern.test(digits))) {

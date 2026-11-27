@@ -95,3 +95,12 @@ describe("facility unassignment", () => {
     expect(calls.some((call) => call.update)).toBe(false);
   });
 });
+
+describe("facility names and phone validation", () => {
+  it.each(["<b>Clinic</b>", "x".repeat(121)])("rejects invalid name %s before any write", name => {
+    expect(validateFacilityFormInput({ ...valid, name })).toContain("Facility name");
+  });
+  it.each(["123", "abc", "21355501981234567890"])("rejects malformed phone %s", phone => {
+    expect(validateFacilityFormInput({ ...valid, phone })).toBeTruthy();
+  });
+});

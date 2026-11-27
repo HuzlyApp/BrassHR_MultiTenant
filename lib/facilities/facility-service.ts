@@ -1,3 +1,5 @@
+import { validateClientCompanyName } from "@/lib/clients/validation";
+import { phoneValidationMessage } from "@/lib/tenant/business-info-validation";
 import { FacilityValidationError } from "./errors";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -455,7 +457,10 @@ export async function createFacility(
 
 export function validateFacilityFormInput(input: FacilityFormInput): string | null {
   if (!parseRequiredUuid(input.clientId, "client organization").ok) return "Choose a client organization.";
-  if (!input.name?.trim()) return "Facility name is required.";
+  const nameError = validateClientCompanyName(input.name ?? "", "Facility name");
+  if (nameError) return nameError;
+  const phoneError = phoneValidationMessage(input.phone ?? "", { required: false });
+  if (phoneError) return phoneError;
   if (!input.streetAddress?.trim()) return "Street address is required.";
   if (!input.city?.trim()) return "City is required.";
   if (!input.state?.trim()) return "State is required.";

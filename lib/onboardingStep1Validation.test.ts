@@ -109,3 +109,13 @@ describe("applicant email deliverability", () => {
     ).toThrow(FirmaOnboardingSigningError)
   })
 })
+
+describe("public apply names", () => {
+  it.each(["<b>Jane</b>", "<script>alert(1)</script>"])("rejects markup in %s", name => {
+    expect(validateStep1Form({ ...completeForm, firstName: name })?.code).toBe("NAME")
+    expect(validateStep1Form({ ...completeForm, lastName: name })?.code).toBe("NAME")
+  })
+  it("accepts accented and hyphenated names", () => {
+    expect(validateStep1Form({ ...completeForm, firstName: "María-José", lastName: "O'Neil" })).toBeNull()
+  })
+})

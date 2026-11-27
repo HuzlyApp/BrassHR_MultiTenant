@@ -739,8 +739,9 @@ export default function AddCandidateModal({
     const nameError =
       (!firstNameCheck.ok && firstNameCheck.error) || (!lastNameCheck.ok && lastNameCheck.error) || null;
     const emailError = validateAddCandidateField("email", { email });
-    if (nameError || emailError) {
-      const message = nameError || emailError || "Fill in the candidate name and email.";
+    const phoneError = validateAddCandidateField("phone", { phone });
+    if (nameError || emailError || phoneError) {
+      const message = nameError || emailError || phoneError || "Fill in the candidate name and email.";
       if (uploadFromFile) setFileError(message);
       else setPasteError(message);
       return;
@@ -838,6 +839,7 @@ export default function AddCandidateModal({
     : !firstNameCheck.ok ? firstNameCheck.error
     : !lastNameCheck.ok ? lastNameCheck.error
     : validateAddCandidateField("email", { email })
+      || validateAddCandidateField("phone", { phone })
       || (!effectiveJobId ? "Select a job for this candidate."
         : !workLocation ? "Where will they work this assignment?"
         : workLocationPreview.loading ? "Checking the assignment location…"
@@ -1232,7 +1234,9 @@ export default function AddCandidateModal({
                         onChange={(event) => setPhone(event.target.value)}
                         disabled={uploading}
                         autoComplete="tel"
+                        aria-invalid={Boolean(phone && validateAddCandidateField("phone", { phone }))}
                       />
+                      {phone && validateAddCandidateField("phone", { phone }) ? <p role="alert" className="mt-1 text-xs text-red-600">{validateAddCandidateField("phone", { phone })}</p> : null}
                     </div>
                     <div className="sm:col-span-2">
                       <p className="text-sm font-medium text-[#0F172A]">
