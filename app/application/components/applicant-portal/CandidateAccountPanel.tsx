@@ -35,7 +35,7 @@ import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
 } from "./worker-schedule-typography";
-import { CandidatePageIntro, CandidateSettingsTabs } from "./candidate-portal-ui";
+import { CANDIDATE_BTN_NAVY, CANDIDATE_BTN_OUTLINE, CandidatePageIntro, CandidateSettingsTabs } from "./candidate-portal-ui";
 
 type Preferences = {
   language: string;
@@ -52,7 +52,7 @@ const DEFAULT_PREFERENCES: Preferences = {
 };
 
 const FIELD_CLASS =
-  "h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
+  "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs text-[#111827] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
 
 const LANGUAGE_OPTIONS = [
   { value: "en-US", label: "English (US)" },
@@ -68,7 +68,7 @@ const TIME_FORMAT_OPTIONS = [
 
 function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+    <label htmlFor={htmlFor} className="mb-2 block text-xs font-normal text-[#6B7280]">
       {children}
     </label>
   );
@@ -366,7 +366,7 @@ export function CandidateAccountPanel() {
       <CandidateSettingsTabs active="account" />
 
       <div className="space-y-5">
-        <section className={`${WORKER_SCHEDULE_CARD_CLASS} p-5 sm:p-6`}>
+        <section className="space-y-5">
           {loading ? (
             <div className="h-28 rounded-xl bg-[#F1F5F9] motion-safe:animate-pulse" />
           ) : (
@@ -377,17 +377,17 @@ export function CandidateAccountPanel() {
                 </div>
               ) : null}
 
-              <div className="space-y-5">
-                <h2 className="text-base font-semibold text-[#0F172A]">Login Information</h2>
+              <div className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-5 p-5`}>
+                <h2 className="-mx-5 -mt-5 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-black">Login Information</h2>
                 <div className="grid gap-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <div className="min-w-0 flex-1">
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                    <div className="min-w-0 sm:w-[42%]">
                       <FieldLabel htmlFor="account-email">Email Address</FieldLabel>
                       <input id="account-email" className={FIELD_CLASS} value={email} readOnly disabled />
                     </div>
                     <button
                       type="button"
-                      className={WORKER_BTN_OUTLINE}
+                      className={CANDIDATE_BTN_OUTLINE}
                       onClick={() => {
                         setNextEmail(email);
                         setEmailModalOpen(true);
@@ -396,8 +396,8 @@ export function CandidateAccountPanel() {
                       Change Email
                     </button>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <div className="min-w-0 flex-1">
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                    <div className="min-w-0 sm:w-[42%]">
                       <FieldLabel htmlFor="account-password">Password</FieldLabel>
                       <input
                         id="account-password"
@@ -409,7 +409,7 @@ export function CandidateAccountPanel() {
                     </div>
                     <button
                       type="button"
-                      className={WORKER_BTN_OUTLINE}
+                      className={CANDIDATE_BTN_OUTLINE}
                       onClick={() => setPasswordModalOpen(true)}
                     >
                       Change Password
@@ -418,8 +418,8 @@ export function CandidateAccountPanel() {
                 </div>
               </div>
 
-              <form onSubmit={savePreferences} className="mt-8 space-y-4 border-t border-[#E5E7EB] pt-6">
-                <h2 className="text-base font-semibold text-[#0F172A]">Preferences</h2>
+              <form onSubmit={savePreferences} className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-5 p-5`}>
+                <h2 className="-mx-5 -mt-5 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-black">Preferences</h2>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <FieldLabel htmlFor="account-language">Language</FieldLabel>
@@ -484,7 +484,7 @@ export function CandidateAccountPanel() {
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <button type="submit" className={WORKER_BTN_PRIMARY_SM} disabled={savingPrefs}>
+                  <button type="submit" className={CANDIDATE_BTN_NAVY} disabled={savingPrefs}>
                     {savingPrefs ? "Saving..." : "Save Preferences"}
                   </button>
                 </div>
@@ -493,7 +493,7 @@ export function CandidateAccountPanel() {
           )}
         </section>
 
-        <section className="rounded-[12px] border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-4 sm:px-5">
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#012352] shadow-sm">
@@ -525,7 +525,7 @@ export function CandidateAccountPanel() {
               ) : (
                 <button
                   type="button"
-                  className={WORKER_BTN_PRIMARY_SM}
+                  className={CANDIDATE_BTN_OUTLINE}
                   disabled={mfaBusy || mfaLoading || enrolling}
                   onClick={() => void startEnrollment()}
                 >
@@ -582,15 +582,15 @@ export function CandidateAccountPanel() {
           ) : null}
         </section>
 
-        <section className="rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-4 sm:px-5">
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#B91C1C] shadow-sm">
                 <AlertTriangle className="h-4 w-4" aria-hidden />
               </span>
               <div>
-                <p className="text-sm font-semibold text-[#DC2626]">Danger Zone (Deactivate Account)</p>
-                <p className="mt-1 max-w-xl text-sm text-[#9F1239]">
+                <p className="text-sm text-black"><span className="font-semibold text-[#DC2626]">Danger Zone</span> (Deactivate Account)</p>
+                <p className="mt-1 max-w-sm text-[10px] leading-[15px] text-[#6B7280]">
                   This will disable your account and remove your access to BrassHR. You can reactivate it later.
                 </p>
               </div>

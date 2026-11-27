@@ -57,12 +57,12 @@ export function CandidateSettingsTabs({ active }: { active: "profile" | "account
   const accountHref = applicationPath("/application/candidate/account", tenant);
 
   return (
-    <nav className="mb-5 flex items-end gap-6 border-b border-transparent" aria-label="Profile and account">
+    <nav className="mb-5 flex items-end gap-0 border-b border-transparent" aria-label="Profile and account">
       <Link
         href={profileHref}
-        className={`border-b-2 pb-2 text-sm ${
+        className={`border-b-2 px-4 pb-3 text-xs ${
           active === "profile"
-            ? "border-[color:var(--brand-primary,#BC8B41)] font-medium text-[#111827]"
+            ? "border-[color:var(--brand-primary,#BC8B41)] font-medium text-[color:var(--brand-primary,#BC8B41)]"
             : "border-transparent font-normal text-[#6B7280] hover:text-[#111827]"
         }`}
         aria-current={active === "profile" ? "page" : undefined}
@@ -71,9 +71,9 @@ export function CandidateSettingsTabs({ active }: { active: "profile" | "account
       </Link>
       <Link
         href={accountHref}
-        className={`border-b-2 pb-2 text-sm ${
+        className={`border-b-2 px-4 pb-3 text-xs ${
           active === "account"
-            ? "border-[color:var(--brand-primary,#BC8B41)] font-medium text-[#111827]"
+            ? "border-[color:var(--brand-primary,#BC8B41)] font-medium text-[color:var(--brand-primary,#BC8B41)]"
             : "border-transparent font-normal text-[#6B7280] hover:text-[#111827]"
         }`}
         aria-current={active === "account" ? "page" : undefined}

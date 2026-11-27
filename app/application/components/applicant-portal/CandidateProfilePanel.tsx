@@ -9,11 +9,7 @@ import { formatPhoneNumber } from "@/lib/phone";
 import { US_STATE_CODE_TO_NAME } from "@/lib/us-state-names";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
-import {
-  WORKER_BTN_OUTLINE,
-  WORKER_BTN_PRIMARY,
-  WORKER_BTN_PRIMARY_SM,
-} from "./worker-portal-buttons";
+import { CANDIDATE_BTN_NAVY, CANDIDATE_BTN_OUTLINE } from "./candidate-portal-ui";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
@@ -67,24 +63,25 @@ const EMPTY_FORM: ProfileForm = {
 };
 
 const FIELD_CLASS =
-  "h-10 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
+  "h-9 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs text-[#111827] outline-none focus:border-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
 
 function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+    <label htmlFor={htmlFor} className="mb-2 block text-xs font-normal text-[#6B7280]">
       {children}
     </label>
   );
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-base font-semibold text-[#0F172A]">{children}</h2>;
+  return <h2 className="-mx-5 -mt-5 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-black">{children}</h2>;
 }
 
 export function CandidateProfilePanel() {
   const branding = useTenantBranding();
   const { sessionReady, authHeaders, setProfilePhotoUrl } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const additionalInfoRef = useRef<HTMLDetailsElement>(null);
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [baseline, setBaseline] = useState<ProfileForm>(EMPTY_FORM);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
@@ -183,7 +180,10 @@ export function CandidateProfilePanel() {
         error?: string;
       };
       if (!res.ok) {
-        if (payload.fieldErrors) setFieldErrors(payload.fieldErrors);
+        if (payload.fieldErrors) {
+          setFieldErrors(payload.fieldErrors);
+          if (additionalInfoRef.current) additionalInfoRef.current.open = true;
+        }
         throw new Error(payload.error || "Could not save profile.");
       }
       const next: ProfileForm = {
@@ -294,7 +294,7 @@ export function CandidateProfilePanel() {
             <div className="h-40 rounded-xl bg-[#F1F5F9] motion-safe:animate-pulse" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -303,7 +303,7 @@ export function CandidateProfilePanel() {
 
             <div className="flex flex-col gap-4 rounded-xl border border-[#E5E7EB] bg-white p-5 sm:flex-row sm:items-center">
               <div
-                className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-2xl font-semibold text-white"
+                className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-2xl font-semibold text-white"
                 style={!photoUrl ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex) : undefined}
               >
                 {photoUrl ? (
@@ -313,14 +313,14 @@ export function CandidateProfilePanel() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#111827]">Profile Picture</p>
+                <p className="text-lg font-semibold text-black">Profile Picture</p>
                 <p className="text-xs text-[#6B7280]">
                   Recommended size: 400 × 400px. JPG, PNG (max 2MB)
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className={WORKER_BTN_PRIMARY_SM}
+                    className={`${CANDIDATE_BTN_NAVY} h-[30px] text-[10px]`}
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -335,7 +335,7 @@ export function CandidateProfilePanel() {
                   </button>
                   <button
                     type="button"
-                    className={WORKER_BTN_OUTLINE}
+                    className={`${CANDIDATE_BTN_OUTLINE} h-[30px] text-[10px]`}
                     disabled={uploading || !photoUrl}
                     onClick={() => void handleRemovePhoto()}
                   >
@@ -382,19 +382,6 @@ export function CandidateProfilePanel() {
                   ) : null}
                 </div>
                 <div>
-                  <FieldLabel htmlFor="settings-preferred-name">Preferred Name</FieldLabel>
-                  <input
-                    id="settings-preferred-name"
-                    className={FIELD_CLASS}
-                    value={form.preferredName}
-                    maxLength={PERSON_NAME_MAX_LENGTH}
-                    onChange={(event) => updateField("preferredName", event.target.value)}
-                  />
-                  {fieldErrors.preferredName ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.preferredName}</p>
-                  ) : null}
-                </div>
-                <div>
                   <FieldLabel htmlFor="settings-email">Email Address</FieldLabel>
                   <input
                     id="settings-email"
@@ -415,7 +402,7 @@ export function CandidateProfilePanel() {
                     </span>
                     <input
                       id="settings-phone"
-                      className="h-10 min-w-0 flex-1 border-0 bg-white px-3 text-sm text-[#0F172A] outline-none"
+                      className="h-9 min-w-0 flex-1 border-0 bg-white px-3 text-xs text-[#111827] outline-none"
                       value={form.phone}
                       onChange={(event) => updateField("phone", formatPhoneNumber(event.target.value))}
                     />
@@ -435,11 +422,22 @@ export function CandidateProfilePanel() {
                     readOnly
                   />
                 </div>
+                <div>
+                  <FieldLabel htmlFor="settings-address1">Address</FieldLabel>
+                  <input id="settings-address1" className={FIELD_CLASS} value={form.address1} autoComplete="address-line1" placeholder="Street address" onChange={(event) => updateField("address1", event.target.value)} />
+                  {fieldErrors.address1 ? <p className="mt-1 text-xs text-red-600">{fieldErrors.address1}</p> : null}
+                </div>
               </div>
             </div>
 
-            <div className={`${WORKER_SCHEDULE_CARD_CLASS} space-y-4 p-5`}>
-              <SectionTitle>Professional Information</SectionTitle>
+            <details ref={additionalInfoRef} className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
+              <summary className="cursor-pointer text-sm font-semibold text-[#012352]">Additional information</summary>
+              <div className="mt-5 space-y-4">
+              <div>
+                <FieldLabel htmlFor="settings-preferred-name-extra">Preferred Name</FieldLabel>
+                <input id="settings-preferred-name-extra" className={FIELD_CLASS} value={form.preferredName} maxLength={PERSON_NAME_MAX_LENGTH} onChange={(event) => updateField("preferredName", event.target.value)} />
+                {fieldErrors.preferredName ? <p className="mt-1 text-xs text-red-600">{fieldErrors.preferredName}</p> : null}
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <FieldLabel htmlFor="settings-job-title">Job Title</FieldLabel>
@@ -503,25 +501,8 @@ export function CandidateProfilePanel() {
                   ) : null}
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <SectionTitle>Worker Address</SectionTitle>
+              <h2 className="text-sm font-semibold text-black">Address Details</h2>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <FieldLabel htmlFor="settings-address1">Address Line 1</FieldLabel>
-                  <input
-                    id="settings-address1"
-                    className={FIELD_CLASS}
-                    value={form.address1}
-                    autoComplete="address-line1"
-                    placeholder="Street address"
-                    onChange={(event) => updateField("address1", event.target.value)}
-                  />
-                  {fieldErrors.address1 ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.address1}</p>
-                  ) : null}
-                </div>
                 <div className="md:col-span-2">
                   <FieldLabel htmlFor="settings-address2">Address Line 2</FieldLabel>
                   <input
@@ -585,13 +566,14 @@ export function CandidateProfilePanel() {
                   ) : null}
                 </div>
               </div>
-            </div>
+              </div>
+            </details>
 
-            <div className="flex flex-col-reverse justify-end gap-2 border-t border-[#E5E7EB] pt-5 sm:flex-row">
-              <button type="button" className={WORKER_BTN_OUTLINE} onClick={handleCancel} disabled={saving}>
+            <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
+              <button type="button" className={CANDIDATE_BTN_OUTLINE} onClick={handleCancel} disabled={saving}>
                 Cancel
               </button>
-              <button type="submit" className={WORKER_BTN_PRIMARY} disabled={saving}>
+              <button type="submit" className={CANDIDATE_BTN_NAVY} disabled={saving}>
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
