@@ -1,6 +1,6 @@
 "use client";
 
-import { validateClientCompanyName } from "@/lib/clients/validation";
+import { validateClientCompanyName, validateClientZipCode } from "@/lib/clients/validation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -307,6 +307,8 @@ export default function ClientsPage() {
     e.preventDefault();
     const nameError = validateClientCompanyName(newCompanyName);
     if (nameError) { setCreateError(nameError); return; }
+    const zipError = validateClientZipCode(newZipCode);
+    if (zipError) { setCreateError(zipError); return; }
     setCreateError(null);
 
     setSaving(true);

@@ -81,6 +81,10 @@ export function useOnboardingStepNav() {
         // URL while retaining the recruiter-review confirmation screen.
         return;
       }
+      if (savedStatus === "skipped" && nextRoute) {
+        push(nextRoute);
+        return;
+      }
       const href = resolvePostStepContinueRoute(onboarding?.config, currentStep, slug, {
         progress: onboarding?.progress,
         savedStepId: currentStep?.id,

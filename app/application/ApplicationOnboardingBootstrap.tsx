@@ -14,6 +14,53 @@ import {
 } from "@/lib/tenant/resolve-tenant-context";
 import { getScopedApplicantId, setScopedApplicantId } from "@/lib/tenant/scoped-storage";
 import { ApplicantSessionProvider } from "@/lib/onboarding/applicant-session-context";
+import { restartPublicApplyAsSomeoneElse } from "@/lib/onboarding/restart-public-apply-session";
+
+function shouldOfferApplyAsSomeoneElse(pathname: string, search: string): boolean {
+  if (isOnboardingDraftPreview(search)) return false;
+  if (
+    pathname.startsWith("/application/applicant-dashboard") ||
+    pathname.startsWith("/application/home") ||
+    pathname.startsWith("/application/candidate") ||
+    pathname.startsWith("/application/application-status")
+  ) {
+    return false;
+  }
+  if (!pathname.startsWith("/application")) return false;
+  const params = new URLSearchParams(search);
+  if (params.get("applicationId")?.trim()) return false;
+  if (!getScopedApplicantId()) return false;
+  return Boolean(params.get("job_token")?.trim() || params.get("jobToken")?.trim());
+}
+
+function ApplicantApplyAsSomeoneElseBanner() {
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setVisible(shouldOfferApplyAsSomeoneElse(window.location.pathname, window.location.search));
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-950 sm:text-sm">
+      <span className="font-medium">Continuing as a previous applicant on this device.</span>{" "}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void restartPublicApplyAsSomeoneElse();
+        }}
+        className="font-semibold text-[color:var(--brand-primary)] underline-offset-2 hover:underline disabled:opacity-60"
+      >
+        Not you? Apply as someone else
+      </button>
+    </div>
+  );
+}
 
 function resolveBootstrapSlug(): string | null {
   if (typeof window === "undefined") return null;
@@ -172,6 +219,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
   return (
     <TenantBrandingProvider branding={brand}>
       <ApplicantSessionProvider value={{ sessionReady, sessionLoading }}>
+        {sessionReady ? <ApplicantApplyAsSomeoneElseBanner /> : null}
         <Suspense fallback={null}>
           <OnboardingConfigProvider>{children}</OnboardingConfigProvider>
         </Suspense>

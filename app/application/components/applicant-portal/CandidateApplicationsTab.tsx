@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Download } from "lucide-react";
+import { applicantApplicationStatusHref } from "@/lib/applicant-portal/application-status-link";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -113,6 +115,9 @@ export function CandidateApplicationsTab({
   portalPage?: boolean;
 }) {
   const { sessionReady, authHeaders } = useApplicantPortal();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<WorkerJobApplicationListItem[]>([]);
@@ -301,13 +306,19 @@ export function CandidateApplicationsTab({
                 <th className="px-4 py-3 font-medium">Pay Rate</th>
                 <th className="px-4 py-3 font-medium">Applied Date</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((row) => {
                 const status = applicationStatusBadge(row);
+                const statusHref = applicantApplicationStatusHref(row.id, tenantSlug);
                 return (
-                  <tr key={row.id} className="border-b border-[#F3F4F6] last:border-b-0">
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer border-b border-[#F3F4F6] last:border-b-0 hover:bg-[#F9FAFB]"
+                    onClick={() => router.push(statusHref)}
+                  >
                     <td className="px-4 py-4 text-sm font-medium text-[#111827]">{row.jobTitle}</td>
                     <td className="px-4 py-4">
                       {row.workType ? (
@@ -325,7 +336,10 @@ export function CandidateApplicationsTab({
                       {row.resume ? (
                         <button
                           type="button"
-                          onClick={() => void openResume(row.resume!.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void openResume(row.resume!.id);
+                          }}
                           disabled={openingResumeId === row.resume.id}
                           className="text-left text-sm text-[#012352] underline-offset-2 hover:underline"
                         >
@@ -341,6 +355,18 @@ export function CandidateApplicationsTab({
                       <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${status.className}`}>
                         {status.label}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          router.push(statusHref);
+                        }}
+                        className="text-sm font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
                 );

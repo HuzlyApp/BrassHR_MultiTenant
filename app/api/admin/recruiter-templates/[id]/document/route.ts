@@ -3,10 +3,11 @@ import {
   handleRecruiterTemplateRouteError,
   requireRecruiterTemplateAdminContext,
 } from "@/lib/recruiter-templates/api-helpers";
-import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
+import {
+  RECRUITER_TEMPLATE_DOCUMENT_BUCKET,
+  RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES,
+} from "@/lib/recruiter-templates/constants";
 import { getRecruiterTemplateDetail } from "@/lib/recruiter-templates/service";
-
-const MAX_BYTES = 20 * 1024 * 1024;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
-    if (file.size > MAX_BYTES) {
+    if (file.size > RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES) {
       return NextResponse.json(
         { error: "Document exceeds 20MB limit", code: "VALIDATION_ERROR" },
         { status: 400 }

@@ -323,6 +323,10 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
   ui.compensationType = (() => {
     const raw = job.compensationType?.trim() || "";
     if (raw === "Yearly" || raw === "Annually" || raw.toLowerCase() === "annual") return "Annually";
+    const fromPeriod = normalizePayRatePeriod(job.payRatePeriod);
+    if (fromPeriod) return fromPeriod;
+    const fromLegacyComp = normalizePayRatePeriod(raw);
+    if (fromLegacyComp) return fromLegacyComp;
     return raw;
   })();
   ui.currency = job.currency?.trim() || "";

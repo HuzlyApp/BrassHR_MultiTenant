@@ -158,6 +158,38 @@ export function firstSkippedRequiredCandidateStep(
   return null;
 }
 
+function candidateStepIncomplete(status: string | null | undefined): boolean {
+  const value = String(status ?? "pending").trim().toLowerCase();
+  return value !== "completed" && value !== "skipped" && value !== "not_applicable";
+}
+
+/** Next required candidate-owned step in this phase that is still open. */
+export function firstIncompleteRequiredCandidateStep(
+  steps: TenantOnboardingStep[],
+  phase: "pre_hire" | "post_hire",
+  progress: WorkerOnboardingProgressPayload | null | undefined,
+  current: TenantOnboardingStep | null,
+  saved?: { stepId?: string | null; status?: string | null }
+): TenantOnboardingStep | null {
+  const statusById = buildProgressStatusMaps(steps, progress ?? null);
+  if (saved?.stepId && saved.status) {
+    statusById.set(saved.stepId, saved.status);
+  }
+  const currentIdx = current
+    ? steps.findIndex((step) => step.id === current.id || step.step_key === current.step_key)
+    : -1;
+  for (let index = 0; index < steps.length; index++) {
+    const step = steps[index]!;
+    if (currentIdx >= 0 && index <= currentIdx) continue;
+    if (readStepLifecyclePhase(step) !== phase) continue;
+    if (!step.is_required || !isWorkerPerformableStep(step)) continue;
+    if (!applicantStepHasNavigableScreen(step, steps)) continue;
+    if (!candidateStepIncomplete(statusById.get(step.id))) continue;
+    return step;
+  }
+  return null;
+}
+
 function nextRouteInSamePhase(
   enabled: TenantOnboardingStep[],
   current: TenantOnboardingStep,
@@ -222,6 +254,20 @@ export function resolvePostStepContinueRoute(
   );
   if (reviewStep && reviewStep.id !== current?.id) {
     return routeForApplicantStep(reviewStep, tenantSlug);
+  }
+
+  const incomplete = firstIncompleteRequiredCandidateStep(
+    enabled,
+    phase,
+    saved?.progress,
+    current,
+    {
+      stepId: saved?.savedStepId ?? current?.id,
+      status: saved?.savedStatus,
+    }
+  );
+  if (incomplete) {
+    return routeForApplicantStep(incomplete, tenantSlug);
   }
 
   return completionStatusRoute(phase, tenantSlug);

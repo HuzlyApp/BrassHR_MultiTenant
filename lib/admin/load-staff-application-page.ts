@@ -20,6 +20,10 @@ import {
   type ApplicationListBucket,
 } from "@/lib/admin/staff-application-list-query";
 import { isAnalyzedJobApplication } from "@/lib/jobs/job-list-application-metrics";
+import {
+  isConvertedWorkerApplication,
+  loadConvertedIdentitiesForApplications,
+} from "@/lib/admin/converted-worker-identities";
 
 const APPLICATION_SELECT = `id, status, status_id, source, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_match_stage, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, internal_requisition_number, source_type, msp_name, status, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
@@ -417,10 +421,42 @@ export async function loadStaffApplicationPage(
     pageIds = analyzedIds.slice(start, end);
   }
 
+  let pageIdsForHydrate = pageIds;
+  if (scopedJobId && !isUuid(workerId)) {
+    const { data: jobApps } = await supabase
+      .from("job_applications")
+      .select("id, worker_id")
+      .eq("tenant_id", tenantId)
+      .eq("job_requisition_id", scopedJobId);
+    const identities = await loadConvertedIdentitiesForApplications(supabase, jobApps ?? []);
+    const hiredIds = (jobApps ?? [])
+      .filter((row) =>
+        isConvertedWorkerApplication(
+          { applicationId: row.id, workerId: row.worker_id },
+          identities
+        )
+      )
+      .map((row) => String(row.id));
+    if (hiredIds.length > 0) {
+      const merged = new Set(pageIdsForHydrate);
+      let added = 0;
+      for (const id of hiredIds) {
+        if (!merged.has(id)) {
+          merged.add(id);
+          added += 1;
+        }
+      }
+      if (added > 0) {
+        pageIdsForHydrate = Array.from(merged);
+        total += added;
+      }
+    }
+  }
+
   const applications = await decorateApplications(
     supabase,
     tenantId,
-    await hydrateApplications(supabase, tenantId, pageIds),
+    await hydrateApplications(supabase, tenantId, pageIdsForHydrate),
     appliedJobsById
   );
 

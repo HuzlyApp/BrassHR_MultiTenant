@@ -288,14 +288,36 @@ export function validatePublishableJob(
     errors.placementType = "Select Recruit & Release or Recruit & EOR.";
   }
 
-  Object.assign(errors, validateJobCompensationFields(input));
+  Object.assign(errors, validateJobCompensationFields(input, { requireComplete: true }));
 
   return errors;
 }
 
+export type ValidateJobCompensationOptions = {
+  /** Require pay type and min/max before wizard advance or publish. */
+  requireComplete?: boolean;
+};
+
 /** Compensation validation shared by wizard steps, draft saves, and publishing. */
-export function validateJobCompensationFields(input: JobRequisitionInput): FieldErrors {
+export function validateJobCompensationFields(
+  input: JobRequisitionInput,
+  options?: ValidateJobCompensationOptions
+): FieldErrors {
   const errors: FieldErrors = {};
+  if (options?.requireComplete) {
+    const payPeriod = input.payRatePeriod?.trim() || input.compensationType?.trim() || "";
+    if (!payPeriod) {
+      errors.compensationType = "Compensation type is required.";
+    }
+    const showPayBy = input.showPayBy?.trim() || "Exact amount";
+    const isRange = showPayBy === "Range";
+    if (input.payRateMin == null || !Number.isFinite(input.payRateMin)) {
+      errors.payRateMin = isRange ? "Minimum pay rate is required." : "Pay rate is required.";
+    }
+    if (isRange && (input.payRateMax == null || !Number.isFinite(input.payRateMax))) {
+      errors.payRateMax = "Maximum pay rate is required.";
+    }
+  }
   if (input.payRateMin != null && input.payRateMax != null && input.payRateMin > input.payRateMax) {
     errors.payRateMax = "Maximum pay rate must be greater than or equal to minimum pay rate.";
   }

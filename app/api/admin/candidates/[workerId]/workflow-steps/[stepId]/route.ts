@@ -24,6 +24,8 @@ const actionBodySchema = z.object({
   onBehalfOfCandidate: z.boolean().optional(),
   /** Recruiter verifying a candidate step the candidate already submitted. */
   verifyCandidateSubmission: z.boolean().optional(),
+  agreedPayRate: z.string().trim().max(32).optional(),
+  agreedStartDate: z.string().trim().max(32).optional(),
 });
 
 /** Staff email asking the candidate to complete one of their own steps. */
@@ -136,6 +138,8 @@ export async function POST(req: Request, context: CandidateStepRouteContext) {
       origin: resolveApplicantEmailAppOrigin(req, body.clientOrigin),
       request: req,
       onBehalfOfCandidate: body.onBehalfOfCandidate === true,
+      agreedPayRate: body.agreedPayRate ?? null,
+      agreedStartDate: body.agreedStartDate ?? null,
     });
     if (!result.ok) {
       return NextResponse.json(

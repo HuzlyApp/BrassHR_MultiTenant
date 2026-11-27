@@ -21,6 +21,7 @@ import { listWorkerResumesForApplicant } from "@/lib/applicant-portal/worker-res
 import { listWorkerDocumentsForApplicant } from "@/lib/applicant-portal/worker-document-service";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 import { createPerfTimer, logPerf } from "@/lib/perf";
+import { formatWorkerPayRateDisplay } from "@/lib/admin/worker-pay-rate";
 
 function asText(value: unknown): string {
   if (value == null) return "";
@@ -115,7 +116,7 @@ export async function loadCandidateProfile(
   const workerPromise = supabase
     .from("worker")
     .select(
-      "id, first_name, last_name, email, phone, address1, address2, city, state, zip, job_role, status, profile_photo, tenant_id"
+      "id, first_name, last_name, email, phone, address1, address2, city, state, zip, job_role, status, profile_photo, tenant_id, hourly_rate, pay_rate_period"
     )
     .eq("id", input.workerId)
     .maybeSingle();
@@ -168,8 +169,16 @@ export async function loadCandidateProfile(
     resolveWorkerProfilePhotoUrl(supabase, worker.profile_photo),
   ]);
 
-  const [applications, activityResult, resumeList, documentList, professionalSummary] = related;
+  const [applicationsRaw, activityResult, resumeList, documentList, professionalSummary] = related;
   const photoUrl = photo;
+  const workerAgreedPay =
+    worker.hourly_rate != null
+      ? formatWorkerPayRateDisplay(worker.hourly_rate, worker.pay_rate_period)
+      : null;
+  const applications =
+    workerAgreedPay != null
+      ? applicationsRaw.map((app) => ({ ...app, agreedPayRate: workerAgreedPay }))
+      : applicationsRaw;
 
   const activityRows = activityResult.error ? [] : (activityResult.data ?? []);
   if (activityResult.error) {

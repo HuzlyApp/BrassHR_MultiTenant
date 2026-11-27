@@ -68,6 +68,31 @@ describe("job requisition validation", () => {
     });
   });
 
+  it("requires pay type and rates when advancing or publishing compensation", () => {
+    expect(
+      validateJobCompensationFields(
+        { ...validJob, payRateMin: null, payRateMax: null, payRatePeriod: null, compensationType: null },
+        { requireComplete: true }
+      )
+    ).toMatchObject({
+      compensationType: expect.any(String),
+      payRateMin: expect.any(String),
+    });
+
+    expect(
+      validateJobCompensationFields(
+        {
+          ...validJob,
+          showPayBy: "Range",
+          payRatePeriod: "Hourly",
+          payRateMin: 20,
+          payRateMax: null,
+        },
+        { requireComplete: true }
+      ).payRateMax
+    ).toMatch(/required/i);
+  });
+
   it("rejects commission percentage above 100 on the compensation step", () => {
     expect(
       validateJobCompensationFields({

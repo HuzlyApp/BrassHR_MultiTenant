@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
 import { portalHomePath } from "@/lib/auth/portal-rbac";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -26,6 +26,7 @@ export function useApplicantSignIn(
   portal: "worker" | "candidate" = "worker"
 ) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -184,7 +185,10 @@ export function useApplicantSignIn(
     }
 
     if (!tenantSlug) return;
-    router.push(applicationPath(portalHomePath(portal), tenantSlug));
+    const next = searchParams.get("next");
+    const destination =
+      next && next.startsWith("/") && !next.startsWith("//") ? next : portalHomePath(portal);
+    router.push(applicationPath(destination, tenantSlug));
   }
 
   function resetToEmail() {

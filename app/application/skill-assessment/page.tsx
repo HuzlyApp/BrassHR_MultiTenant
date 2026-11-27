@@ -191,6 +191,7 @@ export default function AssessmentPage() {
       >
         <div className="flex h-full flex-col px-4 pb-8 pt-6 sm:px-10 sm:pb-10 sm:pt-8" style={brandingToCssVars(branding)}>
           <OnboardingStepper />
+          <p className="mt-6 text-center text-sm text-slate-600">Loading skill categories…</p>
         </div>
       </OnboardingLayout>
     )

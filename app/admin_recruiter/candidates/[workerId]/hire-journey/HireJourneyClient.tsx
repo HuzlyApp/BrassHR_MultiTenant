@@ -62,9 +62,8 @@ function buildSidebarProfile(
     || null;
 
   const jobName = primaryApp?.jobTitle?.trim() || null;
-  // API `agreedPayRate` is the job posting pay range (pay_rate_min/max). True application
-  // agreed-offer rates are not persisted yet — show "—" for that field until they are.
-  const jobPayRate = primaryApp?.agreedPayRate?.trim() || null;
+  const jobPayRate = primaryApp?.jobPostingPayRate?.trim() || null;
+  const agreedPayRate = primaryApp?.agreedPayRate?.trim() || null;
 
   return {
     name: candidate?.name?.trim() || "Candidate",
@@ -79,7 +78,7 @@ function buildSidebarProfile(
     jobName,
     jobRequisitionId: primaryApp?.jobRequisitionId?.trim() || null,
     jobPayRate,
-    agreedPayRate: null,
+    agreedPayRate,
     email: candidate?.email ?? null,
     phone: candidate?.phone ?? null,
   };

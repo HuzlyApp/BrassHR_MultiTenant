@@ -75,6 +75,8 @@ import {
   isWorkerVisibleStep,
 } from "@/lib/onboarding/workflow-settings";
 import { isParameterizedJobApplicationStepType } from "@/lib/onboarding/job-application-parameters";
+import { isPayAndStartDateWorkflowStep } from "@/lib/onboarding/pay-and-start-date-step";
+import { normalizeWorkerPayRateAmount } from "@/lib/admin/worker-pay-rate";
 
 const STAFF_REVIEW_HISTORY_LIMIT = 20;
 
@@ -832,6 +834,8 @@ export async function applyStaffWorkflowStepAction(
     onBehalfOfCandidate?: boolean;
     /** The caller already sent this step's email before marking it complete. */
     skipConfiguredCompletionEmail?: boolean;
+    agreedPayRate?: string | null;
+    agreedStartDate?: string | null;
   }
 ): Promise<StaffStepActionResult> {
   const { workerId, tenantId, action } = params;
@@ -853,6 +857,27 @@ export async function applyStaffWorkflowStepAction(
     ctx.mapped.candidateOwned === true &&
     params.onBehalfOfCandidate === true &&
     action === "complete";
+  const payAndStartStep = isPayAndStartDateWorkflowStep({
+    stepType: ctx.mapped.stepType,
+    stepKey: ctx.mapped.stepKey,
+    snapshotStepId: ctx.mapped.snapshotStepId,
+    workflowStepId:
+      typeof ctx.tenantStep?.metadata?.workflow_step_id === "string"
+        ? ctx.tenantStep.metadata.workflow_step_id
+        : null,
+  });
+  if (action === "complete" && payAndStartStep) {
+    const payParsed = normalizeWorkerPayRateAmount(params.agreedPayRate);
+    const startDate = String(params.agreedStartDate ?? "").trim();
+    if (!payParsed.ok || !startDate) {
+      return {
+        ok: false,
+        status: 400,
+        code: "PAY_START_REQUIRED",
+        error: "Enter an agreed pay rate and start date before completing this step.",
+      };
+    }
+  }
   if (action === "complete" && agreementStepCompletedByStaff(ctx)) {
     return {
       ok: false,
@@ -1078,6 +1103,38 @@ export async function applyStaffWorkflowStepAction(
       });
     } catch (unlockError) {
       console.error("[staff-workflow-step-review] post-hire unlock failed", unlockError);
+    }
+  }
+
+  if (action === "complete" && payAndStartStep) {
+    const payParsed = normalizeWorkerPayRateAmount(params.agreedPayRate);
+    const startDate = String(params.agreedStartDate ?? "").trim().slice(0, 10);
+    if (payParsed.ok) {
+      await supabase
+        .from("worker")
+        .update({
+          hourly_rate: payParsed.value,
+          pay_rate_period: "hourly",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", workerId)
+        .eq("tenant_id", tenantId);
+      if (ctx.applicationId) {
+        const { data: appRow } = await supabase
+          .from("job_applications")
+          .select("job_requisition_id")
+          .eq("id", ctx.applicationId)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        const jobId = String(appRow?.job_requisition_id ?? "").trim();
+        if (jobId) {
+          await supabase
+            .from("job_requisitions")
+            .update({ target_start_date: startDate, updated_at: new Date().toISOString() })
+            .eq("id", jobId)
+            .eq("tenant_id", tenantId);
+        }
+      }
     }
   }
 

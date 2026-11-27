@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Download } from "lucide-react";
+import { applicantApplicationStatusHref } from "@/lib/applicant-portal/application-status-link";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
@@ -94,6 +96,9 @@ export function WorkerAccountApplicationsTab({
   showFiltersAndExport?: boolean;
 }) {
   const { sessionReady, authHeaders } = useApplicantPortal();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<WorkerJobApplicationListItem[]>([]);
@@ -279,6 +284,7 @@ export function WorkerAccountApplicationsTab({
                 <th className="px-4 py-3 font-medium">Current Stage</th>
                 {/* <th className="px-4 py-3 font-medium">Status</th> */}
                 <th className="px-4 py-3 font-medium">Resume</th>
+                <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -286,8 +292,13 @@ export function WorkerAccountApplicationsTab({
                 const applied = formatApplicationDate(row.appliedAt);
                 const stage = applicationCurrentStageMeta(row.status, row.statusName);
                 const note = row.statusNote?.trim() || stage.subtitle;
+                const statusHref = applicantApplicationStatusHref(row.id, tenantSlug);
                 return (
-                  <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer border-b border-[#F1F5F9] last:border-b-0 hover:bg-[#F9FAFB]"
+                    onClick={() => router.push(statusHref)}
+                  >
                     <td className="px-4 py-4 align-top">
                       <div className="flex min-w-0 items-start gap-2">
                         <span className="shrink-0 text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
@@ -355,7 +366,10 @@ export function WorkerAccountApplicationsTab({
                       {row.resume ? (
                         <button
                           type="button"
-                          onClick={() => void openResume(row.resume!.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void openResume(row.resume!.id);
+                          }}
                           disabled={openingResumeId === row.resume.id}
                           className="flex min-w-0 items-start gap-2 text-left"
                         >
@@ -375,6 +389,18 @@ export function WorkerAccountApplicationsTab({
                       ) : (
                         <span className="text-sm text-[#94A3B8]">—</span>
                       )}
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          router.push(statusHref);
+                        }}
+                        className="text-sm font-medium text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
                 );

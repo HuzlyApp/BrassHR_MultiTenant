@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateClientCompanyName } from "@/lib/clients/validation";
+import { validateClientCompanyName, validateClientZipCode } from "@/lib/clients/validation";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { parseContactPersonFromAbout } from "@/lib/facilities/address";
@@ -301,6 +301,13 @@ export async function POST(req: NextRequest) {
     const companyName = String(body.companyName ?? body.company_name ?? "").trim();
     const nameError = validateClientCompanyName(companyName);
     if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
+
+    const zipRaw =
+      body.zipCode != null || body.zip_code != null
+        ? String(body.zipCode ?? body.zip_code ?? "").trim()
+        : "";
+    const zipError = validateClientZipCode(zipRaw || null);
+    if (zipError) return NextResponse.json({ error: zipError }, { status: 400 });
 
     const contactPerson = String(body.contactPerson ?? body.contact_person ?? "").trim();
 

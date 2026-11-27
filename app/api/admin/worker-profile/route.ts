@@ -479,6 +479,7 @@ export async function GET(req: NextRequest) {
       mapped,
       onboardingSubmissionResult,
       profilePhotoUrl,
+      jobApplicationsForActivityResult,
     ] = await Promise.all([
       supabase
         .from("worker_references")
@@ -490,6 +491,7 @@ export async function GET(req: NextRequest) {
       supabase
         .from("activity_logs")
         .select("id, action, entity_type, entity_id, details, created_at")
+        .eq("entity_type", "worker")
         .eq("entity_id", workerId)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -550,6 +552,11 @@ export async function GET(req: NextRequest) {
           )
         : Promise.resolve(null),
       resolveWorkerProfilePhotoUrl(supabase, w.profile_photo),
+      supabase
+        .from("job_applications")
+        .select("id")
+        .eq("worker_id", workerId)
+        .eq("tenant_id", selectedTenantId),
     ])
 
     const nursingLicenseUrl = nursingLicenseUrlResolved ?? storageNursingUrl
@@ -683,7 +690,28 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: activityRows } = activityResult
-    const activityLogs = ((activityRows ?? []) as Record<string, unknown>[]).map((row) => ({
+    const jobApplicationIds = ((jobApplicationsForActivityResult.data ?? []) as { id?: string | null }[])
+      .map((row) => String(row.id ?? "").trim())
+      .filter((id) => id.length > 0)
+    let jobApplicationActivityRows: Record<string, unknown>[] = []
+    if (jobApplicationIds.length > 0) {
+      const { data: applicationActivity } = await supabase
+        .from("activity_logs")
+        .select("id, action, entity_type, entity_id, details, created_at")
+        .eq("entity_type", "job_application")
+        .in("entity_id", jobApplicationIds)
+        .order("created_at", { ascending: false })
+        .limit(50)
+      jobApplicationActivityRows = (applicationActivity ?? []) as Record<string, unknown>[]
+    }
+    const mergedActivityRows = [...((activityRows ?? []) as Record<string, unknown>[]), ...jobApplicationActivityRows]
+      .sort((a, b) => {
+        const aTime = Date.parse(String(a.created_at ?? ""))
+        const bTime = Date.parse(String(b.created_at ?? ""))
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0)
+      })
+      .slice(0, 50)
+    const activityLogs = mergedActivityRows.map((row) => ({
       id: row.id ?? null,
       action: asTrimmedString(row.action),
       entity_type: asTrimmedString(row.entity_type),
