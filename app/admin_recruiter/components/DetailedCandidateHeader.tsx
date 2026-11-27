@@ -203,13 +203,13 @@ export default function DetailedCandidateHeader({
                     {resolvedNameHref ? (
                       <Link
                         href={resolvedNameHref}
-                        className="block truncate text-xl font-semibold leading-7 text-[#012352] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none max-[599px]:text-lg max-[599px]:leading-6"
+                        className="block truncate text-xl font-semibold leading-7 text-[#012352] underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none max-[599px]:text-[15px] max-[599px]:leading-5"
                         title="View applicant profile"
                       >
                         {displayName}
                       </Link>
                     ) : (
-                      <h1 className="truncate text-xl font-semibold leading-7 text-[#012352] max-[599px]:text-lg max-[599px]:leading-6">
+                      <h1 className="truncate text-xl font-semibold leading-7 text-[#012352] max-[599px]:text-[15px] max-[599px]:leading-5">
                         {displayName}
                       </h1>
                     )}

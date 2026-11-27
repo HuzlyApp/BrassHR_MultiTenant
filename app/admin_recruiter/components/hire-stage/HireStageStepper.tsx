@@ -50,12 +50,13 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
     <nav
       ref={scrollerRef}
       aria-label="Hire stage progress"
-      className="w-full min-w-0 overflow-x-auto overscroll-x-contain pb-8 [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="w-full min-w-0 overflow-x-auto overscroll-x-contain pt-2 pb-9 [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {/*
         min-w-full + justify-center centers when the track fits.
         w-max (without max-w-full) lets it grow and scroll when it doesn't —
         avoid justify-center alone with overflow, which clips the first step.
+        pt-2 keeps circle tops from being clipped by the overflow scroller.
       */}
       <div className="flex w-max min-w-full items-start justify-center px-8 sm:px-4">
         {stages.map((stage, index) => {
@@ -71,7 +72,10 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
               ref={current ? currentStepRef : undefined}
               className="flex items-start"
             >
-              <div className="relative shrink-0" style={{ width: ICON_PX, height: ICON_PX }}>
+              <div
+                className="relative shrink-0 overflow-visible"
+                style={{ width: ICON_PX, height: ICON_PX }}
+              >
                 {done ? (
                   <HireFigmaIcon
                     src={PRE_HIRE_UI_ICONS.stageCheckFilled}
@@ -90,7 +94,7 @@ export function HireStageStepper({ stages }: { stages: HireStageGroup[] }) {
                   />
                 ) : (
                   <span
-                    className="relative z-10 block rounded-full border-2 border-[#D1D5DB] bg-white"
+                    className="relative z-10 box-border block rounded-full border-2 border-[#D1D5DB] bg-white"
                     style={{ width: ICON_PX, height: ICON_PX }}
                     aria-hidden
                   />

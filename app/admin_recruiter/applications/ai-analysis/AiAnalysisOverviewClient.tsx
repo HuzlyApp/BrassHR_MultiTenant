@@ -1467,18 +1467,15 @@ export function AiAnalysisOverviewClient({
                   AI Analysis Overview
                 </h1>
               </div>
-              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
-                <div className="flex min-w-0 items-center gap-2 sm:flex-none">
-                  <span className="shrink-0 text-sm text-[#667085]">Model</span>
-                  <MatchAnalysisModelSelect
-                    variant="primary"
-                    value={analysisProvider}
-                    onChange={setAnalysisProvider}
-                    disabled={analyzing}
-                    className="h-9 min-w-0 flex-1 sm:flex-none sm:shrink-0"
-                    claudeAvailable={data?.claudeAvailable}
-                  />
-                </div>
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
+                <MatchAnalysisModelSelect
+                  variant="primary"
+                  value={analysisProvider}
+                  onChange={setAnalysisProvider}
+                  disabled={analyzing}
+                  className="h-9 w-full min-w-0 justify-between sm:w-auto sm:justify-start"
+                  claudeAvailable={data?.claudeAvailable}
+                />
                 <MatchAnalyzeButton
                   variant="primary"
                   analyzing={analyzing}
@@ -1491,7 +1488,7 @@ export function AiAnalysisOverviewClient({
                   analysisProvider={analysisProvider}
                   requireDeepConfirm={data?.matchProgression?.requireDeepConfirm !== false}
                   allowDeep={canRunPaidDeep}
-                  className="h-9 w-full shrink-0 sm:w-auto"
+                  className="h-9 w-full sm:w-auto"
                   onAnalyze={(mode) => void handleRunAnalyze(mode)}
                 />
               </div>

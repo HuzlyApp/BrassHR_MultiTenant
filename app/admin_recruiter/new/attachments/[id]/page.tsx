@@ -605,10 +605,10 @@ export default function NewApplicantAttachmentsFilledPage() {
   }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-zinc-50">
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
-        <div className="admin-recruiter-page-pad w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="admin-recruiter-content-width min-w-0 max-w-full">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden bg-zinc-50">
+      <div className="w-full min-w-0 max-w-full">
+        <div className="admin-recruiter-page-pad w-full min-w-0 max-w-full overflow-x-hidden">
+          <div className="admin-recruiter-content-width w-full min-w-0 max-w-full">
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -651,8 +651,8 @@ export default function NewApplicantAttachmentsFilledPage() {
                 {loading ? (
                   <CandidateDetailLoader label="Loading attachments..." />
                 ) : (
-                  <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
-                    <div className="w-full min-w-0 max-w-md space-y-1.5">
+                  <div className="box-border w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+                    <div className="w-full min-w-0 max-w-full space-y-1.5 sm:max-w-md">
                       <label
                         htmlFor="documents-profession"
                         className="block text-sm font-medium text-[#374151]"
