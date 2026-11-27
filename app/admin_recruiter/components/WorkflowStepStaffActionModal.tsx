@@ -135,9 +135,12 @@ export default function WorkflowStepStaffActionModal({
   error,
   onCancel,
   onConfirm,
+  capturePayAndStart = false,
 }: {
   action: StaffStepAction | null;
   variant?: StaffStepVariant;
+  /** Recruiter must confirm a single agreed pay rate and start date before completing. */
+  capturePayAndStart?: boolean;
   /** Optional steps never block the candidate, so reject copy must not say they do. */
   optional?: boolean;
   /** Staff completing a candidate upload step after uploading the documents themselves. */
@@ -153,6 +156,8 @@ export default function WorkflowStepStaffActionModal({
   const branding = useTenantBranding();
   const [note, setNote] = useState("");
   const [notifyCandidate, setNotifyCandidate] = useState(false);
+  const [agreedPayRate, setAgreedPayRate] = useState("");
+  const [agreedStartDate, setAgreedStartDate] = useState("");
 
   // Portal content sits outside the branding wrapper, so re-declare the tenant palette here.
   const brandStyle = useMemo(
@@ -169,6 +174,8 @@ export default function WorkflowStepStaffActionModal({
     if (!action) return;
     setNote("");
     setNotifyCandidate(false);
+    setAgreedPayRate("");
+    setAgreedStartDate("");
   }, [action]);
 
   const baseCopy = action
@@ -188,7 +195,10 @@ export default function WorkflowStepStaffActionModal({
       : baseCopy;
   const showNotify = action === "complete" && !verifySubmission;
   const noteRequired = action === "reject";
-  const canSubmit = !submitting && (!noteRequired || note.trim().length > 0);
+  const payRequired = capturePayAndStart && action === "complete";
+  const payValid = !payRequired || (agreedPayRate.trim().length > 0 && agreedStartDate.trim().length > 0);
+  const canSubmit =
+    !submitting && payValid && (!noteRequired || note.trim().length > 0);
 
   return (
     <Dialog.Root
@@ -209,7 +219,16 @@ export default function WorkflowStepStaffActionModal({
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!canSubmit) return;
-                onConfirm({ note: note.trim(), notifyCandidate: showNotify && notifyCandidate });
+                onConfirm({
+                  note: note.trim(),
+                  notifyCandidate: showNotify && notifyCandidate,
+                  ...(payRequired
+                    ? {
+                        agreedPayRate: agreedPayRate.trim(),
+                        agreedStartDate: agreedStartDate.trim(),
+                      }
+                    : {}),
+                });
               }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -232,8 +251,37 @@ export default function WorkflowStepStaffActionModal({
                 </Dialog.Close>
               </div>
               <Dialog.Description id="workflow-step-staff-action-desc" className="mt-1 text-sm text-slate-600">
-                {copy.description}
+                {payRequired
+                  ? "Enter the single agreed pay rate and start date for this offer. Use one rate, not a posting range."
+                  : copy.description}
               </Dialog.Description>
+
+              {payRequired ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Agreed pay rate ($/hr)
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={agreedPayRate}
+                      onChange={(event) => setAgreedPayRate(event.target.value)}
+                      disabled={submitting}
+                      placeholder="e.g. 28.50"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Agreed start date
+                    <input
+                      type="date"
+                      value={agreedStartDate}
+                      onChange={(event) => setAgreedStartDate(event.target.value)}
+                      disabled={submitting}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
+                    />
+                  </label>
+                </div>
+              ) : null}
 
               <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="workflow-step-staff-note">
                 {noteRequired

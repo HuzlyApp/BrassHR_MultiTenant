@@ -605,7 +605,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
 
-    const compensationErrors = validateJobCompensationFields(payloadJob);
+    const compensationErrors = validateJobCompensationFields(payloadJob, {
+      requireComplete: action === "publish",
+    });
     if (Object.keys(compensationErrors).length > 0) {
       setFieldErrors(compensationErrors);
       setMessage(Object.values(compensationErrors)[0] ?? "Fix pay and hours before saving.");
@@ -896,7 +898,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
     if (step === "compensation") {
-      const compensationErrors = validateJobCompensationFields(buildPayloadJob());
+      const compensationErrors = validateJobCompensationFields(buildPayloadJob(), {
+        requireComplete: true,
+      });
       if (Object.keys(compensationErrors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...compensationErrors }));
         return;

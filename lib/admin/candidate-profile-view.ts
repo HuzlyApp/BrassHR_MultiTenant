@@ -36,6 +36,8 @@ export type CandidateProfileApplication = {
   workType: string;
   location: string;
   billRate: string | null;
+  /** Job posting pay range (not the agreed offer rate). */
+  jobPostingPayRate?: string | null;
   agreedPayRate: string | null;
   jobStatus: string | null;
   appliedAt: string;

@@ -150,7 +150,7 @@ function formatHourlyRateLabel(value: number | string | null | undefined): strin
   return `$${formatted}/hr`;
 }
 
-function formatAgreedPayRate(job: JobRequisitionJoin | null): string | null {
+function formatJobPostingPayRange(job: JobRequisitionJoin | null): string | null {
   const min = asFiniteNumber(job?.pay_rate_min);
   const max = asFiniteNumber(job?.pay_rate_max);
   if (min != null && max != null) {
@@ -162,6 +162,14 @@ function formatAgreedPayRate(job: JobRequisitionJoin | null): string | null {
   if (min != null) return formatHourlyRateLabel(min);
   if (max != null) return formatHourlyRateLabel(max);
   return null;
+}
+
+/** Agreed pay is a single rate — never the job posting range. */
+function formatAgreedPayRate(job: JobRequisitionJoin | null): string | null {
+  const min = asFiniteNumber(job?.pay_rate_min);
+  const max = asFiniteNumber(job?.pay_rate_max);
+  if (min != null && max != null && min !== max) return null;
+  return formatJobPostingPayRange(job);
 }
 
 export async function listWorkerJobApplications(
@@ -302,6 +310,7 @@ export async function listWorkerJobApplications(
       workType: job?.employment_type?.trim() || "",
       location: job?.location?.trim() || "",
       billRate: formatHourlyRateLabel(job?.bill_rate),
+      jobPostingPayRate: formatJobPostingPayRange(job),
       agreedPayRate: formatAgreedPayRate(job),
       jobStatus: job?.status?.trim() || null,
       appliedAt: String(row.submitted_at || row.created_at || ""),

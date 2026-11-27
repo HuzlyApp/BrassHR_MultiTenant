@@ -2,7 +2,9 @@
 
 import { applicantAuthHeaders } from "@/lib/onboarding/applicant-auth-headers"
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
-import { workerSignInHref } from "@/lib/auth/worker-sign-in"
+import { candidateSignInHref } from "@/lib/auth/worker-sign-in"
+import { supabaseBrowser } from "@/lib/supabase-browser"
+import { getStateCodeFromName } from "@/lib/us-state-names"
 import {
   DRAFT_PREVIEW_APPLICANT_ID,
   isOnboardingDraftPreview,
@@ -136,12 +138,6 @@ const US_STATES = [
   "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
   "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
   "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
-]
-
-const POPULAR_CITIES = [
-  "Los Angeles", "San Diego", "San Francisco", "Sacramento", "Phoenix", "Las Vegas",
-  "Dallas", "Houston", "Austin", "Chicago", "Miami", "Orlando", "Atlanta", "New York",
-  "Brooklyn", "Queens", "Boston", "Seattle", "Portland", "Denver", "Nashville", "Charlotte",
 ]
 
 type EditableInputProps = {
@@ -361,6 +357,49 @@ function Step1ReviewContent() {
   const [genericError, setGenericError] = useState<string | null>(null)
   /** After first "Save & continue", show incomplete-field message until the form is valid. */
   const [submitAttempted, setSubmitAttempted] = useState(false)
+  const [cityOptions, setCityOptions] = useState<string[]>([])
+  const [citiesLoading, setCitiesLoading] = useState(false)
+
+  const selectedStateCode = useMemo(
+    () => getStateCodeFromName(form.state) ?? "",
+    [form.state],
+  )
+
+  useEffect(() => {
+    if (!selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([])
+      setCitiesLoading(false)
+      return
+    }
+
+    let active = true
+    setCitiesLoading(true)
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true })
+
+        if (!active) return
+        if (error) {
+          setCityOptions([])
+          return
+        }
+        setCityOptions((data ?? []).map((row) => String(row.city_name)))
+      } catch {
+        if (active) setCityOptions([])
+      } finally {
+        if (active) setCitiesLoading(false)
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [selectedStateCode])
   const [resumeId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null
     return localStorage.getItem("resumeId")?.trim() || null
@@ -504,6 +543,10 @@ function Step1ReviewContent() {
     }
     if (key === "zipCode" && typeof value === "string") {
       setForm((prev) => ({ ...prev, zipCode: value.replace(/\D/g, "").slice(0, 5) }))
+      return
+    }
+    if (key === "state" && typeof value === "string") {
+      setForm((prev) => ({ ...prev, state: value, city: "" }))
       return
     }
     if (key === "sameAsAddress1" && typeof value === "boolean") {
@@ -976,11 +1019,13 @@ function Step1ReviewContent() {
         <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              const tenant = nav.slug || branding.slug
+              const returnPath = applicationPath(APPLICATION_ROUTES.profileReview, tenant)
               router.push(
-                workerSignInHref({ tenant: nav.slug || branding.slug }),
+                candidateSignInHref({ tenant, next: returnPath }),
               )
-            }
+            }}
             className="rounded-md border border-red-600 bg-white px-4 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
           >
             Login
@@ -1125,8 +1170,18 @@ function Step1ReviewContent() {
                   label="City"
                   required
                   value={form.city}
-                  placeholder="Select City"
-                  options={POPULAR_CITIES}
+                  placeholder={
+                    !form.state
+                      ? "Select state first"
+                      : citiesLoading
+                        ? "Loading..."
+                        : "Select City"
+                  }
+                  options={
+                    form.city && !cityOptions.includes(form.city)
+                      ? [form.city, ...cityOptions]
+                      : cityOptions
+                  }
                   onChange={(value) => handleChange("city", value)}
                 />
               </div>

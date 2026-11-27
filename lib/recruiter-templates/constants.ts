@@ -91,6 +91,9 @@ export const APP_DATA_SOURCE_LABELS: Record<AppDataSource, string> = {
 
 export const RECRUITER_TEMPLATE_DOCUMENT_BUCKET = "recruiter-template-documents";
 
+/** Maximum upload size for template PDF/DOCX documents (matches API route). */
+export const RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
+
 /**
  * In-app path for the Firma template editor embed.
  * Firma does not host a standalone `/template-editor` page on app.firma.dev —

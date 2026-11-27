@@ -23,6 +23,7 @@ import {
   WORKER_CHART_BLUE,
   buildWeeklyScheduleRows,
   getAttendanceDaySummary,
+  scheduledAttendanceDates,
   getAttendanceMonthOptions,
   getGreeting,
   getPtoBalancePlaceholders,
@@ -197,10 +198,15 @@ export function WorkerDashboardOverview({
 
   const scheduleRows = buildWeeklyScheduleRows(appointment, selectedSlot).slice(0, 5);
   const announcements = mapNotesToAnnouncements(notes);
+  const scheduledDates = useMemo(
+    () => scheduledAttendanceDates(appointment, selectedSlot),
+    [appointment, selectedSlot],
+  );
   const attendanceSummary = getAttendanceDaySummary(
     recentAttendance,
     new Date(),
-    attendanceMonth || undefined
+    attendanceMonth || undefined,
+    scheduledDates
   );
   const ptoItems = getPtoBalancePlaceholders();
   const displayName = userName.trim() || "there";

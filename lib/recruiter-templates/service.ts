@@ -833,6 +833,35 @@ export async function syncRecruiterTemplateFromFirma(
     });
   }
 
+  if (
+    (input.event === "editor.saved" || input.event === "editor.published") &&
+    firmaTemplateId &&
+    isFirmaConfigured()
+  ) {
+    try {
+      const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+      const firmaFields = await listFirmaTemplateFields(firmaTemplateId, workspaceId);
+      await supabase.from("recruiter_template_fields").delete().eq("template_id", templateId);
+      if (firmaFields.length > 0) {
+        await supabase.from("recruiter_template_fields").insert(
+          firmaFields.map((field, index) => ({
+            template_id: templateId,
+            variable_name: (field.variable_name ?? field.id ?? `field_${index + 1}`).trim(),
+            label: (field.variable_name ?? field.type ?? `Field ${index + 1}`).trim(),
+            field_type: field.type ?? "text",
+            app_data_source: null,
+            assigned_role_key: null,
+            required: field.required === true,
+            sort_order: index,
+            firma_field_id: field.id ?? null,
+          }))
+        );
+      }
+    } catch (fieldSyncErr) {
+      console.warn("[recruiter-templates] Firma field sync after save", fieldSyncErr);
+    }
+  }
+
   return getRecruiterTemplateDetail(supabase, tenantId, templateId);
 }
 

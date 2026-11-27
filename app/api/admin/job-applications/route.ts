@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (!workerId && applications.length > 0) {
+    if (!workerId && !jobId && applications.length > 0) {
       const identities = await loadTenantConvertedWorkerIdentities(db, tenantId);
       applications = applications.filter(
         (app) =>

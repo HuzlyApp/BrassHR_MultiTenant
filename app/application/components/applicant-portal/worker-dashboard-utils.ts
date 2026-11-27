@@ -224,6 +224,19 @@ export function getWeekShiftStats(
   };
 }
 
+/** Eastern calendar dates (YYYY-MM-DD) with a non-cancelled scheduled shift. */
+export function scheduledAttendanceDates(
+  appointment: Appointment | null,
+  selectedSlot: AppointmentSlot | null
+): Set<string> {
+  const dates = new Set<string>();
+  const window = appointmentWindow(appointment, selectedSlot);
+  if (window.start && appointment && appointment.status !== "cancelled") {
+    dates.add(easternDateString(new Date(window.start)));
+  }
+  return dates;
+}
+
 export function buildWeeklyScheduleRows(
   appointment: Appointment | null,
   selectedSlot: AppointmentSlot | null
@@ -335,7 +348,8 @@ export function getPayPeriodHours(logs: AttendanceLog[]) {
 export function getAttendanceDaySummary(
   logs: AttendanceLog[],
   reference = new Date(),
-  monthValue?: string
+  monthValue?: string,
+  scheduledDates?: Set<string>
 ) {
   const fallback = easternDateString(reference).slice(0, 7);
   const selected = monthValue && /^\d{4}-\d{2}$/.test(monthValue) ? monthValue : fallback;
@@ -371,14 +385,26 @@ export function getAttendanceDaySummary(
     if (log.clock_in_at) presentDates.add(easternDateString(date));
   }
 
-  let expectedDays = 0;
-  for (let cursor = monthStart; cursor <= rangeEnd; cursor = addEasternDays(cursor, 1)) {
-    const weekday = easternWeekdayIndex(cursor);
-    if (weekday === 0 || weekday === 6) continue;
-    expectedDays += 1;
+  const scheduledInRange = new Set<string>();
+  if (scheduledDates?.size) {
+    for (const dateKey of scheduledDates) {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+      if (!match) continue;
+      const date = easternWallClockToDate(
+        Number(match[1]),
+        Number(match[2]),
+        Number(match[3]),
+        12,
+        0,
+        0
+      );
+      if (date < monthStart || date > rangeEnd) continue;
+      scheduledInRange.add(dateKey);
+    }
   }
 
-  const daysPresent = presentDates.size;
+  const expectedDays = scheduledInRange.size;
+  const daysPresent = [...scheduledInRange].filter((dateKey) => presentDates.has(dateKey)).length;
   const daysAbsent = Math.max(0, expectedDays - daysPresent);
   const daysLate = 0;
   const pct =

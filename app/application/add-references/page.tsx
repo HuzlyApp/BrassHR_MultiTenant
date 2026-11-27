@@ -44,6 +44,7 @@ import {
   sanitizeYearsKnownInput,
   type ReferenceRow,
 } from "@/lib/referencesValidation"
+import { isTenantStepBlocking } from "@/lib/onboarding/reference-verification"
 
 type RefRow = ReferenceRow
 
@@ -113,6 +114,12 @@ export default function ReferencesPage() {
     const n = typeof raw === "number" ? raw : Number(raw)
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
   }, [referencesStep?.metadata?.min_count])
+
+  const allowSkipReferences = useMemo(() => {
+    if (!referencesStep) return false
+    if (isTenantStepBlocking(referencesStep) && minCount > 0) return false
+    return minCount <= 0
+  }, [referencesStep, minCount])
 
   useMarkStepInProgressIfPending({
     step: referencesStep,
@@ -333,13 +340,15 @@ export default function ReferencesPage() {
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
                 }
               />
-              <button
-                type="button"
-                onClick={() => void skipReferences()}
-                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
-              >
-                Skip for Now →
-              </button>
+              {allowSkipReferences ? (
+                <button
+                  type="button"
+                  onClick={() => void skipReferences()}
+                  className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+                >
+                  Skip for Now →
+                </button>
+              ) : null}
             </div>
           </div>
           <p className="mb-1 text-xs text-slate-500 sm:text-[13px]">Trusted feedback, verified integrity.</p>

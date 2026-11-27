@@ -12,6 +12,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   RECRUITER_TEMPLATE_CATEGORIES,
   RECRUITER_TEMPLATE_CATEGORY_LABELS,
+  RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES,
 } from "@/lib/recruiter-templates/constants";
 import {
   assignTemplateToFolder,
@@ -276,6 +277,8 @@ export default function RecruiterTemplateBuilderForm({
     }
   };
 
+  const templateDocMaxMb = Math.round(RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES / (1024 * 1024));
+
   const uploadDocument = async (file: File) => {
     let id = currentTemplateId;
     if (!id) {
@@ -283,6 +286,11 @@ export default function RecruiterTemplateBuilderForm({
       id = saved?.id;
     }
     if (!id) return;
+
+    if (file.size > RECRUITER_TEMPLATE_DOCUMENT_MAX_BYTES) {
+      toast.error(`Document must be ${templateDocMaxMb}MB or smaller.`);
+      return;
+    }
 
     setUploading(true);
     try {
@@ -292,8 +300,26 @@ export default function RecruiterTemplateBuilderForm({
         method: "POST",
         body: formData,
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Upload failed");
+      const raw = await res.text();
+      let body: { error?: string; document_file_name?: string; document_storage_path?: string } = {};
+      if (raw.trim()) {
+        try {
+          body = JSON.parse(raw) as typeof body;
+        } catch {
+          if (res.status === 413 || /request entity too large/i.test(raw)) {
+            throw new Error(`Document must be ${templateDocMaxMb}MB or smaller.`);
+          }
+          throw new Error(`Upload failed (${res.status}). The file may be too large (max ${templateDocMaxMb}MB).`);
+        }
+      }
+      if (!res.ok) {
+        throw new Error(
+          body.error ??
+            (res.status === 413
+              ? `Document must be ${templateDocMaxMb}MB or smaller.`
+              : "Upload failed"),
+        );
+      }
       setDocumentFileName(body.document_file_name ?? file.name);
       setDocumentStoragePath(body.document_storage_path ?? null);
       setBuilderOpen(false);
@@ -480,7 +506,11 @@ export default function RecruiterTemplateBuilderForm({
         <div className="mt-5 flex flex-col gap-3 border-t border-[#EAECF0] pt-5 min-[480px]:flex-row min-[480px]:flex-wrap min-[480px]:items-center">
           <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] min-[480px]:w-auto min-[480px]:justify-start">
             <Upload className="h-4 w-4" />
-            {uploading ? "Uploading..." : documentFileName ? "Replace document" : "Upload PDF or DOCX"}
+            {uploading
+              ? "Uploading..."
+              : documentFileName
+                ? "Replace document"
+                : `Upload PDF or DOCX (max ${templateDocMaxMb}MB)`}
             <input
               type="file"
               accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -488,7 +518,12 @@ export default function RecruiterTemplateBuilderForm({
               disabled={uploading}
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) void uploadDocument(file);
+                const input = e.currentTarget;
+                if (file) {
+                  void uploadDocument(file).finally(() => {
+                    input.value = "";
+                  });
+                }
               }}
             />
           </label>

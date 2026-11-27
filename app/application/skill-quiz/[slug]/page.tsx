@@ -25,7 +25,12 @@ import {
   getSkillQuizTotalPages,
 } from "@/lib/skill-quiz-pagination"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
-import { findSkillCategoryBySlug, normalizeSkillAssessmentCatalog } from "@/lib/skill-assessment/catalog"
+import {
+  activeSkillCategories,
+  findSkillCategoryBySlug,
+  normalizeSkillAssessmentCatalog,
+} from "@/lib/skill-assessment/catalog"
+import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults"
 import { isCategoryComplete, isValidRatingAnswer } from "@/lib/skill-assessment/score"
 import type {
@@ -38,6 +43,16 @@ import { useOnboardingConfigOptional } from "@/app/components/onboarding/Onboard
 
 const PAGE_SIZE = 5
 const supabase = getApplicantSupabaseClient()
+
+function localCompletedCategories(slugs: string[]): Set<string> {
+  if (typeof window === "undefined") return new Set()
+  const done = new Set<string>()
+  for (const entry of slugs) {
+    if (localStorage.getItem(`${entry}_done`) === "true") done.add(entry)
+    if (entry === "basic-care" && localStorage.getItem("basic_care_done") === "true") done.add(entry)
+  }
+  return done
+}
 
 function coerceAnswers(raw: unknown): SkillQuizAnswers {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
@@ -191,6 +206,47 @@ export default function SkillQuizBySlugPage() {
     return true
   }
 
+  async function navigateAfterCategoryComplete() {
+    const search = typeof window !== "undefined" ? window.location.search : ""
+    const tenantSlug = resolveClientOnboardingTenantSlug(search)
+    const query = new URLSearchParams()
+    if (tenantSlug) query.set("slug", tenantSlug)
+    const res = await fetch(`/api/onboarding/skill-assessment-catalog?${query.toString()}`, {
+      cache: "no-store",
+    })
+    const payload = (await res.json().catch(() => null)) as { catalog?: unknown } | null
+    const nextCatalog = payload?.catalog
+      ? normalizeSkillAssessmentCatalog(payload.catalog)
+      : createDefaultSkillAssessmentCatalog()
+    const active = activeSkillCategories(nextCatalog)
+    const { data: userData } = await supabase.auth.getUser()
+    const user = userData?.user
+    const completed = new Set<string>(localCompletedCategories(active.map((c) => c.slug)))
+    if (user) {
+      const ctx = await getWorkerSessionContext(supabase)
+      const workerKeys = ctx?.id ? [ctx.id, user.id] : [user.id]
+      const { data: doneRows } = await supabase
+        .from("skill_assessments")
+        .select("category, completed, answers")
+        .in("worker_id", workerKeys)
+      for (const row of doneRows ?? []) {
+        const catSlug = String(row.category ?? "")
+        if (row.completed) completed.add(catSlug)
+        const cat = active.find((c) => c.slug === catSlug)
+        if (cat && isCategoryComplete(cat, (row.answers ?? {}) as SkillQuizAnswers)) {
+          completed.add(catSlug)
+        }
+      }
+    }
+    completed.add(slug)
+    const nextCategory = active.find((c) => !completed.has(c.slug))
+    if (nextCategory) {
+      router.push(applicationPath(APPLICATION_ROUTES.skillQuiz(nextCategory.slug)))
+      return
+    }
+    router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))
+  }
+
   async function saveAndFinish() {
     await flushPending()
     if (category && !isCategoryComplete(category, answers)) {
@@ -203,7 +259,7 @@ export default function SkillQuizBySlugPage() {
     setSaving(true)
     try {
       const ok = await persist(true)
-      if (ok) router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))
+      if (ok) await navigateAfterCategoryComplete()
     } finally {
       setSaving(false)
     }

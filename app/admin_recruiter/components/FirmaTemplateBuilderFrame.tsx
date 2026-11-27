@@ -318,7 +318,14 @@ export default function FirmaTemplateBuilderFrame({
           throw new Error(body.error ?? "Failed to sync signature template");
         }
         onTemplateSyncedRef.current?.(body.template);
-        if (input.event === "editor.saved") toast.success("Signature template saved");
+        if (input.event === "editor.saved") {
+          const fieldCount = body.template?.fields?.length ?? 0;
+          if (fieldCount > 0) {
+            toast.success("Signature template saved");
+          } else {
+            toast.error("Save could not be confirmed — no signature fields were stored yet.");
+          }
+        }
         if (input.event === "editor.published") toast.success("Signature template published");
       } catch (err) {
         toast.error(

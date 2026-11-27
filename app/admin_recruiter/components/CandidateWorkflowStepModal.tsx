@@ -67,6 +67,7 @@ import { StageContextNotesSection } from "./StageContextNotesSection";
 import { hireStageLabelForStep } from "@/lib/onboarding/hire-stage-groups";
 import { isPreHireStatusStageName } from "@/lib/jobs/application-statuses/stage-assignments";
 import { isWelcomeEmailWorkflowStep } from "@/lib/onboarding/welcome-email-step";
+import { isPayAndStartDateWorkflowStep } from "@/lib/onboarding/pay-and-start-date-step";
 
 const KIND_ICONS: Record<WorkflowStepInspectionKind, LucideIcon> = {
   job_application: BriefcaseBusiness,
@@ -513,6 +514,14 @@ export default function CandidateWorkflowStepModal({
   const canAct = Boolean(workerId && staffAction?.allowed && staffAction.actions.length);
   const KindIcon = currentInspection ? KIND_ICONS[currentInspection.kind] : Layers;
   const variant = staffAction?.variant ?? "default";
+  const capturePayAndStart = Boolean(
+    currentInspection &&
+      isPayAndStartDateWorkflowStep({
+        stepType: currentInspection.step.stepType,
+        stepKey: currentInspection.step.stepKey,
+        snapshotStepId: currentInspection.step.snapshotStepId,
+      })
+  );
   const enrollmentNotReady = currentInspection?.enrollment?.decision === "not_ready";
   const statusLabel = !currentInspection
     ? ""
@@ -740,7 +749,12 @@ export default function CandidateWorkflowStepModal({
   }
 
   async function submitAction(
-    input: { note: string; notifyCandidate: boolean },
+    input: {
+      note: string;
+      notifyCandidate: boolean;
+      agreedPayRate?: string;
+      agreedStartDate?: string;
+    },
     direct?: { action: StaffStepAction; onBehalf: boolean; verify: boolean }
   ) {
     const action = direct?.action ?? pendingAction;
@@ -763,6 +777,8 @@ export default function CandidateWorkflowStepModal({
             clientOrigin: window.location.origin,
             ...(onBehalf ? { onBehalfOfCandidate: true } : {}),
             ...(verify ? { verifyCandidateSubmission: true } : {}),
+            ...(input.agreedPayRate ? { agreedPayRate: input.agreedPayRate } : {}),
+            ...(input.agreedStartDate ? { agreedStartDate: input.agreedStartDate } : {}),
           }),
         }
       );
@@ -801,6 +817,12 @@ export default function CandidateWorkflowStepModal({
 
   function markCompleteNow(flags: { onBehalf: boolean; verify: boolean }) {
     setActionError(null);
+    if (capturePayAndStart && !flags.verify) {
+      setPendingOnBehalf(flags.onBehalf);
+      setPendingVerify(flags.verify);
+      setPendingAction("complete");
+      return;
+    }
     void submitAction(
       { note: "", notifyCandidate: false },
       { action: "complete", onBehalf: flags.onBehalf, verify: flags.verify }
@@ -1546,6 +1568,12 @@ export default function CandidateWorkflowStepModal({
                     onClick={() => {
                       setActionError(null);
                       if (action === "complete") {
+                        if (capturePayAndStart) {
+                          setPendingOnBehalf(false);
+                          setPendingVerify(false);
+                          setPendingAction("complete");
+                          return;
+                        }
                         markCompleteNow({ onBehalf: false, verify: false });
                         return;
                       }
@@ -1578,9 +1606,10 @@ export default function CandidateWorkflowStepModal({
           ) : null}
         </Dialog.Content>
       </Dialog.Portal>
-      {/* Reject, Need to Review, and Reopen. Mark as complete skips this dialog. */}
+      {/* Reject, Need to Review, and Reopen. Pay/start complete uses this dialog. */}
       <WorkflowStepStaffActionModal
-        action={pendingAction === "complete" ? null : pendingAction}
+        action={pendingAction === "complete" && !capturePayAndStart ? null : pendingAction}
+        capturePayAndStart={capturePayAndStart && pendingAction === "complete"}
         variant={variant}
         optional={inspection ? !inspection.step.required : false}
         onBehalf={pendingOnBehalf}

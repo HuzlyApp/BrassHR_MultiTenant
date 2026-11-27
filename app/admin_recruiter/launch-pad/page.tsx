@@ -31,7 +31,7 @@ import { PreviewStepPanel } from "./steps/PreviewStepPanel";
 
 function LaunchPadContent() {
   const router = useRouter();
-  const { organization } = useAccountData();
+  const { organization, loading: accountLoading, error: accountError } = useAccountData();
   const tenantId = organization?.id;
   const [showComplete, setShowComplete] = useState(false);
   const [progressError, setProgressError] = useState<string | null>(null);
@@ -54,7 +54,15 @@ function LaunchPadContent() {
     setProgressError(null);
     setAccessDenied(false);
     setInterests(null);
-    if (!tenantId) return () => { cancelled = true; };
+    if (!tenantId) {
+      if (!accountLoading) {
+        setLoadingProgress(false);
+        setProgressError(
+          accountError ?? "Could not resolve your organization. Try reloading this page.",
+        );
+      }
+      return () => { cancelled = true; };
+    }
     const loadInterests = async () => {
       const response = await fetch("/api/admin/launch-pad/interests", { cache: "no-store", signal: AbortSignal.timeout(15_000) });
       const data = await response.json() as { tenantId?: string; interests?: SignupInterests; error?: string };
@@ -73,7 +81,7 @@ function LaunchPadContent() {
       if (!cancelled) setLoadingProgress(false);
     });
     return () => { cancelled = true; };
-  }, [tenantId, loadAttempt]);
+  }, [tenantId, loadAttempt, accountLoading, accountError]);
 
   const openStep = (id: LaunchPadStepId) => {
     router.push(withTenant(`${ADMIN_LAUNCH_PAD_ROUTE}?step=${id}`, searchParams.get("tenant")));
