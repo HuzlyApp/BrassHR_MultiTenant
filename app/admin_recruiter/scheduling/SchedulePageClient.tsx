@@ -890,22 +890,46 @@ export default function SchedulePageClient() {
           />
 
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-2.5 md:justify-end">
-            <select aria-label="Calendar range view" value={calendarRangeView} onChange={(event) => {
-              if (event.target.value !== "custom") applyCalendarView(event.target.value as "day" | "week" | "month");
-            }} className="h-[30px] min-w-0 flex-1 rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs sm:flex-none">
-              <option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="custom" disabled>Custom range</option>
-            </select>
+            <SettingsSelect
+              aria-label="Calendar range view"
+              value={calendarRangeView}
+              onChange={(next) => {
+                if (next !== "custom") applyCalendarView(next as "day" | "week" | "month");
+              }}
+              className="min-w-0 flex-1 sm:w-[96px] sm:flex-none"
+              size="sm"
+              triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
+              options={[
+                { value: "day", label: "Day" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "custom", label: "Custom range", disabled: true },
+              ]}
+            />
             <button type="button" onClick={() => applyCalendarView(calendarRangeView === "custom" ? "week" : calendarRangeView, new Date())} className="h-[30px] rounded-lg border border-[#CBD5E1] px-3 text-xs font-semibold">Today</button>
             {([
-              { key: "worker", label: "Worker", options: employees.map((employee) => ({ value: employee.id, label: employee.name })) },
-              { key: "client", label: "Client", options: Array.from(new Set(employees.map((employee) => employee.client).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-              { key: "position", label: "Position", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
-              { key: "location", label: "Location", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-              { key: "status", label: "Status", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
-            ] as const).map((filter) => <select key={filter.key} aria-label={`Filter by ${filter.label.toLowerCase()}`} value={employeeFilters[filter.key]} onChange={(event) => setEmployeeFilters((current) => ({ ...current, [filter.key]: event.target.value }))} className="h-[30px] w-full max-w-none rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs sm:w-auto sm:max-w-[180px]">
-              <option value="all">All {filter.label === "Status" ? "statuses" : `${filter.label.toLowerCase()}s`}</option>
-              {filter.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>)}
+              { key: "worker", label: "Worker", allLabel: "All workers", options: employees.map((employee) => ({ value: employee.id, label: employee.name })) },
+              { key: "client", label: "Client", allLabel: "All clients", options: Array.from(new Set(employees.map((employee) => employee.client).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+              { key: "position", label: "Position", allLabel: "All positions", options: Array.from(new Set(employees.map((employee) => employee.jobRole).filter(Boolean))).map((value) => ({ value, label: value })) },
+              { key: "location", label: "Location", allLabel: "All locations", options: Array.from(new Set(employees.map((employee) => employee.location).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+              { key: "status", label: "Status", allLabel: "All statuses", options: Array.from(new Set(employees.map((employee) => employee.status).filter(Boolean))).map((value) => ({ value: value!, label: value! })) },
+            ] as const).map((filter) => (
+              <SettingsSelect
+                key={filter.key}
+                aria-label={`Filter by ${filter.label.toLowerCase()}`}
+                value={employeeFilters[filter.key]}
+                onChange={(next) =>
+                  setEmployeeFilters((current) => ({ ...current, [filter.key]: next }))
+                }
+                className="w-full sm:w-[140px] md:w-[160px]"
+                size="sm"
+                triggerClassName="h-[30px] rounded-[8px] border-[#CBD5E1] px-2.5 text-[10px] leading-[15px] cursor-pointer"
+                options={[
+                  { value: "all", label: filter.allLabel },
+                  ...filter.options,
+                ]}
+              />
+            ))}
             <SettingsSelect
               aria-label="Filter by facility"
               value={selectedFacility}
